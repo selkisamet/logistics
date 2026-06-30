@@ -1,0 +1,17 @@
+# Satır sonlarını normalize et: depoda LF, metin dosyaları otomatik algılansın
+* text=auto eol=lf
+
+# Windows betikleri CRLF kalmalı
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# İkili dosyalar (dokunma)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.dump binary
+*.zip binary

@@ -40,3 +40,6 @@ coverage/
 
 # PWA generated
 apps/web/dev-dist/
+
+# Claude Code (kişiye özel ayarlar — paylaşılmaz)
+.claude/settings.local.json
