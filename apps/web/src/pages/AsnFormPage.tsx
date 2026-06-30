@@ -84,8 +84,6 @@ export function AsnFormPage() {
 
       <form onSubmit={handleSubmit((v) => mutation.mutate({ ...v, sources }))} className="space-y-4">
         <Card className="space-y-3">
-          <p className="text-xs text-slate-400">Referans no otomatik atanır (ON-…).</p>
-
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Müşteri *" error={errors.customerId?.message}>
               <Select {...register('customerId')} defaultValue="">
