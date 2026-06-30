@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Güvenli alan (telefon çentik/altbar) için padding */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* QR etiket yazdırma: yalnızca etiket(ler)i bas */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .qr-print,
+  .qr-print *,
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .qr-print {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Toplu etiket sayfası: etiketler akar, biri sayfa ortasında bölünmez */
+  .print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    overflow: visible !important;
+  }
+  .print-sheet .label {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

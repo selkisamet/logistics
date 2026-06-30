@@ -1,0 +1,322 @@
+// Tesellüm & WMS — Prisma şeması (PostgreSQL)
+// Domain enum değerleri @lojistik/shared/enums ile birebir hizalıdır.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  OPERATOR
+}
+
+enum ShipmentStatus {
+  DRAFT
+  EXPECTED
+  IN_RECEIVING
+  COMPLETED
+  CANCELLED
+}
+
+enum ReceiptStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DiscrepancyType {
+  SHORTAGE
+  OVERAGE
+  DAMAGE
+  WRONG_ITEM
+  OTHER
+}
+
+enum PackageType {
+  CARTON
+  PALLET
+  CASE
+  UNIT
+  DRUM
+  BAG
+  BIGBAG
+  OTHER
+}
+
+enum DispatchStatus {
+  DRAFT
+  DISPATCHED
+  CANCELLED
+}
+
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String
+  passwordHash String
+  role         UserRole @default(OPERATOR)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  startedReceipts Receipt[]      @relation("ReceiptStartedBy")
+  discrepancies   Discrepancy[]  @relation("DiscrepancyCreatedBy")
+  dispatches      Dispatch[]     @relation("DispatchBy")
+  auditEvents     AuditEvent[]
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipments       InboundShipment[]
+  receipts        Receipt[]
+  sourceLocations CustomerLocation[]
+}
+
+// Müşteriye ait kaynak depo/adres (malın alınacağı yer - pickup)
+model CustomerLocation {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  createdAt  DateTime @default(now())
+
+  shipmentSources ShipmentSource[]
+
+  @@index([customerId])
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations Location[]
+  shipments InboundShipment[]
+  receipts  Receipt[]
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  code        String
+  description String?
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([warehouseId, code])
+}
+
+// ASN / Ön İhbar — beklenen sevkiyat
+model InboundShipment {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  status         ShipmentStatus @default(EXPECTED)
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id])
+  expectedAt     DateTime?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  lines    ShipmentLine[]
+  sources  ShipmentSource[]
+  receipts Receipt[]
+
+  @@index([vehicleId])
+}
+
+// Araç havuzu: plaka, şoför, tip, dorse (tır için)
+model Vehicle {
+  id           String   @id @default(cuid())
+  plate        String   @unique
+  type         String   @default("Kamyon") // serbest metin (Tır, Kamyon, Kırkayak...)
+  driverName   String?
+  driverPhone  String?
+  trailerPlate String? // dorse plakası (tır)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  shipments  InboundShipment[]
+  dispatches Dispatch[]
+}
+
+// Bir ön ihbarın kaynak depoları (çoklu). Kayıtlı müşteri deposu ya da serbest metin.
+model ShipmentSource {
+  id                 String            @id @default(cuid())
+  shipmentId         String
+  shipment           InboundShipment   @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  customerLocationId String?
+  customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  label              String // görünen ad (kayıtlı depo adı kopyası veya elle girilen metin)
+
+  @@index([shipmentId])
+}
+
+model ShipmentLine {
+  id          String          @id @default(cuid())
+  shipmentId  String
+  shipment    InboundShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  sku         String
+  description String
+  expectedQty Int
+  unit        String          @default("ADET")
+  barcode     String?
+
+  receiptLines ReceiptLine[]
+}
+
+// Tesellüm — fiziksel mal kabul oturumu
+model Receipt {
+  id          String        @id @default(cuid())
+  reference   String        @unique
+  status      ReceiptStatus @default(IN_PROGRESS)
+  shipmentId  String?
+  shipment    InboundShipment? @relation(fields: [shipmentId], references: [id])
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  warehouseId String
+  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id])
+  notes       String?
+  waybillNo   String? // irsaliye numarası (elle girilir)
+  orderNo     String? // sipariş numarası (irsaliyede yer alır, elle girilir)
+  startedById String?
+  startedBy   User?         @relation("ReceiptStartedBy", fields: [startedById], references: [id])
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+  dispatchedAt DateTime? // sevk edildiğinde dolar; null ise hâlâ depoda
+  dispatchId  String?
+  dispatch    Dispatch?     @relation(fields: [dispatchId], references: [id])
+
+  lines         ReceiptLine[]
+  packages      Package[]
+  discrepancies Discrepancy[]
+
+  @@index([dispatchId])
+}
+
+// Sevkiyat (çıkış) — depodaki kabulleri araca yükleyip çıkış
+model Dispatch {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  status         DispatchStatus @default(DRAFT)
+  destination    String // nereye / alıcı
+  vehiclePlate   String? // serbest metin (kayıtsız araç için)
+  driverName     String?
+  vehicleId      String?
+  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id])
+  notes          String?
+  dispatchedById String?
+  dispatchedBy   User?          @relation("DispatchBy", fields: [dispatchedById], references: [id])
+  dispatchedAt   DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  receipts Receipt[] // (eski lot bazlı bağ; kullanılmıyor)
+  packages Package[] // palet bazlı: sevkiyattaki paletler
+
+  @@index([vehicleId])
+}
+
+model ReceiptLine {
+  id           String        @id @default(cuid())
+  receiptId    String
+  receipt      Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  shipmentLineId String?
+  shipmentLine ShipmentLine? @relation(fields: [shipmentLineId], references: [id])
+  sku          String
+  description  String
+  expectedQty  Int?
+  countedQty   Int           @default(0)
+  unit         String        @default("ADET")
+  barcode      String?
+  createdAt    DateTime      @default(now())
+
+  discrepancies Discrepancy[]
+}
+
+// Koli/palet etiketi — QR ile izlenebilirlik
+model Package {
+  id        String      @id @default(cuid())
+  code      String      @unique // QR'a basılan benzersiz kod
+  type      PackageType @default(CARTON)
+  sku       String?
+  qty       Int?
+  note      String?
+  receiptId String
+  receipt   Receipt     @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  // Palet bazlı sevkiyat: null ise depoda, doluysa sevk edilmiş/sevkiyata eklenmiş
+  dispatchId   String?
+  dispatch     Dispatch? @relation(fields: [dispatchId], references: [id])
+  dispatchedAt DateTime?
+
+  @@index([dispatchId])
+}
+
+// Fark / tutanak (eksik / fazla / hasar)
+model Discrepancy {
+  id            String          @id @default(cuid())
+  receiptId     String
+  receipt       Receipt         @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receiptLineId String?
+  receiptLine   ReceiptLine?    @relation(fields: [receiptLineId], references: [id])
+  type          DiscrepancyType
+  qty           Int?
+  description   String
+  createdById   String?
+  createdBy     User?           @relation("DiscrepancyCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime        @default(now())
+
+  attachments Attachment[]
+}
+
+model Attachment {
+  id            String       @id @default(cuid())
+  url           String
+  fileName      String
+  mimeType      String
+  discrepancyId String?
+  discrepancy   Discrepancy? @relation(fields: [discrepancyId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+}
+
+// İzlenebilirlik / denetim kaydı
+model AuditEvent {
+  id         String   @id @default(cuid())
+  action     String // ör: receipt.completed, asn.created
+  entityType String
+  entityId   String
+  metadata   Json?
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
