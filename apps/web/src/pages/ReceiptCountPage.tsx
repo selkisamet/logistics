@@ -20,14 +20,12 @@ import { api, ApiError, assetUrl } from '../lib/api';
 import { toast } from '../lib/toast';
 import { Button, Card, Field, Input, Select, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
-import { BarcodeScanner } from '../components/BarcodeScanner';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 
 export function ReceiptCountPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [scanning, setScanning] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [prefill, setPrefill] = useState<{
     sku?: string;
@@ -99,22 +97,6 @@ export function ReceiptCountPage() {
     });
   };
 
-  const handleScan = (code: string) => {
-    setScanning(false);
-    const norm = code.trim().toLowerCase();
-    const line = receipt.lines.find(
-      (l) => l.barcode?.toLowerCase() === norm || l.sku.toLowerCase() === norm,
-    );
-    if (line) {
-      setCount(line, line.countedQty + 1);
-      toast(`✓ ${line.description}: ${line.countedQty + 1}`);
-    } else {
-      // Eşleşme yok → yeni kalem ekleme formunu kodla doldur
-      setPrefill({ sku: code.trim(), barcode: code.trim() });
-      setAddOpen(true);
-    }
-  };
-
   const totalCounted = receipt.lines.reduce((s, l) => s + l.countedQty, 0);
   const totalExpected = receipt.lines.reduce((s, l) => s + (l.expectedQty ?? 0), 0);
   const hasDiscrepancy = receipt.lines.some(
@@ -155,20 +137,16 @@ export function ReceiptCountPage() {
       />
 
       {editable && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => setScanning(true)}>📷 QR / Barkod Okut</Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setPrefill({});
-                setAddOpen(true);
-              }}
-            >
-              + Kalem Ekle
-            </Button>
-          </div>
-        </div>
+        <Button
+          className="w-full"
+          variant="secondary"
+          onClick={() => {
+            setPrefill({});
+            setAddOpen(true);
+          }}
+        >
+          + Kalem Ekle
+        </Button>
       )}
 
 
@@ -176,7 +154,7 @@ export function ReceiptCountPage() {
       <div className="space-y-2">
         {receipt.lines.length === 0 ? (
           <Card className="text-center text-sm text-slate-500">
-            Henüz kalem yok. QR okutun veya kalem ekleyin.
+            Henüz kalem yok. "+ Kalem Ekle" ile satır girin.
           </Card>
         ) : (
           receipt.lines.map((line) => (
@@ -329,7 +307,6 @@ export function ReceiptCountPage() {
         </Button>
       )}
 
-      {scanning && <BarcodeScanner onScan={handleScan} onClose={() => setScanning(false)} />}
       {addOpen && (
         <AddLineModal
           prefill={prefill}
