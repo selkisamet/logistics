@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createDispatchSchema, type CreateDispatchInput, type Dispatch } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { Button, Card, Field, Input, PlateInput, Select } from '../components/ui';
+import { Button, Card, Combobox, Field, Input, PlateInput } from '../components/ui';
 import { useVehicles } from '../lib/lookups';
 
 export function DispatchCreatePage() {
@@ -45,15 +45,23 @@ export function DispatchCreatePage() {
             <Input placeholder="Örn. X Market - İzmit" {...register('destination')} />
           </Field>
           <Field label="Kayıtlı Araç (opsiyonel)" error={errors.vehicleId?.message}>
-            <Select {...register('vehicleId')} defaultValue="">
-              <option value="">Seçilmedi (elle plaka gir)</option>
-              {vehicles?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.plate}
-                  {v.driverName ? ` - ${v.driverName}` : ''}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              name="vehicleId"
+              control={control}
+              render={({ field }) => (
+                <Combobox
+                  options={(vehicles ?? []).map((v) => ({
+                    value: v.id,
+                    label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
+                  }))}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  nullable
+                  nullableLabel="Seçilmedi (elle plaka gir)"
+                  placeholder="Plaka ara / seç..."
+                />
+              )}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="veya Plaka (elle)" error={errors.vehiclePlate?.message}>

@@ -2,12 +2,18 @@ import { clsx } from 'clsx';
 import { formatPlate } from '../lib/plate';
 import {
   forwardRef,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type SelectHTMLAttributes,
   type HTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
+import { Icon } from './icons';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -75,6 +81,169 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     );
   },
 );
+
+export type ComboOption = { value: string; label: string; hint?: string };
+
+/**
+ * Aranabilir açılır liste (combobox). Yazdıkça filtreler; klavye (yön tuşları/Enter/Esc),
+ * dışına tıklayınca kapanır. Kontrollü: value/onChange. `nullable` ile "boş" seçeneği sunar.
+ */
+export function Combobox({
+  options,
+  value,
+  onChange,
+  placeholder = 'Seçin...',
+  nullable = false,
+  nullableLabel = 'Belirsiz / boş',
+  disabled = false,
+}: {
+  options: ComboOption[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  nullable?: boolean;
+  nullableLabel?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [highlight, setHighlight] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  const selected = options.find((o) => o.value === value) ?? null;
+
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+    // "Boş" satırı yalnızca arama yokken en üstte sabit dursun
+    return nullable && !q ? [{ value: '', label: nullableLabel }, ...filtered] : filtered;
+  }, [options, query, nullable, nullableLabel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) activeRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [highlight, open]);
+
+  const openList = () => {
+    if (disabled) return;
+    setQuery('');
+    setHighlight(0);
+    setOpen(true);
+  };
+  const choose = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setQuery('');
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) openList();
+      else setHighlight((h) => Math.min(h + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (open) {
+        e.preventDefault();
+        const it = items[highlight];
+        if (it) choose(it.value);
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setQuery('');
+    }
+  };
+
+  const display = open ? query : (selected?.label ?? '');
+
+  return (
+    <div ref={rootRef} className="relative">
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          autoComplete="off"
+          disabled={disabled}
+          value={display}
+          placeholder={selected ? selected.label : placeholder}
+          onFocus={openList}
+          onClick={openList}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setHighlight(0);
+            if (!open) setOpen(true);
+          }}
+          onKeyDown={onKeyDown}
+          className={clsx(
+            'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-9 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20',
+            disabled && 'cursor-not-allowed bg-slate-100 text-slate-400',
+            !selected && !open && 'text-slate-400',
+          )}
+        />
+        <Icon
+          name="chevron"
+          className={clsx(
+            'pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform',
+            open ? '-rotate-90' : 'rotate-90',
+          )}
+        />
+      </div>
+
+      {open && (
+        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          {items.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-slate-400">Sonuç yok</li>
+          ) : (
+            items.map((opt, i) => {
+              const isSel = opt.value === value;
+              const isHi = i === highlight;
+              return (
+                <li key={opt.value || '__empty__'}>
+                  <button
+                    type="button"
+                    ref={isHi ? activeRef : undefined}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHighlight(i)}
+                    onClick={() => choose(opt.value)}
+                    className={clsx(
+                      'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm',
+                      isHi ? 'bg-brand/10 text-brand' : 'text-slate-700',
+                      isSel && 'font-medium',
+                    )}
+                  >
+                    <span className="truncate">
+                      {opt.label}
+                      {opt.hint && <span className="ml-1 text-xs text-slate-400">{opt.hint}</span>}
+                    </span>
+                    {isSel && <span className="text-brand">✓</span>}
+                  </button>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /** Plaka girişi: yazıldıkça otomatik büyük harf + standart boşluklama. (kontrollü) */
 export function PlateInput({

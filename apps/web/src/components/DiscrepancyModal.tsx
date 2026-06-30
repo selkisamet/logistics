@@ -9,7 +9,7 @@ import {
   type ReceiptLine,
 } from '@lojistik/shared';
 import { api, ApiError, uploadFiles } from '../lib/api';
-import { Button, Card, Field, Input, Select } from './ui';
+import { Button, Card, Combobox, Field, Input } from './ui';
 
 export function DiscrepancyModal({
   receiptId,
@@ -64,13 +64,11 @@ export function DiscrepancyModal({
 
         <div className="grid grid-cols-2 gap-2">
           <Field label="Tür *">
-            <Select value={type} onChange={(e) => setType(e.target.value as DiscrepancyType)}>
-              {DISCREPANCY_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {DISCREPANCY_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              options={DISCREPANCY_TYPES.map((t) => ({ value: t, label: DISCREPANCY_TYPE_LABELS[t] }))}
+              value={type}
+              onChange={(v) => setType(v as DiscrepancyType)}
+            />
           </Field>
           <Field label="Adet (ops.)">
             <Input type="number" min={0} value={qty} onChange={(e) => setQty(e.target.value)} />
@@ -78,14 +76,13 @@ export function DiscrepancyModal({
         </div>
 
         <Field label="İlgili kalem (ops.)">
-          <Select value={receiptLineId} onChange={(e) => setReceiptLineId(e.target.value)}>
-            <option value="">Genel (kaleme bağlı değil)</option>
-            {lines.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.sku} · {l.description}
-              </option>
-            ))}
-          </Select>
+          <Combobox
+            options={lines.map((l) => ({ value: l.id, label: l.description }))}
+            value={receiptLineId}
+            onChange={setReceiptLineId}
+            nullable
+            nullableLabel="Genel (kaleme bağlı değil)"
+          />
         </Field>
 
         <Field label="Açıklama *">

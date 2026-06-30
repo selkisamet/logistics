@@ -6,7 +6,7 @@ import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { formatDate } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
-import { Button, Card, Field, Select, Spinner } from '../components/ui';
+import { Button, Card, Combobox, Field, Spinner } from '../components/ui';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
 import { useAuthStore } from '../stores/auth';
 
@@ -190,15 +190,16 @@ function PlannedVehicleEditor({ asn, canEdit }: { asn: Asn; canEdit: boolean }) 
   return (
     <div className="space-y-2 rounded-lg bg-slate-50 p-2">
       <Field label="Planlanan araç">
-        <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-          <option value="">Belirsiz / boş</option>
-          {vehicles?.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.plate}
-              {v.driverName ? ` - ${v.driverName}` : ''}
-            </option>
-          ))}
-        </Select>
+        <Combobox
+          options={(vehicles ?? []).map((v) => ({
+            value: v.id,
+            label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
+          }))}
+          value={vehicleId}
+          onChange={setVehicleId}
+          nullable
+          placeholder="Plaka ara / seç..."
+        />
       </Field>
       <div className="flex gap-2">
         <Button variant="secondary" className="flex-1" onClick={() => setEditing(false)}>

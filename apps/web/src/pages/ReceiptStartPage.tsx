@@ -5,7 +5,7 @@ import { clsx } from 'clsx';
 import type { Asn, Paginated, Receipt, StartReceiptInput } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { formatDate } from '../lib/format';
-import { Button, Card, EmptyState, Field, Select, Spinner } from '../components/ui';
+import { Button, Card, Combobox, EmptyState, Field, Spinner } from '../components/ui';
 import { useCustomers, useWarehouses } from '../lib/lookups';
 
 type Mode = 'asn' | 'blind';
@@ -127,24 +127,20 @@ function BlindForm({
   return (
     <Card className="space-y-3">
       <Field label="Müşteri *">
-        <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-          <option value="">Seçin...</option>
-          {customers?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.code})
-            </option>
-          ))}
-        </Select>
+        <Combobox
+          options={(customers ?? []).map((c) => ({ value: c.id, label: c.name, hint: `(${c.code})` }))}
+          value={customerId}
+          onChange={setCustomerId}
+          placeholder="Müşteri ara / seç..."
+        />
       </Field>
       <Field label="Hedef Depo *">
-        <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-          <option value="">Seçin...</option>
-          {warehouses?.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} ({w.code})
-            </option>
-          ))}
-        </Select>
+        <Combobox
+          options={(warehouses ?? []).map((w) => ({ value: w.id, label: w.name, hint: `(${w.code})` }))}
+          value={warehouseId}
+          onChange={setWarehouseId}
+          placeholder="Depo ara / seç..."
+        />
       </Field>
       <Button
         className="w-full"

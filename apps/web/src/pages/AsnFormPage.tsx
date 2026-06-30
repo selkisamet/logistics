@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import {
   type ShipmentSourceInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { Button, Card, Field, Input, Select } from '../components/ui';
+import { Button, Card, Field, Input, Combobox } from '../components/ui';
 import {
   useCustomers,
   useWarehouses,
@@ -86,28 +86,40 @@ export function AsnFormPage() {
         <Card className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Müşteri *" error={errors.customerId?.message}>
-              <Select {...register('customerId')} defaultValue="">
-                <option value="" disabled>
-                  Seçin...
-                </option>
-                {customers?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                name="customerId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    options={(customers ?? []).map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      hint: `(${c.code})`,
+                    }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Müşteri ara / seç..."
+                  />
+                )}
+              />
             </Field>
             <Field label="Hedef Depo *" error={errors.warehouseId?.message}>
-              <Select {...register('warehouseId')} defaultValue="">
-                <option value="" disabled>
-                  Seçin...
-                </option>
-                {warehouses?.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.code})
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                name="warehouseId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    options={(warehouses ?? []).map((w) => ({
+                      value: w.id,
+                      label: w.name,
+                      hint: `(${w.code})`,
+                    }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Depo ara / seç..."
+                  />
+                )}
+              />
             </Field>
           </div>
 
@@ -192,15 +204,22 @@ export function AsnFormPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Araç / Plaka (opsiyonel)" error={errors.vehicleId?.message}>
-              <Select {...register('vehicleId')} defaultValue="">
-                <option value="">Belirsiz / boş</option>
-                {vehicles?.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.plate}
-                    {v.driverName ? ` - ${v.driverName}` : ''}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                name="vehicleId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    options={(vehicles ?? []).map((v) => ({
+                      value: v.id,
+                      label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
+                    }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    nullable
+                    placeholder="Plaka ara / seç..."
+                  />
+                )}
+              />
             </Field>
             <Field label="Beklenen Tarih" error={errors.expectedAt?.message}>
               <Input type="date" {...register('expectedAt')} />

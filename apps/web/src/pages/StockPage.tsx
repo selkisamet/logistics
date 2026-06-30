@@ -6,7 +6,7 @@ import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { formatDate, daysSince } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
-import { Badge, Button, Card, EmptyState, Field, Input, Select, Spinner } from '../components/ui';
+import { Badge, Button, Card, Combobox, EmptyState, Field, Input, Spinner } from '../components/ui';
 
 type QuickTarget = {
   receiptId: string;
@@ -154,15 +154,15 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
         </div>
 
         <Field label="Araç / Plaka">
-          <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-            <option value="">Araç seçin...</option>
-            {vehicles?.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.plate}
-                {v.driverName ? ` - ${v.driverName}` : ''}
-              </option>
-            ))}
-          </Select>
+          <Combobox
+            options={(vehicles ?? []).map((v) => ({
+              value: v.id,
+              label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
+            }))}
+            value={vehicleId}
+            onChange={setVehicleId}
+            placeholder="Araç ara / seç..."
+          />
         </Field>
         {target.plannedVehicle && vehicleId === target.plannedVehicle.id && (
           <p className="text-xs text-green-600">✓ Ön ihbarda planlanan araç seçili.</p>

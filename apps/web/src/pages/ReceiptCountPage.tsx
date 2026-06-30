@@ -18,7 +18,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl } from '../lib/api';
 import { toast } from '../lib/toast';
-import { Button, Card, Field, Input, Select, Spinner, Badge } from '../components/ui';
+import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 
@@ -183,13 +183,11 @@ export function ReceiptCountPage() {
         {editable && (
           <div className="flex items-end gap-2 rounded-lg bg-slate-50 p-2">
             <Field label="Tür">
-              <Select value={pkgType} onChange={(e) => setPkgType(e.target.value)}>
-                {PACKAGE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {PACKAGE_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </Select>
+              <Combobox
+                options={PACKAGE_TYPES.map((t) => ({ value: t, label: PACKAGE_TYPE_LABELS[t] }))}
+                value={pkgType}
+                onChange={setPkgType}
+              />
             </Field>
             <Field label="Adet">
               <Input

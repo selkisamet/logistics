@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,7 +12,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
-import { Badge, Button, Card, Field, Input, Select, Spinner } from '../components/ui';
+import { Badge, Button, Card, Combobox, Field, Input, Spinner } from '../components/ui';
 import { useAuthStore } from '../stores/auth';
 
 export function UsersPage() {
@@ -96,27 +96,23 @@ function UserRow({ user }: { user: User }) {
         <div className="space-y-2 border-t border-slate-100 pt-2">
           <div className="grid grid-cols-2 gap-2">
             <Field label="Rol">
-              <Select
+              <Combobox
+                options={USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }))}
                 value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
+                onChange={(v) => setRole(v as UserRole)}
                 disabled={user.id === myId}
-              >
-                {USER_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {USER_ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </Select>
+              />
             </Field>
             <Field label="Durum">
-              <Select
+              <Combobox
+                options={[
+                  { value: '1', label: 'Aktif' },
+                  { value: '0', label: 'Pasif' },
+                ]}
                 value={isActive ? '1' : '0'}
-                onChange={(e) => setIsActive(e.target.value === '1')}
+                onChange={(v) => setIsActive(v === '1')}
                 disabled={user.id === myId}
-              >
-                <option value="1">Aktif</option>
-                <option value="0">Pasif</option>
-              </Select>
+              />
             </Field>
           </div>
           <Field label="Yeni Şifre (boş bırakılırsa değişmez)">
@@ -146,6 +142,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
@@ -174,13 +171,17 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
             <Input type="email" {...register('email')} />
           </Field>
           <Field label="Rol *" error={errors.role?.message}>
-            <Select {...register('role')}>
-              {USER_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {USER_ROLE_LABELS[r]}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Combobox
+                  options={USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }))}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </Field>
         </div>
         <Field label="Şifre *" error={errors.password?.message}>
