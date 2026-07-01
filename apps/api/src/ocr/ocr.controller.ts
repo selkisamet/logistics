@@ -15,4 +15,11 @@ export class OcrController {
   extractLabel(@UploadedFile() file?: Express.Multer.File) {
     return this.ocrService.extractLabel(file);
   }
+
+  /** İrsaliye fotoğrafı → { waybillNo, orderNo } (mal kabul Belge Bilgileri'ni doldurur). */
+  @Post('waybill')
+  @UseInterceptors(FileInterceptor('file', imageMemoryUploadOptions))
+  extractWaybill(@UploadedFile() file?: Express.Multer.File) {
+    return this.ocrService.extractWaybill(file);
+  }
 }

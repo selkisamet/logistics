@@ -1,4 +1,4 @@
-import type { LabelExtraction } from '@lojistik/shared';
+import type { LabelExtraction, WaybillExtraction } from '@lojistik/shared';
 
 export const OCR_PROVIDER = 'OCR_PROVIDER';
 
@@ -6,4 +6,6 @@ export const OCR_PROVIDER = 'OCR_PROVIDER';
 export interface OcrProvider {
   /** Etiket görselinden yapısal veri çıkarır. */
   extractLabel(image: Buffer, mimeType: string): Promise<LabelExtraction>;
+  /** İrsaliye fotoğrafından yalnızca irsaliye + sipariş numarasını çıkarır. */
+  extractWaybill(image: Buffer, mimeType: string): Promise<WaybillExtraction>;
 }

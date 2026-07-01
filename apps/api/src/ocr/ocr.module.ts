@@ -12,6 +12,11 @@ class NotConfiguredOcrProvider implements OcrProvider {
       'AI etiket okuma yapılandırılmamış. apps/api/.env içine ANTHROPIC_API_KEY ekleyin.',
     );
   }
+  extractWaybill(): never {
+    throw new ServiceUnavailableException(
+      'AI okuma yapılandırılmamış. apps/api/.env içine ANTHROPIC_API_KEY ekleyin.',
+    );
+  }
 }
 
 @Module({

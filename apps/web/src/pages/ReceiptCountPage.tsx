@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -15,8 +15,9 @@ import {
   type UpsertReceiptLineInput,
   type Package,
   type DiscrepancyType,
+  type WaybillExtraction,
 } from '@lojistik/shared';
-import { api, ApiError, assetUrl } from '../lib/api';
+import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
@@ -360,12 +361,53 @@ function DocumentEditor({
     onError: (err) => alert(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  const ocrMut = useMutation({
+    mutationFn: (file: File) => uploadSingle<WaybillExtraction>('/ocr/waybill', file),
+    onSuccess: (res) => {
+      if (res.waybillNo) setWaybill(res.waybillNo);
+      if (res.orderNo) setOrder(res.orderNo);
+      toast(
+        res.waybillNo || res.orderNo
+          ? "📄 Okundu — kontrol edip Kaydet'e basın"
+          : 'Numara okunamadı, elle girin',
+      );
+    },
+    onError: (err) => alert(err instanceof ApiError ? err.message : 'Okunamadı'),
+  });
+
   // Tamamlanmış ve her iki alan da boşsa hiç gösterme
   if (!editable && !initialWaybill && !initialOrder) return null;
 
   return (
     <Card className="space-y-3">
-      <span className="text-sm font-medium text-slate-700">Belge Bilgileri</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-slate-700">Belge Bilgileri</span>
+        {editable && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) ocrMut.mutate(f);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              loading={ocrMut.isPending}
+              onClick={() => fileRef.current?.click()}
+            >
+              📷 Fotoğraftan Oku
+            </Button>
+          </>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Field label="İrsaliye No">
           <Input

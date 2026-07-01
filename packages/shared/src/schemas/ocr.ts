@@ -15,3 +15,10 @@ export const labelExtractionSchema = z.object({
   lines: z.array(labelLineSchema),
 });
 export type LabelExtraction = z.infer<typeof labelExtractionSchema>;
+
+/** Dar OCR — sevk irsaliyesi fotoğrafından yalnızca irsaliye + sipariş numarası. */
+export const waybillExtractionSchema = z.object({
+  waybillNo: z.string().nullable().optional(),
+  orderNo: z.string().nullable().optional(),
+});
+export type WaybillExtraction = z.infer<typeof waybillExtractionSchema>;
