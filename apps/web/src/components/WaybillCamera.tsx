@@ -43,16 +43,30 @@ export function WaybillCamera({
         .getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 2560 },
+            height: { ideal: 1440 },
           },
         })
-        .then((stream) => {
+        .then(async (stream) => {
           if (cancelled) {
             stream.getTracks().forEach((t) => t.stop());
             return;
           }
           streamRef.current = stream;
+          // Sürekli otomatik odak — destekleyen cihazlarda belgeyi netler.
+          try {
+            await stream
+              .getVideoTracks()[0]
+              ?.applyConstraints({
+                advanced: [{ focusMode: 'continuous' }],
+              } as unknown as MediaTrackConstraints);
+          } catch {
+            /* desteklenmiyorsa yoksay */
+          }
+          if (cancelled) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
           const video = videoRef.current;
           if (video) {
             video.srcObject = stream;
@@ -124,11 +138,11 @@ export function WaybillCamera({
 
         {status === 'ready' && (
           <>
-            <div className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm text-white/90">
-              İrsaliye numarasını çerçeveye alın
+            <div className="pointer-events-none absolute inset-x-0 top-5 px-6 text-center text-sm text-white/90">
+              İrsaliyenin tamamını çerçeveye sığdırın · numaraya yaklaşmayın, net olması yeterli
             </div>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-28 w-11/12 max-w-md rounded-lg border-4 border-white/70" />
+              <div className="h-[72%] w-[86%] max-w-sm rounded-lg border-4 border-white/70" />
             </div>
           </>
         )}

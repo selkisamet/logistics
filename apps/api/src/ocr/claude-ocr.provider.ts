@@ -49,11 +49,13 @@ const WAYBILL_JSON_SCHEMA = {
   required: ['waybillNo', 'orderNo'],
 } as const;
 
-const WAYBILL_SYSTEM_PROMPT = `Sen bir lojistik mal kabul asistanısın. Sana verilen sevk irsaliyesi / irsaliye
-fotoğrafından YALNIZCA iki numarayı oku: İrsaliye Numarası (waybillNo) ve varsa Sipariş Numarası (orderNo).
-Türkçe belgelerde bunlar "İrsaliye No", "Sevk İrsaliyesi No", "Seri/Sıra No", "Sipariş No", "Sipariş Numarası"
-gibi etiketlerle geçer. Sadece belgede AÇIKÇA GÖRDÜĞÜN değeri yaz; tahmin etme, uydurma.
-Etiketi değil, yalnızca numara/kod değerini döndür. Bulamadığın alanı null bırak.`;
+const WAYBILL_SYSTEM_PROMPT = `Sen bir lojistik mal kabul asistanısın. Sana verilen e-İrsaliye / sevk irsaliyesi
+fotoğrafından YALNIZCA iki değeri oku: İrsaliye Numarası (waybillNo) ve varsa Sipariş Numarası (orderNo).
+Türkçe belgelerde bunlar "İrsaliye No", "İrsaliye Numarası", "Sevk İrsaliyesi No", "Sipariş No",
+"Sipariş Numarası" etiketlerinin YANINDA yer alır. İrsaliye No genelde harf+rakam karışık kısa bir koddur
+(ör. ATZ2026000006278). Belgede "ETTN" adıyla uzun bir UUID (ör. 8487FAD0-0A57-45D8-...) bulunabilir;
+bu İrsaliye No DEĞİLDİR, onu KULLANMA. Sadece belgede AÇIKÇA GÖRDÜĞÜN değeri yaz; tahmin etme, uydurma.
+Etiketi değil yalnızca değeri döndür. Bulamadığın alanı null bırak.`;
 
 export class ClaudeOcrProvider implements OcrProvider {
   private readonly logger = new Logger(ClaudeOcrProvider.name);
