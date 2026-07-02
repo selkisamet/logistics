@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { loginSchema, type LoginInput, type LoginResponse } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
+import { getApiBase, setApiBase, serverUrlConfigurable } from '../lib/config';
 import { useAuthStore } from '../stores/auth';
 import { Button, Field, Input } from '../components/ui';
 
@@ -11,6 +12,8 @@ export function LoginPage() {
   const { token, setAuth } = useAuthStore();
   const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
+  const showServer = serverUrlConfigurable();
+  const [serverUrl, setServerUrl] = useState(getApiBase());
 
   const {
     register,
@@ -22,6 +25,7 @@ export function LoginPage() {
 
   const onSubmit = async (values: LoginInput) => {
     setServerError(null);
+    if (showServer) setApiBase(serverUrl);
     try {
       const res = await api.post<LoginResponse>('/auth/login', values);
       setAuth(res.accessToken, res.user);
@@ -43,6 +47,19 @@ export function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {showServer && (
+            <Field label="Sunucu adresi">
+              <Input
+                type="url"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                placeholder="https://xxxx.trycloudflare.com"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+              />
+            </Field>
+          )}
           <Field label="E-posta" error={errors.email?.message}>
             <Input type="email" placeholder="ornek@firma.com" {...register('email')} />
           </Field>

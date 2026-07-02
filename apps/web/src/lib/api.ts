@@ -1,6 +1,5 @@
 import { useAuthStore } from '../stores/auth';
-
-const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+import { getApiBase } from './config';
 
 export class ApiError extends Error {
   status: number;
@@ -24,7 +23,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   };
   if (auth && token) finalHeaders.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetch(`${getApiBase()}/api${path}`, {
     ...rest,
     headers: finalHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -60,7 +59,7 @@ export const api = {
 
 /** Sunucudaki dosya yolunu (ör. /uploads/x.jpg) tam URL'ye çevirir. */
 export function assetUrl(path: string): string {
-  return path.startsWith('http') ? path : `${API_URL}${path}`;
+  return path.startsWith('http') ? path : `${getApiBase()}${path}`;
 }
 
 /** Tek dosyayı belirtilen alan adıyla yükler — multipart/form-data. */
@@ -73,7 +72,7 @@ export async function uploadSingle<T>(
   const fd = new FormData();
   fd.append(field, file);
 
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetch(`${getApiBase()}/api${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: fd,
@@ -99,7 +98,7 @@ export async function uploadFiles<T>(path: string, files: File[]): Promise<T> {
   const fd = new FormData();
   files.forEach((f) => fd.append('files', f));
 
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetch(`${getApiBase()}/api${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: fd,
