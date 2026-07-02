@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -15,13 +15,13 @@ import {
   type UpsertReceiptLineInput,
   type Package,
   type DiscrepancyType,
-  type WaybillExtraction,
 } from '@lojistik/shared';
-import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
+import { api, ApiError, assetUrl } from '../lib/api';
 import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
+import { WaybillCamera } from '../components/WaybillCamera';
 
 export function ReceiptCountPage() {
   const { id } = useParams<{ id: string }>();
@@ -361,20 +361,7 @@ function DocumentEditor({
     onError: (err) => alert(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
 
-  const fileRef = useRef<HTMLInputElement>(null);
-  const ocrMut = useMutation({
-    mutationFn: (file: File) => uploadSingle<WaybillExtraction>('/ocr/waybill', file),
-    onSuccess: (res) => {
-      if (res.waybillNo) setWaybill(res.waybillNo);
-      if (res.orderNo) setOrder(res.orderNo);
-      toast(
-        res.waybillNo || res.orderNo
-          ? "📄 Okundu — kontrol edip Kaydet'e basın"
-          : 'Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.',
-      );
-    },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Okunamadı'),
-  });
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   // Tamamlanmış ve her iki alan da boşsa hiç gösterme
   if (!editable && !initialWaybill && !initialOrder) return null;
@@ -384,28 +371,9 @@ function DocumentEditor({
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-slate-700">Belge Bilgileri</span>
         {editable && (
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) ocrMut.mutate(f);
-                e.target.value = '';
-              }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              loading={ocrMut.isPending}
-              onClick={() => fileRef.current?.click()}
-            >
-              📷 İrsaliye No Oku
-            </Button>
-          </>
+          <Button type="button" variant="secondary" onClick={() => setCameraOpen(true)}>
+            📷 İrsaliye No Oku
+          </Button>
         )}
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -430,6 +398,16 @@ function DocumentEditor({
         <Button variant="secondary" loading={mut.isPending} onClick={() => mut.mutate()}>
           Kaydet
         </Button>
+      )}
+      {cameraOpen && (
+        <WaybillCamera
+          onResult={(res) => {
+            if (res.waybillNo) setWaybill(res.waybillNo);
+            if (res.orderNo) setOrder(res.orderNo);
+            toast("📄 Okundu — kontrol edip Kaydet'e basın");
+          }}
+          onClose={() => setCameraOpen(false)}
+        />
       )}
     </Card>
   );
