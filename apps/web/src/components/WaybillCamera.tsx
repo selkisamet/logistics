@@ -4,13 +4,18 @@ import { ApiError, uploadSingle } from '../lib/api';
 import { Button } from './ui';
 
 type Status = 'starting' | 'ready' | 'error';
-type ZoomCaps = { min: number; max: number; step: number };
+
+// ImageCapture tarayıcı API'si (TS lib'inde her sürümde yok) — gevşek tip.
+type PhotoCaps = { imageWidth?: { max?: number }; imageHeight?: { max?: number } };
+type ImageCaptureLike = {
+  takePhoto: (settings?: { imageWidth?: number; imageHeight?: number }) => Promise<Blob>;
+  getPhotoCapabilities: () => Promise<PhotoCaps>;
+};
 
 /**
  * İrsaliye No'yu uygulama İÇİNDE (sayfa yenilenmeden) kamerayla okur.
- * Native `capture` bazı telefonlarda kameradan dönünce sayfayı yeniden yüklüyordu; burada
- * getUserMedia ile sayfada kalırız. Net foto için ImageCapture.takePhoto() (varsa) + zoom.
- * Not: Kamera yalnızca https/localhost'ta açılır.
+ * Önizleme yumuşak görünse bile çekim, ImageCapture.takePhoto() ile TAM çözünürlükte ve
+ * odak tetiklenerek alınır (native kaliteye yakın). Kamera yalnızca https/localhost'ta açılır.
  */
 export function WaybillCamera({
   onResult,
@@ -28,8 +33,6 @@ export function WaybillCamera({
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
-  const [zoomCaps, setZoomCaps] = useState<ZoomCaps | null>(null);
-  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +50,8 @@ export function WaybillCamera({
         .getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 2560 },
-            height: { ideal: 1440 },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
           },
         })
         .then(async (stream) => {
@@ -57,30 +60,14 @@ export function WaybillCamera({
             return;
           }
           streamRef.current = stream;
-          const track = stream.getVideoTracks()[0] ?? null;
-          trackRef.current = track;
-
-          // Sürekli otomatik odak (destekleyen cihazlarda).
+          trackRef.current = stream.getVideoTracks()[0] ?? null;
           try {
-            await track?.applyConstraints({
+            await trackRef.current?.applyConstraints({
               advanced: [{ focusMode: 'continuous' }],
             } as unknown as MediaTrackConstraints);
           } catch {
             /* yoksay */
           }
-          // Zoom yeteneği varsa kaydırıcı için sınırları al.
-          try {
-            const caps = track?.getCapabilities?.() as unknown as {
-              zoom?: { min: number; max: number; step?: number };
-            };
-            if (caps?.zoom && caps.zoom.max > caps.zoom.min) {
-              setZoomCaps({ min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 });
-              setZoom(caps.zoom.min);
-            }
-          } catch {
-            /* yoksay */
-          }
-
           const video = videoRef.current;
           if (video) {
             video.srcObject = stream;
@@ -105,29 +92,31 @@ export function WaybillCamera({
     };
   }, [attempt]);
 
-  const applyZoom = (value: number) => {
-    setZoom(value);
-    try {
-      void trackRef.current?.applyConstraints({
-        advanced: [{ zoom: value }],
-      } as unknown as MediaTrackConstraints);
-    } catch {
-      /* yoksay */
-    }
-  };
-
-  /** Odaklı yüksek çözünürlüklü kare al: ImageCapture varsa takePhoto, yoksa video karesi. */
+  /** Odaklı, tam çözünürlüklü kare al: ImageCapture.takePhoto (varsa) yoksa video karesi. */
   const grabPhoto = async (): Promise<Blob | null> => {
     const track = trackRef.current;
-    const AnyImageCapture = (window as unknown as { ImageCapture?: new (t: MediaStreamTrack) => { takePhoto: () => Promise<Blob> } }).ImageCapture;
-    if (track && AnyImageCapture) {
+    const ImageCaptureCtor = (
+      window as unknown as { ImageCapture?: new (t: MediaStreamTrack) => ImageCaptureLike }
+    ).ImageCapture;
+
+    if (track && ImageCaptureCtor) {
       try {
-        const ic = new AnyImageCapture(track);
-        return await ic.takePhoto();
+        const ic = new ImageCaptureCtor(track);
+        // Odak otursun diye kısa bekleme.
+        await new Promise((r) => setTimeout(r, 350));
+        let settings: { imageWidth?: number; imageHeight?: number } | undefined;
+        try {
+          const caps = await ic.getPhotoCapabilities();
+          settings = { imageWidth: caps.imageWidth?.max, imageHeight: caps.imageHeight?.max };
+        } catch {
+          /* çözünürlük sınırı alınamadıysa varsayılan */
+        }
+        return await ic.takePhoto(settings);
       } catch {
-        /* takePhoto başarısızsa video karesine düş */
+        /* takePhoto yoksa/başarısızsa video karesine düş */
       }
     }
+
     const video = videoRef.current;
     if (!video || !video.videoWidth) return null;
     const canvas = document.createElement('canvas');
@@ -136,7 +125,7 @@ export function WaybillCamera({
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+    return new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.95));
   };
 
   const capture = async () => {
@@ -156,7 +145,7 @@ export function WaybillCamera({
         onResult(res);
         onClose();
       } else {
-        setHint('Numara okunamadı — zoom ile büyütüp net olunca tekrar çekin.');
+        setHint('Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.');
       }
     } catch (err) {
       setHint(err instanceof ApiError ? err.message : 'Okunamadı, tekrar deneyin.');
@@ -180,7 +169,7 @@ export function WaybillCamera({
 
         {status === 'ready' && (
           <div className="pointer-events-none absolute inset-x-0 top-5 px-6 text-center text-sm text-white/90">
-            İrsaliye No'yu zoom ile büyütüp net olunca çekin
+            İrsaliye No'yu ortala, net olunca çek
           </div>
         )}
 
@@ -212,29 +201,15 @@ export function WaybillCamera({
         )}
       </div>
 
-      <div className="safe-bottom space-y-3 bg-white p-4">
+      <div className="safe-bottom space-y-2 bg-white p-4">
         {hint && <p className="text-center text-sm text-amber-600">{hint}</p>}
-        {zoomCaps && status === 'ready' && (
-          <label className="flex items-center gap-3 text-sm text-slate-600">
-            <span>Zoom</span>
-            <input
-              type="range"
-              min={zoomCaps.min}
-              max={zoomCaps.max}
-              step={zoomCaps.step}
-              value={zoom}
-              onChange={(e) => applyZoom(Number(e.target.value))}
-              className="flex-1 accent-brand"
-            />
-          </label>
-        )}
         <Button
           className="w-full"
           loading={busy}
           disabled={status !== 'ready'}
           onClick={() => void capture()}
         >
-          📷 Çek ve Oku
+          📷 Resim Çek
         </Button>
       </div>
     </div>
