@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -376,6 +376,12 @@ function DocumentEditor({
     onError: (err) => alert(err instanceof ApiError ? err.message : 'Okunamadı'),
   });
 
+  // React 'capture' özniteliğini boolean gibi işleyip değerini düşürebiliyor; ham DOM
+  // attribute'unu doğrudan ayarlayarak ARKA kamerayı garanti et (ilk açılış arka kamera).
+  useEffect(() => {
+    fileRef.current?.setAttribute('capture', 'environment');
+  });
+
   // Tamamlanmış ve her iki alan da boşsa hiç gösterme
   if (!editable && !initialWaybill && !initialOrder) return null;
 
@@ -389,7 +395,6 @@ function DocumentEditor({
               ref={fileRef}
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
