@@ -11,7 +11,9 @@ depolama → sevkiyat** uygulaması. Müşteriler belirsiz yük bilgisiyle araç
 mal depoya gelince elde olur, bazı yük cross-dock (hemen çıkar), bazısı birkaç gün bekler.
 Çekirdek ihtiyaç: **depoda ne var bilmek + sevkiyat yapmak**, **palet bazlı QR takip** ile.
 
-**Kullanıcı net istedi:** AI ile etiket/belge OCR İSTEMİYOR (kötü foto → yanlış kayıt).
+**Kullanıcı net istedi:** AI ile TÜM etiket/belge OCR'ı İSTEMİYOR (kötü foto → yanlış kayıt).
+İstisna (onaylandı): mal kabulde **yalnızca İrsaliye/Sipariş No**'yu fotoğraftan okuyup
+**düzenlenebilir input'a** yazan dar OCR (kullanıcı kaydetmeden kontrol eder). Bkz. Native uygulama.
 Genel ayar tercihi: en mantıklı/sade çözüm, az tık, hata riskini azaltan akış.
 
 Kurulum/çalıştırma detayları için ayrıca [README.md](README.md).
@@ -25,6 +27,27 @@ Kurulum/çalıştırma detayları için ayrıca [README.md](README.md).
   `VITE_API_URL=""` (aynı-köken, relative).
 - **Postgres taşınabilir:** `.tools/pgsql`, veri `.tools/pgdata`, trust auth, port 5432, db `lojistik`.
   Windows servisi DEĞİL — her oturumda başlatılmalı. `LojistikYedek` zamanlanmış görevi her gün 13:00 yedek alır.
+
+## Native uygulama (Capacitor / Android APK)
+
+Operatörün telefonunda **web kamerası (getUserMedia) otomatik odaklamıyordu** (bulanık, yanlış OCR)
+ve `<input capture>` arka kamerayı açtıramıyordu. Çözüm: uygulamayı **Capacitor 6** ile Android APK'sına
+sardık. Kamera **@capacitor-community/camera-preview** (CameraX) ile: `position:'rear'` → **arka kamera
+zorlanır**, native **otomatik odak** → net. [WaybillCamera.tsx](apps/web/src/components/WaybillCamera.tsx)
+native önizlemeyi WebView ARKASINDA render eder; bu yüzden modal **`document.body`'ye portal** edilir ve
+kamera açıkken **`#root` gizlenir** (`.wb-camera-active`, [index.css](apps/web/src/index.css)) ki WebView
+saydam olsun. Çekilen foto `POST /ocr/waybill`'e gider. Tarayıcıda (dev) `<input capture>` yedeği kullanılır
+(`isNativeApp()` ayrımı — [lib/config.ts](apps/web/src/lib/config.ts)).
+
+- **APK derleme:** yerelde Android SDK YOK. `apps/web` ya da `packages/shared`'a her push'ta
+  **GitHub Actions** ([.github/workflows/android.yml](.github/workflows/android.yml)) bulutta **debug APK**
+  üretir → run sayfası → **Artifacts → tesellum-debug-apk**. `gradlew` git'te +x (100755) olmalı.
+- **Ayarlanabilir sunucu adresi:** APK'da web varlıkları gömülü, aynı-köken yok. Giriş ekranında
+  **"Sunucu adresi"** alanı (native'de ya da elle ayarlanınca görünür) → backend/tünel URL'si girilir,
+  localStorage'da saklanır. `lib/api.ts` `getApiBase()` kullanır. Tünel değişince APK'yı değil, sadece
+  bu alanı güncelle. (İleride kalıcı adres yapılınca bu sabitlenir.)
+- **Capacitor komutları** `apps/web`'ten: `pnpm exec cap sync android`. `capacitor.config.ts` `webDir: dist`.
+  CI derlemeyi izlemek için (repo public): GitHub REST API `/actions/runs` (auth'suz okunur; loglar auth ister).
 
 ## Monorepo
 
