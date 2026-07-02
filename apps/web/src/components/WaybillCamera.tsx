@@ -12,22 +12,41 @@ type ImageCaptureLike = {
   getPhotoCapabilities: () => Promise<PhotoCaps>;
 };
 
-/** ARKA kamerayı zorla; tek kameralı cihazda normale düş. */
+/**
+ * İzin al, cihazları etiketleriyle tarayıp ARKA ANA kamerayı seç ve onu aç.
+ * Çoklu kameralı telefonlarda 'exact environment' bazen yardımcı (derinlik/makro) kamerayı
+ * seçip siyah ekran verir; deviceId ile ana arka kamerayı hedeflemek bunu önler.
+ */
 async function openRearStream(): Promise<MediaStream> {
   const md = navigator.mediaDevices;
+  const baseVideo = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+  // 1) İzin + başlangıç akışı (arka tercihli).
+  let stream: MediaStream;
   try {
-    return await md.getUserMedia({
-      video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-    });
-  } catch (e) {
-    const name = e instanceof DOMException ? e.name : '';
-    if (name === 'OverconstrainedError' || name === 'NotFoundError' || name === 'ConstraintNotSatisfiedError') {
-      return md.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-    }
-    throw e;
+    stream = await md.getUserMedia({ video: { ...baseVideo, facingMode: { ideal: 'environment' } } });
+  } catch {
+    stream = await md.getUserMedia({ video: true });
   }
+
+  // 2) Etiketlere göre arka ANA kamerayı seçip yeniden aç (yardımcı/ön kamerayı ele).
+  try {
+    const cams = (await md.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+    if (cams.length > 1) {
+      const backs = cams.filter((c) => /back|rear|arka|environment/i.test(c.label));
+      const isAux = (l: string) => /wide|ultra|tele|depth|macro|mono|geniş|derinlik/i.test(l);
+      const chosen = backs.find((c) => !isAux(c.label)) ?? backs[0];
+      const currentId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+      if (chosen?.deviceId && chosen.deviceId !== currentId) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = await md.getUserMedia({ video: { ...baseVideo, deviceId: { exact: chosen.deviceId } } });
+      }
+    }
+  } catch {
+    /* enumerate/switch başarısızsa mevcut akışla devam */
+  }
+
+  return stream;
 }
 
 /**
@@ -174,7 +193,14 @@ export function WaybillCamera({
       </div>
 
       <div className="relative flex-1 bg-black">
-        <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+        <video
+          ref={videoRef}
+          className="h-full w-full object-cover"
+          autoPlay
+          muted
+          playsInline
+          onLoadedMetadata={(e) => void e.currentTarget.play().catch(() => undefined)}
+        />
 
         {status === 'ready' && (
           <div className="pointer-events-none absolute inset-x-0 top-5 px-6 text-center text-sm text-white/90">
