@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import type { WaybillExtraction } from '@lojistik/shared';
 import { ApiError, uploadSingle } from '../lib/api';
@@ -78,8 +79,9 @@ export function WaybillCamera({
     }
   };
 
-  // Not: orta alan şeffaf → arkadaki native önizleme görünür. Üst/alt barlar yarı saydam.
-  return (
+  // Not: modal body'ye portal edilir; #root gizlenince orta alan gerçekten şeffaf olur
+  // ve arkadaki native önizleme görünür. Üst/alt barlar yarı saydam.
+  return createPortal(
     <div className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] flex-col">
       <div className="flex shrink-0 items-center justify-between bg-black/60 p-4 text-white">
         <span className="font-semibold">İrsaliye Numarasını Oku</span>
@@ -107,6 +109,7 @@ export function WaybillCamera({
           📷 Resim Çek
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

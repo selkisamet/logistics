@@ -32,12 +32,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Native kamera (camera-preview) önizlemesi WebView'ın arkasında render edilir;
-   açıkken arka planı şeffaf yap ki önizleme görünsün. */
+/* Native kamera (camera-preview) önizlemesi WebView'ın ARKASINDA render edilir.
+   Açıkken: arka planı şeffaf yap VE uygulama içeriğini (#root) gizle ki WebView
+   o bölgede gerçekten saydam olsun; modal body'ye portal edildiği için görünür kalır. */
 html.wb-camera-active,
 html.wb-camera-active body,
 html.wb-camera-active #root {
   background: transparent !important;
+}
+html.wb-camera-active #root {
+  visibility: hidden;
 }
 
 /* QR etiket yazdırma: yalnızca etiket(ler)i bas */
