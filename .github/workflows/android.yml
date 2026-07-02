@@ -45,7 +45,9 @@ jobs:
 
       - name: Debug APK derle
         working-directory: apps/web/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: APK'yı yükle (artifact)
         uses: actions/upload-artifact@v4
