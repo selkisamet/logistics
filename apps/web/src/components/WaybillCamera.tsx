@@ -91,69 +91,42 @@ export function WaybillCamera({
     };
   }, [attempt]);
 
-  const captureAndRead = async (): Promise<'found' | 'retry' | 'stop'> => {
+  // Operatör İrsaliye No bölgesini net çerçeveleyip "Çek ve Oku"ya basar → o kare OCR'a gider.
+  const capture = async () => {
     const video = videoRef.current;
-    if (!video || inFlightRef.current) return 'retry';
+    if (!video || inFlightRef.current || status !== 'ready') return;
     const w = video.videoWidth;
     const h = video.videoHeight;
-    if (!w || !h) return 'retry';
+    if (!w || !h) return;
 
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return 'stop';
+    if (!ctx) return;
     ctx.drawImage(video, 0, 0, w, h);
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.9));
-    if (!blob) return 'retry';
+    if (!blob) return;
 
     const file = new File([blob], 'irsaliye.jpg', { type: 'image/jpeg' });
     inFlightRef.current = true;
     setBusy(true);
+    setHint('');
     try {
       const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file);
       if (res.waybillNo || res.orderNo) {
         onResult(res);
         onClose();
-        return 'found';
+      } else {
+        setHint('Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.');
       }
-      setHint('Numara net görünmüyor — belgeyi düz, iyi ışıkta ve sabit tutun.');
-      return 'retry';
     } catch (err) {
-      // API hatası (ör. anahtar yok): otomatik döngüyü durdur, elle denensin.
       setHint(err instanceof ApiError ? err.message : 'Okunamadı, tekrar deneyin.');
-      return 'stop';
     } finally {
       inFlightRef.current = false;
       setBusy(false);
     }
   };
-
-  // Kamera hazır olunca otomatik okumayı dene (belge sabit tutulurken tekrarlar).
-  useEffect(() => {
-    if (status !== 'ready') return;
-    let cancelled = false;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const attempt = async () => {
-      if (cancelled) return;
-      const r = await captureAndRead();
-      if (cancelled || r === 'found' || r === 'stop') return;
-      tries += 1;
-      if (tries >= 6) {
-        setHint('Otomatik okunamadı — netleştirip "Şimdi Oku"ya basın.');
-        return;
-      }
-      timer = setTimeout(attempt, 3000);
-    };
-    timer = setTimeout(attempt, 1300); // otomatik odak otursun diye kısa bekleme
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // captureAndRead her render'da yeniden oluşur; effect yalnızca status'a bağlı kalmalı.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
@@ -170,10 +143,10 @@ export function WaybillCamera({
         {status === 'ready' && (
           <>
             <div className="pointer-events-none absolute inset-x-0 top-5 px-6 text-center text-sm text-white/90">
-              İrsaliyenin tamamını çerçeveye sığdırın · otomatik okunuyor, sabit tutun
+              Sadece "İrsaliye No" kısmını çerçeveye alın · net görününce çekin
             </div>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-[72%] w-[86%] max-w-sm rounded-lg border-4 border-white/70" />
+              <div className="h-24 w-11/12 max-w-md rounded-lg border-4 border-white/70" />
             </div>
           </>
         )}
@@ -212,9 +185,9 @@ export function WaybillCamera({
           className="w-full"
           loading={busy}
           disabled={status !== 'ready'}
-          onClick={() => void captureAndRead()}
+          onClick={() => void capture()}
         >
-          📷 Şimdi Oku
+          📷 Çek ve Oku
         </Button>
       </div>
     </div>
