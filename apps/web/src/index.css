@@ -32,6 +32,14 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Native kamera (camera-preview) önizlemesi WebView'ın arkasında render edilir;
+   açıkken arka planı şeffaf yap ki önizleme görünsün. */
+html.wb-camera-active,
+html.wb-camera-active body,
+html.wb-camera-active #root {
+  background: transparent !important;
+}
+
 /* QR etiket yazdırma: yalnızca etiket(ler)i bas */
 @media print {
   body * {

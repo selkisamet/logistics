@@ -1,0 +1,57 @@
+name: Android APK
+
+# Web/paylaşılan kod değişince ya da elle tetiklenince bulutta debug APK üretir.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+      - '.github/workflows/android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
+      - name: Shared derle
+        run: pnpm --filter @lojistik/shared build
+
+      - name: Web derle
+        run: pnpm --filter @lojistik/web build
+
+      - name: Capacitor sync
+        working-directory: apps/web
+        run: pnpm exec cap sync android
+
+      - name: Debug APK derle
+        working-directory: apps/web/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: APK'yı yükle (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tesellum-debug-apk
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
