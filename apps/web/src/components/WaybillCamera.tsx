@@ -193,15 +193,15 @@ export function WaybillCamera({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      <div className="flex items-center justify-between p-4 text-white">
+    <div className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] flex-col overflow-hidden bg-black">
+      <div className="flex shrink-0 items-center justify-between p-4 text-white">
         <span className="font-semibold">İrsaliye Numarasını Oku</span>
         <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm">
           Kapat ✕
         </button>
       </div>
 
-      <div className="relative flex-1 bg-black">
+      <div className="relative min-h-0 flex-1 bg-black">
         <video
           ref={videoRef}
           className="h-full w-full object-cover"
@@ -249,7 +249,7 @@ export function WaybillCamera({
         )}
       </div>
 
-      <div className="safe-bottom space-y-2 bg-white p-4">
+      <div className="safe-bottom shrink-0 space-y-2 bg-white p-4">
         {hint && <p className="text-center text-sm text-amber-600">{hint}</p>}
         <Button
           className="w-full"
