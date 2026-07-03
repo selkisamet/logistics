@@ -1,0 +1,38 @@
+# Render Blueprint — web + api tek serviste (NestJS derlenmiş web'i de sunar).
+# DB: Supabase (Session pooler). Gizli env'ler (sync:false) panelden girilir.
+services:
+  - type: web
+    name: logistics
+    runtime: node
+    region: frankfurt
+    plan: free
+    autoDeploy: true
+    buildCommand: |
+      corepack enable
+      pnpm install --frozen-lockfile
+      pnpm --filter @lojistik/shared build
+      pnpm --filter @lojistik/web build
+      pnpm --filter @lojistik/api build
+      pnpm --filter @lojistik/api exec prisma generate
+      pnpm --filter @lojistik/api exec prisma migrate deploy
+      pnpm --filter @lojistik/api exec tsx prisma/seed.ts
+    startCommand: cd apps/api && node dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      - key: OCR_PROVIDER
+        value: claude
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_DIR
+        value: ./uploads
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # --- Gizliler: Render panelinden gir (sohbete/gite girmez) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
