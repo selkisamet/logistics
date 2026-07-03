@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Service worker'ı kaldır: bulutta hep online'ız, SW önbelleği native app'te
+      // eski sürümü gösteriyordu. selfDestroying, önbellekli istemcilerdeki SW'yi de siler.
+      selfDestroying: true,
       devOptions: { enabled: false },
       includeAssets: ['favicon.svg'],
       manifest: {
