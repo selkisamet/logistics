@@ -14,6 +14,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
+import { confirmDialog } from '../lib/dialog';
 import { formatDateTime } from '../lib/format';
 import { Button, Card, EmptyState, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
@@ -52,7 +53,7 @@ export function DispatchDetailPage() {
       afterChange(d);
       toast(`✓ Palet eklendi (${d.packages.length})`);
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Eklenemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Eklenemedi'),
   });
   const bulkAddMut = useMutation({
     mutationFn: (ids: string[]) =>
@@ -61,7 +62,7 @@ export function DispatchDetailPage() {
       afterChange(d);
       toast(`✓ ${d.packages.length} palet yüklendi`);
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Eklenemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Eklenemedi'),
   });
   const removeMut = useMutation({
     mutationFn: (packageId: string) =>
@@ -74,12 +75,12 @@ export function DispatchDetailPage() {
       setDispatch(d);
       qc.invalidateQueries({ queryKey: ['dispatches'] });
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Sevk edilemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Sevk edilemedi'),
   });
   const cancelMut = useMutation({
     mutationFn: () => api.post<Dispatch>(`/dispatches/${id}/cancel`),
     onSuccess: afterChange,
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'İptal edilemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İptal edilemedi'),
   });
 
   const editable = dispatch?.status === 'DRAFT';
@@ -173,8 +174,15 @@ export function DispatchDetailPage() {
             <Button
               variant="secondary"
               loading={cancelMut.isPending}
-              onClick={() => {
-                if (confirm('Sevkiyat iptal edilsin mi? Paletler depoya geri döner.')) cancelMut.mutate();
+              onClick={async () => {
+                if (
+                  await confirmDialog({
+                    message: 'Sevkiyat iptal edilsin mi? Paletler depoya geri döner.',
+                    confirmText: 'İptal Et',
+                    danger: true,
+                  })
+                )
+                  cancelMut.mutate();
               }}
             >
               İptal Et
@@ -289,8 +297,14 @@ export function DispatchDetailPage() {
           className="w-full"
           loading={completeMut.isPending}
           disabled={dispatch.packages.length === 0}
-          onClick={() => {
-            if (confirm(`${dispatch.packages.length} palet sevk edilsin mi?`)) completeMut.mutate();
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                message: `${dispatch.packages.length} palet sevk edilsin mi?`,
+                confirmText: 'Sevk Et',
+              })
+            )
+              completeMut.mutate();
           }}
         >
           🚚 Sevk Et ({dispatch.packages.length} palet)

@@ -20,6 +20,7 @@ import {
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
 import { toast } from '../lib/toast';
+import { confirmDialog } from '../lib/dialog';
 import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
@@ -56,7 +57,7 @@ export function ReceiptCountPage() {
   const upsertMut = useMutation({
     mutationFn: (input: UpsertReceiptLineInput) => api.patch<Receipt>(`/receipts/${id}/lines`, input),
     onSuccess: (r) => setReceipt(r),
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Kayıt başarısız'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kayıt başarısız'),
   });
 
   const completeMut = useMutation({
@@ -66,7 +67,7 @@ export function ReceiptCountPage() {
       qc.invalidateQueries({ queryKey: ['receipts'] });
       qc.invalidateQueries({ queryKey: ['asn'] });
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Tamamlanamadı'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Tamamlanamadı'),
   });
 
   const packageMut = useMutation({
@@ -76,7 +77,7 @@ export function ReceiptCountPage() {
       qc.invalidateQueries({ queryKey: ['receipts', id] });
       toast(`🏷️ ${pkgs.length} etiket üretildi`);
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Etiket üretilemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Etiket üretilemedi'),
   });
 
   const deleteDiscrepancyMut = useMutation({
@@ -260,8 +261,15 @@ export function ReceiptCountPage() {
                   </div>
                   {editable && (
                     <button
-                      onClick={() => {
-                        if (confirm('Tutanak silinsin mi?')) deleteDiscrepancyMut.mutate(d.id);
+                      onClick={async () => {
+                        if (
+                          await confirmDialog({
+                            message: 'Tutanak silinsin mi?',
+                            confirmText: 'Sil',
+                            danger: true,
+                          })
+                        )
+                          deleteDiscrepancyMut.mutate(d.id);
                       }}
                       className="text-xs font-medium text-red-600"
                     >
@@ -297,11 +305,12 @@ export function ReceiptCountPage() {
           className="w-full"
           variant={hasDiscrepancy ? 'secondary' : 'primary'}
           loading={completeMut.isPending}
-          onClick={() => {
+          onClick={async () => {
             const msg = hasDiscrepancy
               ? 'Beklenen ile sayılan arasında fark var. Yine de tamamlansın mı?'
               : 'Mal kabul tamamlansın mı?';
-            if (confirm(msg)) completeMut.mutate();
+            if (await confirmDialog({ message: msg, confirmText: 'Tamamla', danger: hasDiscrepancy }))
+              completeMut.mutate();
           }}
         >
           {hasDiscrepancy ? '⚠ Farklı Tamamla' : '✓ Tamamla'}
@@ -360,7 +369,7 @@ function DocumentEditor({
       qc.setQueryData(['receipts', receiptId], r);
       toast('Belge bilgileri kaydedildi');
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -369,7 +378,7 @@ function DocumentEditor({
   const ocrMut = useMutation({
     mutationFn: (file: File) => uploadSingle<WaybillExtraction>('/ocr/waybill', file),
     onSuccess: (res) => fillFromOcr(res),
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Okunamadı'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Okunamadı'),
   });
 
   function fillFromOcr(res: WaybillExtraction) {

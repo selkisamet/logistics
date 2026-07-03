@@ -10,6 +10,7 @@ import {
   type CreateCustomerLocationInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
+import { confirmDialog } from '../lib/dialog';
 import { Button, Card, EmptyState, Field, Input, Spinner } from '../components/ui';
 import { useAuthStore } from '../stores/auth';
 
@@ -132,8 +133,15 @@ function LocationRow({
       </div>
       {canEdit && (
         <button
-          onClick={() => {
-            if (confirm('Bu kaynak depo silinsin mi?')) del.mutate();
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                message: 'Bu kaynak depo silinsin mi?',
+                confirmText: 'Sil',
+                danger: true,
+              })
+            )
+              del.mutate();
           }}
           className="text-sm font-medium text-red-600"
         >

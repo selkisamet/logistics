@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { useAuthStore } from '../stores/auth';
 import { UserRole } from '@lojistik/shared';
 import { Toaster } from './Toaster';
+import { Dialog } from './Dialog';
 import { Icon, type IconName } from './icons';
 
 type NavItem = { to: string; label: string; icon: IconName; roles?: UserRole[] };
@@ -78,6 +79,7 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <Toaster />
+      <Dialog />
 
       {/* Masaüstü sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white">

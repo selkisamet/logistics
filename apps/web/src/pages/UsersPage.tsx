@@ -71,7 +71,7 @@ function UserRow({ user }: { user: User }) {
       setOpen(false);
       toast('Kullanıcı güncellendi');
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Güncellenemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Güncellenemedi'),
   });
 
   return (

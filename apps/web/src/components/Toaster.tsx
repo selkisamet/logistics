@@ -1,4 +1,11 @@
-import { useToastStore } from '../lib/toast';
+import { clsx } from 'clsx';
+import { useToastStore, type ToastVariant } from '../lib/toast';
+
+const STYLES: Record<ToastVariant, string> = {
+  default: 'bg-slate-900/90 text-white',
+  success: 'bg-emerald-600/95 text-white',
+  error: 'bg-red-600/95 text-white',
+};
 
 /** Üstte beliren, içeriği itmeyen (sabit konumlu) bildirim katmanı. */
 export function Toaster() {
@@ -8,7 +15,10 @@ export function Toaster() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto max-w-sm rounded-lg bg-slate-900/90 px-4 py-2 text-center text-sm font-medium text-white shadow-lg"
+          className={clsx(
+            'pointer-events-auto max-w-sm rounded-lg px-4 py-2 text-center text-sm font-medium shadow-lg',
+            STYLES[t.variant],
+          )}
         >
           {t.message}
         </div>

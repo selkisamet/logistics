@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { type Asn } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
+import { confirmDialog } from '../lib/dialog';
 import { formatDate } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
 import { Button, Card, Combobox, Field, Spinner } from '../components/ui';
@@ -29,7 +30,7 @@ export function AsnDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['asn'] });
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'İşlem başarısız'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İşlem başarısız'),
   });
 
   const deleteMut = useMutation({
@@ -38,7 +39,7 @@ export function AsnDetailPage() {
       qc.invalidateQueries({ queryKey: ['asn'] });
       navigate('/on-ihbar', { replace: true });
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Silme başarısız'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Silme başarısız'),
   });
 
   if (isLoading) return <Spinner />;
@@ -117,8 +118,9 @@ export function AsnDetailPage() {
               variant="secondary"
               className="flex-1"
               loading={cancelMut.isPending}
-              onClick={() => {
-                if (confirm('Ön ihbar iptal edilsin mi?')) cancelMut.mutate();
+              onClick={async () => {
+                if (await confirmDialog({ message: 'Ön ihbar iptal edilsin mi?', danger: true }))
+                  cancelMut.mutate();
               }}
             >
               İptal Et
@@ -129,8 +131,16 @@ export function AsnDetailPage() {
               variant="danger"
               className="flex-1"
               loading={deleteMut.isPending}
-              onClick={() => {
-                if (confirm('Ön ihbar kalıcı olarak silinsin mi?')) deleteMut.mutate();
+              onClick={async () => {
+                if (
+                  await confirmDialog({
+                    title: 'Ön ihbarı sil',
+                    message: 'Ön ihbar kalıcı olarak silinsin mi?',
+                    confirmText: 'Sil',
+                    danger: true,
+                  })
+                )
+                  deleteMut.mutate();
               }}
             >
               Sil
@@ -158,7 +168,7 @@ function PlannedVehicleEditor({ asn, canEdit }: { asn: Asn; canEdit: boolean }) 
       setEditing(false);
       toast('Planlanan araç güncellendi');
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Güncellenemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Güncellenemedi'),
   });
 
   const current = asn.vehicle

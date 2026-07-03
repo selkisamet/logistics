@@ -134,7 +134,7 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
       toast(`🚚 ${target.inStock} palet sevk edildi · ${d.reference}`);
       onClose();
     },
-    onError: (err) => alert(err instanceof ApiError ? err.message : 'Sevk edilemedi'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Sevk edilemedi'),
   });
 
   return (
