@@ -26,7 +26,14 @@ export function setApiBase(url: string): void {
   localStorage.setItem(KEY, url.trim().replace(/\/$/, ''));
 }
 
-/** Sunucu adresi alanı gösterilmeli mi? (native app'te ya da daha önce elle ayarlandıysa) */
+/**
+ * Sunucu adresi alanı gösterilmeli mi?
+ * Uzak (http/https) origin'den yüklendiyse (server.url ile canlı yükleme) aynı-köken /api
+ * çalışır → alan gerekmez. Yalnızca gömülü varlıklarda (capacitor://localhost / file://) ya da
+ * kullanıcı elle ayarladıysa göster.
+ */
 export function serverUrlConfigurable(): boolean {
-  return isNativeApp() || localStorage.getItem(KEY) !== null;
+  const httpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
+  if (httpOrigin) return localStorage.getItem(KEY) !== null;
+  return true;
 }

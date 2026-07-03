@@ -3,11 +3,13 @@ name: Android APK
 # Web/paylaşılan kod değişince ya da elle tetiklenince bulutta debug APK üretir.
 on:
   workflow_dispatch:
+  # Sadece NATIVE değişikliklerde APK derle (web/iş değişiklikleri Render'dan canlı gelir).
   push:
     branches: [master]
     paths:
-      - 'apps/web/**'
-      - 'packages/shared/**'
+      - 'apps/web/android/**'
+      - 'apps/web/capacitor.config.ts'
+      - 'apps/web/package.json'
       - '.github/workflows/android.yml'
 
 jobs:
