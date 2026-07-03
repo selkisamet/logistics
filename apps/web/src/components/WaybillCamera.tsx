@@ -117,7 +117,7 @@ export function WaybillCamera({
       </div>
 
       {/* Alt: hata mesajı + yuvarlak (yazısız) deklanşör */}
-      <div className="safe-bottom shrink-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-6 pt-10">
+      <div className="safe-bottom shrink-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-10 pt-10">
         {hint && <p className="mb-3 text-center text-sm text-amber-300 drop-shadow">{hint}</p>}
         <div className="flex items-center justify-center">
           <button
