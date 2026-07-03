@@ -29,6 +29,9 @@ services:
         value: ./uploads
       - key: JWT_EXPIRES_IN
         value: 7d
+      # Supabase pooler ile Prisma advisory lock çakışmasını önle (tek migrator).
+      - key: PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
+        value: '1'
       # --- Gizliler: Render panelinden gir (sohbete/gite girmez) ---
       - key: DATABASE_URL
         sync: false
