@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import type { WaybillExtraction } from '@lojistik/shared';
 import { ApiError, uploadSingle } from '../lib/api';
-import { Button } from './ui';
 
 /**
  * Native (Capacitor) kamera: CameraX tabanlı camera-preview eklentisiyle ARKA kamerayı
@@ -83,31 +82,53 @@ export function WaybillCamera({
   // ve arkadaki native önizleme görünür. Üst/alt barlar yarı saydam.
   return createPortal(
     <div className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] flex-col">
-      <div className="flex shrink-0 items-center justify-between bg-black/60 p-4 text-white">
-        <span className="font-semibold">İrsaliye Numarasını Oku</span>
-        <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm">
-          Kapat ✕
+      {/* Üst: başlık + belirgin yuvarlak kapatma */}
+      <div className="flex shrink-0 items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-4 text-white">
+        <span className="mt-1 font-semibold drop-shadow">İrsaliye Numarasını Oku</span>
+        <button
+          onClick={onClose}
+          aria-label="Kapat"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-2xl leading-none ring-1 ring-white/40 transition active:scale-95"
+        >
+          ✕
         </button>
       </div>
 
+      {/* Orta: native önizleme arkada. Yönlendirme yazısı + çekimde ORTADA loader. */}
       <div className="relative min-h-0 flex-1">
-        {ready && (
-          <div className="pointer-events-none absolute inset-x-0 top-4 px-6 text-center text-sm text-white/90 drop-shadow">
+        {ready && !busy && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 px-6 text-center text-sm text-white/90 drop-shadow">
             İrsaliye No'yu ortala, net olunca çek
           </div>
         )}
         {!ready && !hint && (
           <div className="absolute inset-0 flex items-center justify-center bg-black text-white">
-            <span className="h-8 w-8 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+            <span className="h-9 w-9 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+          </div>
+        )}
+        {busy && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3 rounded-2xl bg-black/65 px-7 py-5 text-white">
+              <span className="h-11 w-11 animate-spin rounded-full border-4 border-white/25 border-t-white" />
+              <span className="text-sm">Okunuyor…</span>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="safe-bottom shrink-0 space-y-2 bg-black/60 p-4">
-        {hint && <p className="text-center text-sm text-amber-300">{hint}</p>}
-        <Button className="w-full" loading={busy} disabled={!ready} onClick={() => void capture()}>
-          📷 Resim Çek
-        </Button>
+      {/* Alt: hata mesajı + yuvarlak (yazısız) deklanşör */}
+      <div className="safe-bottom shrink-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-6 pt-10">
+        {hint && <p className="mb-3 text-center text-sm text-amber-300 drop-shadow">{hint}</p>}
+        <div className="flex items-center justify-center">
+          <button
+            onClick={() => void capture()}
+            disabled={!ready || busy}
+            aria-label="Resim çek"
+            className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-white/85 transition active:scale-95 disabled:opacity-40"
+          >
+            <span className="h-14 w-14 rounded-full bg-white" />
+          </button>
+        </div>
       </div>
     </div>,
     document.body,
