@@ -44,6 +44,12 @@ html.wb-camera-active #root {
   visibility: hidden;
 }
 
+/* Tesellüm fişi A5 sayfa (isimli sayfa: yalnızca .receipt-print'i etkiler, QR etiketleri A4 kalır) */
+@page slip {
+  size: A5;
+  margin: 8mm;
+}
+
 /* QR etiket yazdırma: yalnızca etiket(ler)i bas */
 @media print {
   body * {
@@ -52,8 +58,22 @@ html.wb-camera-active #root {
   .qr-print,
   .qr-print *,
   .print-sheet,
-  .print-sheet * {
+  .print-sheet *,
+  .receipt-print,
+  .receipt-print * {
     visibility: visible;
+  }
+  /* Tesellüm fişi: sayfanın tamamını kapla, önizleme çerçevesini sıfırla */
+  .receipt-print {
+    page: slip;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
   }
   .qr-print {
     position: fixed;
