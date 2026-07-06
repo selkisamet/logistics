@@ -5,9 +5,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   createCustomerLocationSchema,
+  createCustomerRecipientSchema,
   type Customer,
   type CustomerLocation,
+  type CustomerRecipient,
   type CreateCustomerLocationInput,
+  type CreateCustomerRecipientInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
@@ -28,6 +31,11 @@ export function CustomerDetailPage() {
   const { data: locations } = useQuery({
     queryKey: ['customers', id, 'locations'],
     queryFn: () => api.get<CustomerLocation[]>(`/customers/${id}/locations`),
+    enabled: !!id,
+  });
+  const { data: recipients } = useQuery({
+    queryKey: ['customers', id, 'recipients'],
+    queryFn: () => api.get<CustomerRecipient[]>(`/customers/${id}/recipients`),
     enabled: !!id,
   });
 
@@ -62,6 +70,25 @@ export function CustomerDetailPage() {
           <div className="flex flex-col gap-4">
             {locations.map((loc) => (
               <LocationRow key={loc.id} customerId={id!} location={loc} canEdit={canEdit} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="mb-2 font-semibold text-slate-900">Alıcılar</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Bu müşterinin kendi müşterileri (malın gideceği taraf). Ön ihbar oluştururken buradan seçilir.
+        </p>
+
+        {canEdit && id && <RecipientForm customerId={id} />}
+
+        {!recipients || recipients.length === 0 ? (
+          <EmptyState title="Henüz alıcı yok" hint="Yukarıdan ekleyebilirsiniz." />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {recipients.map((rec) => (
+              <RecipientRow key={rec.id} customerId={id!} recipient={rec} canEdit={canEdit} />
             ))}
           </div>
         )}
@@ -137,6 +164,88 @@ function LocationRow({
             if (
               await confirmDialog({
                 message: 'Bu kaynak depo silinsin mi?',
+                confirmText: 'Sil',
+                danger: true,
+              })
+            )
+              del.mutate();
+          }}
+          className="text-sm font-medium text-red-600"
+        >
+          Sil
+        </button>
+      )}
+    </Card>
+  );
+}
+
+function RecipientForm({ customerId }: { customerId: string }) {
+  const qc = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateCustomerRecipientInput>({ resolver: zodResolver(createCustomerRecipientSchema) });
+
+  const mutation = useMutation({
+    mutationFn: (input: CreateCustomerRecipientInput) =>
+      api.post<CustomerRecipient>(`/customers/${customerId}/recipients`, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] });
+      reset();
+    },
+    onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Eklenemedi'),
+  });
+
+  return (
+    <Card className="mb-3">
+      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Field label="Alıcı Adı *" error={errors.name?.message}>
+            <Input placeholder="X Market" {...register('name')} />
+          </Field>
+          <Field label="Adres" error={errors.address?.message}>
+            <Input placeholder="İzmit ..." {...register('address')} />
+          </Field>
+        </div>
+        {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+        <Button type="submit" loading={mutation.isPending}>
+          + Alıcı Ekle
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function RecipientRow({
+  customerId,
+  recipient,
+  canEdit,
+}: {
+  customerId: string;
+  recipient: CustomerRecipient;
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const del = useMutation({
+    mutationFn: () => api.delete(`/customers/${customerId}/recipients/${recipient.id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] }),
+  });
+
+  return (
+    <Card className="flex items-center justify-between">
+      <div>
+        <p className="font-medium text-slate-900">{recipient.name}</p>
+        {recipient.address && <p className="text-xs text-slate-500">{recipient.address}</p>}
+      </div>
+      {canEdit && (
+        <button
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                message: 'Bu alıcı silinsin mi?',
                 confirmText: 'Sil',
                 danger: true,
               })

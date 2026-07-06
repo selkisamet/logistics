@@ -8,6 +8,7 @@ import {
   type CreateAsnInput,
   type Asn,
   type ShipmentSourceInput,
+  type ShipmentRecipientInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { Button, Card, Field, Input, Combobox } from '../components/ui';
@@ -15,6 +16,7 @@ import {
   useCustomers,
   useWarehouses,
   useCustomerLocations,
+  useCustomerRecipients,
   useVehicles,
 } from '../lib/lookups';
 
@@ -29,6 +31,8 @@ export function AsnFormPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [sources, setSources] = useState<ShipmentSourceInput[]>([]);
   const [freeText, setFreeText] = useState('');
+  const [recipients, setRecipients] = useState<ShipmentRecipientInput[]>([]);
+  const [recipientFreeText, setRecipientFreeText] = useState('');
 
   const {
     register,
@@ -48,6 +52,7 @@ export function AsnFormPage() {
 
   const customerId = watch('customerId');
   const { data: locations } = useCustomerLocations(customerId);
+  const { data: recipientOptions } = useCustomerRecipients(customerId);
 
   const toggleLocation = (locId: string, name: string) => {
     setSources((prev) =>
@@ -63,6 +68,22 @@ export function AsnFormPage() {
     setFreeText('');
   };
   const removeSource = (i: number) => setSources((prev) => prev.filter((_, idx) => idx !== i));
+
+  const toggleRecipient = (recId: string, name: string) => {
+    setRecipients((prev) =>
+      prev.some((r) => r.customerRecipientId === recId)
+        ? prev.filter((r) => r.customerRecipientId !== recId)
+        : [...prev, { customerRecipientId: recId, label: name }],
+    );
+  };
+  const addRecipientFreeText = () => {
+    const label = recipientFreeText.trim();
+    if (!label) return;
+    setRecipients((prev) => [...prev, { label }]);
+    setRecipientFreeText('');
+  };
+  const removeRecipient = (i: number) =>
+    setRecipients((prev) => prev.filter((_, idx) => idx !== i));
 
   const mutation = useMutation({
     mutationFn: (input: CreateAsnInput) => api.post<Asn>('/asn', input),
@@ -82,7 +103,10 @@ export function AsnFormPage() {
         <h2 className="text-xl font-bold text-slate-900">Yeni Ön İhbar</h2>
       </div>
 
-      <form onSubmit={handleSubmit((v) => mutation.mutate({ ...v, sources }))} className="space-y-4">
+      <form
+        onSubmit={handleSubmit((v) => mutation.mutate({ ...v, sources, recipients }))}
+        className="space-y-4"
+      >
         <Card className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Müşteri *" error={errors.customerId?.message}>
@@ -190,6 +214,85 @@ export function AsnFormPage() {
                         <button
                           type="button"
                           onClick={() => removeSource(i)}
+                          className="text-slate-400 hover:text-red-600"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Alıcı (çoklu) — firmanın kendi müşterileri */}
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">Alıcı (gönderilecek taraf)</span>
+            {!customerId ? (
+              <p className="text-xs text-slate-400">Önce müşteri seçin.</p>
+            ) : (
+              <>
+                {recipientOptions && recipientOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {recipientOptions.map((rec) => {
+                      const selected = recipients.some((r) => r.customerRecipientId === rec.id);
+                      return (
+                        <button
+                          key={rec.id}
+                          type="button"
+                          onClick={() => toggleRecipient(rec.id, rec.name)}
+                          className={
+                            'rounded-full border px-3 py-1.5 text-sm ' +
+                            (selected
+                              ? 'border-brand bg-brand text-white'
+                              : 'border-slate-300 bg-white text-slate-600')
+                          }
+                        >
+                          {selected ? '✓ ' : ''}
+                          {rec.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Bu müşterinin kayıtlı alıcısı yok.{' '}
+                    <Link to={`/musteriler/${customerId}`} className="text-brand underline">
+                      Alıcı ekle
+                    </Link>{' '}
+                    veya aşağıdan elle girin.
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Elle alıcı ekle"
+                    value={recipientFreeText}
+                    onChange={(e) => setRecipientFreeText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addRecipientFreeText();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="secondary" onClick={addRecipientFreeText}>
+                    Ekle
+                  </Button>
+                </div>
+
+                {recipients.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {recipients.map((r, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+                      >
+                        {r.customerRecipientId ? '👤' : '📝'} {r.label}
+                        <button
+                          type="button"
+                          onClick={() => removeRecipient(i)}
                           className="text-slate-400 hover:text-red-600"
                         >
                           ✕

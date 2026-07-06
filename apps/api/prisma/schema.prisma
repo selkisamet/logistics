@@ -87,6 +87,7 @@ model Customer {
   shipments       InboundShipment[]
   receipts        Receipt[]
   sourceLocations CustomerLocation[]
+  recipients      CustomerRecipient[]
 }
 
 // Müşteriye ait kaynak depo/adres (malın alınacağı yer - pickup)
@@ -99,6 +100,20 @@ model CustomerLocation {
   createdAt  DateTime @default(now())
 
   shipmentSources ShipmentSource[]
+
+  @@index([customerId])
+}
+
+// Müşteriye ait alıcı (firmanın kendi müşterisi - malın gideceği taraf)
+model CustomerRecipient {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  createdAt  DateTime @default(now())
+
+  shipmentRecipients ShipmentRecipient[]
 
   @@index([customerId])
 }
@@ -143,9 +158,10 @@ model InboundShipment {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  lines    ShipmentLine[]
-  sources  ShipmentSource[]
-  receipts Receipt[]
+  lines      ShipmentLine[]
+  sources    ShipmentSource[]
+  recipients ShipmentRecipient[]
+  receipts   Receipt[]
 
   @@index([vehicleId])
 }
@@ -174,6 +190,18 @@ model ShipmentSource {
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
   label              String // görünen ad (kayıtlı depo adı kopyası veya elle girilen metin)
+
+  @@index([shipmentId])
+}
+
+// Bir ön ihbarın alıcıları (çoklu). Kayıtlı müşteri alıcısı ya da serbest metin.
+model ShipmentRecipient {
+  id                  String             @id @default(cuid())
+  shipmentId          String
+  shipment            InboundShipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  customerRecipientId String?
+  customerRecipient   CustomerRecipient? @relation(fields: [customerRecipientId], references: [id])
+  label               String // görünen ad (kayıtlı alıcı adı kopyası veya elle girilen metin)
 
   @@index([shipmentId])
 }

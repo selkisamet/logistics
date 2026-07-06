@@ -70,6 +70,10 @@ export function AsnDetailPage() {
             label="Kaynak"
             value={asn.sources.length ? asn.sources.map((s) => s.label).join(', ') : '–'}
           />
+          <Info
+            label="Alıcı"
+            value={asn.recipients.length ? asn.recipients.map((r) => r.label).join(', ') : '–'}
+          />
           <Info label="Toplam kalem" value={String(asn.lines.length)} />
           <Info label="Toplam adet" value={String(totalExpected)} />
         </dl>

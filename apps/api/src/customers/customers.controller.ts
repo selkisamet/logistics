@@ -13,11 +13,13 @@ import {
   createCustomerSchema,
   updateCustomerSchema,
   createCustomerLocationSchema,
+  createCustomerRecipientSchema,
   paginationQuerySchema,
   UserRole,
   type CreateCustomerInput,
   type UpdateCustomerInput,
   type CreateCustomerLocationInput,
+  type CreateCustomerRecipientInput,
   type PaginationQuery,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -82,5 +84,27 @@ export class CustomersController {
   @Delete(':id/locations/:locationId')
   removeLocation(@Param('id') id: string, @Param('locationId') locationId: string) {
     return this.customersService.removeLocation(id, locationId);
+  }
+
+  // ---- Alıcılar (firmanın kendi müşterileri) ----
+
+  @Get(':id/recipients')
+  findRecipients(@Param('id') id: string) {
+    return this.customersService.listRecipients(id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Post(':id/recipients')
+  addRecipient(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(createCustomerRecipientSchema)) dto: CreateCustomerRecipientInput,
+  ) {
+    return this.customersService.addRecipient(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Delete(':id/recipients/:recipientId')
+  removeRecipient(@Param('id') id: string, @Param('recipientId') recipientId: string) {
+    return this.customersService.removeRecipient(id, recipientId);
   }
 }

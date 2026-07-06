@@ -77,7 +77,9 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 **Ön İhbar (ASN)** → **Mal Kabul (Receipt)** → **Palet (Package, benzersiz QR)** →
 **Depo (stok = tamamlanmış ama sevk edilmemiş paletler)** → **Sevkiyat (Dispatch)**.
 
-- ASN: oto referans, opsiyonel araç/tarih, çoklu kaynak (müşteri deposu + serbest metin).
+- ASN: oto referans, opsiyonel araç/tarih, **çoklu kaynak** (müşteri deposu + serbest metin) ve
+  **çoklu alıcı** (firmanın kendi müşterileri = malın gideceği taraf; CustomerRecipient + ShipmentRecipient,
+  kaynak deseninin birebir aynası; müşteri detayında yönetilir, ön ihbarda çoklu seçilir).
   Satır = **Açıklama + Adet** (SKU/Barkod kaldırıldı; müşteri belgelerinde İrsaliye No + Sipariş No + irsaliye QR var, ürün barkodu yok).
 - Mal Kabul: sayım (satırlar **id** ile güncellenir, SKU boş olabilir), **İrsaliye No + Sipariş No** (Belge Bilgileri),
   toplu palet QR etiketi üretimi (adet girilir), tamamla. Kör kabul (ASN'siz) da var.
@@ -108,8 +110,9 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   elle `migration.sql` + `prisma migrate deploy` (non-interactive ortamda `migrate dev` bloklanır).
 - **Client üretimi EPERM:** `prisma generate` çalışan BASLAT node süreçleri motor DLL'ini kilitler.
   Çözüm: önce node'u durdur (`Stop-Process -Name node -Force`), `pnpm prisma generate`, sonra tekrar BASLAT.
-- **Modeller:** User, Customer, CustomerLocation, Warehouse, Location, InboundShipment(+vehicleId,sources),
-  ShipmentLine, ShipmentSource, Receipt(+waybillNo, orderNo, dispatchId), ReceiptLine, Package(+dispatchId,
+- **Modeller:** User, Customer, CustomerLocation, CustomerRecipient, Warehouse, Location,
+  InboundShipment(+vehicleId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,
+  Receipt(+waybillNo, orderNo, dispatchId), ReceiptLine, Package(+dispatchId,
   dispatchedAt), Discrepancy, Attachment, Dispatch(+vehicleId, packages), Vehicle(type=String), AuditEvent.
 
 ## Doğrulama (değişiklik sonrası)

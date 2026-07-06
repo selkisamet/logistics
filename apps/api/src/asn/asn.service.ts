@@ -15,6 +15,7 @@ const SHIPMENT_INCLUDE = {
   warehouse: { select: { id: true, name: true, code: true } },
   vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
   sources: true,
+  recipients: true,
   lines: {
     orderBy: { sku: 'asc' },
     include: { receiptLines: { select: { countedQty: true } } },
@@ -66,6 +67,7 @@ export class AsnService {
   async create(input: CreateAsnInput) {
     await this.ensureCustomerAndWarehouse(input.customerId, input.warehouseId);
     const sources = await this.validateSources(input.customerId, input.sources);
+    const recipients = await this.validateRecipients(input.customerId, input.recipients);
     if (input.reference) await this.ensureReferenceFree(input.reference);
 
     const data = {
@@ -77,6 +79,7 @@ export class AsnService {
       status: ShipmentStatus.EXPECTED,
       lines: { create: input.lines.map(toLineData) },
       sources: { create: sources },
+      recipients: { create: recipients },
     };
 
     // Referans verilmediyse otomatik üret (ON-...), çakışmada yeniden dene
@@ -118,6 +121,10 @@ export class AsnService {
       input.sources !== undefined
         ? await this.validateSources(input.customerId ?? existing.customerId, input.sources)
         : undefined;
+    const recipients =
+      input.recipients !== undefined
+        ? await this.validateRecipients(input.customerId ?? existing.customerId, input.recipients)
+        : undefined;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // Satırlar verildiyse hepsini değiştir (mal kabul başlamadıysa güvenli)
@@ -136,6 +143,14 @@ export class AsnService {
         await tx.shipmentSource.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentSource.createMany({
           data: sources.map((s) => ({ ...s, shipmentId: id })),
+        });
+      }
+
+      // Alıcılar verildiyse hepsini değiştir
+      if (recipients) {
+        await tx.shipmentRecipient.deleteMany({ where: { shipmentId: id } });
+        await tx.shipmentRecipient.createMany({
+          data: recipients.map((r) => ({ ...r, shipmentId: id })),
         });
       }
 
@@ -221,6 +236,29 @@ export class AsnService {
     });
   }
 
+  /** Alıcıları doğrular; kayıtlı alıcı seçildiyse etiketi alıcı adıyla sabitler. */
+  private async validateRecipients(
+    customerId: string,
+    recipients: CreateAsnInput['recipients'],
+  ): Promise<{ customerRecipientId: string | null; label: string }[]> {
+    if (!recipients || recipients.length === 0) return [];
+
+    const ids = recipients.map((r) => r.customerRecipientId).filter((x): x is string => !!x);
+    const found = ids.length
+      ? await this.prisma.customerRecipient.findMany({ where: { id: { in: ids }, customerId } })
+      : [];
+    const byId = new Map(found.map((r) => [r.id, r]));
+
+    return recipients.map((r) => {
+      if (r.customerRecipientId) {
+        const rec = byId.get(r.customerRecipientId);
+        if (!rec) throw new BadRequestException('Geçersiz alıcı seçimi');
+        return { customerRecipientId: rec.id, label: rec.name };
+      }
+      return { customerRecipientId: null, label: r.label };
+    });
+  }
+
   private async ensureCustomerAndWarehouse(customerId: string, warehouseId: string) {
     const [customer, warehouse] = await Promise.all([
       this.prisma.customer.findUnique({ where: { id: customerId } }),
@@ -258,6 +296,11 @@ function serializeShipment(s: ShipmentWithRelations) {
       id: src.id,
       customerLocationId: src.customerLocationId,
       label: src.label,
+    })),
+    recipients: s.recipients.map((rec) => ({
+      id: rec.id,
+      customerRecipientId: rec.customerRecipientId,
+      label: rec.label,
     })),
     expectedAt: s.expectedAt,
     notes: s.notes,

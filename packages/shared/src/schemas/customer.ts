@@ -45,3 +45,19 @@ export const customerLocationSchema = z.object({
   createdAt: z.string(),
 });
 export type CustomerLocation = z.infer<typeof customerLocationSchema>;
+
+/** Müşteriye ait alıcı (firmanın kendi müşterisi - malın gideceği taraf) */
+export const createCustomerRecipientSchema = z.object({
+  name: z.string().min(2, 'Alıcı adı gerekli'),
+  address: z.string().optional(),
+});
+export type CreateCustomerRecipientInput = z.infer<typeof createCustomerRecipientSchema>;
+
+export const customerRecipientSchema = z.object({
+  id: z.string(),
+  customerId: z.string(),
+  name: z.string(),
+  address: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type CustomerRecipient = z.infer<typeof customerRecipientSchema>;

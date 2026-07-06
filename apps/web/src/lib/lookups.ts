@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api';
-import type { Customer, CustomerLocation, Warehouse, Vehicle, Paginated } from '@lojistik/shared';
+import type {
+  Customer,
+  CustomerLocation,
+  CustomerRecipient,
+  Warehouse,
+  Vehicle,
+  Paginated,
+} from '@lojistik/shared';
 
 /** Seçim kutuları için tüm müşteriler (select). */
 export function useCustomers() {
@@ -32,6 +39,15 @@ export function useCustomerLocations(customerId: string | undefined) {
   return useQuery({
     queryKey: ['customers', customerId, 'locations'],
     queryFn: () => api.get<CustomerLocation[]>(`/customers/${customerId}/locations`),
+    enabled: !!customerId,
+  });
+}
+
+/** Bir müşterinin alıcıları (firmanın kendi müşterileri). */
+export function useCustomerRecipients(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', customerId, 'recipients'],
+    queryFn: () => api.get<CustomerRecipient[]>(`/customers/${customerId}/recipients`),
     enabled: !!customerId,
   });
 }
