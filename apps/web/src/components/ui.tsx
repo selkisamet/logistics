@@ -245,6 +245,220 @@ export function Combobox({
   );
 }
 
+/**
+ * Aranabilir ÇOKLU seçim combobox. Seçilenler kutunun içinde chip olarak durur; yazdıkça filtreler.
+ * `onCreate` verilirse, aranan metin listede yoksa "… oluştur" satırı çıkar (kalıcı kayıt üretir).
+ * Kontrollü: value (seçili ComboOption[]) / onChange.
+ */
+export function MultiCombobox({
+  options,
+  value,
+  onChange,
+  placeholder = 'Seç / ara...',
+  onCreate,
+  disabled = false,
+  emptyHint = 'Sonuç yok',
+}: {
+  options: ComboOption[];
+  value: ComboOption[];
+  onChange: (value: ComboOption[]) => void;
+  placeholder?: string;
+  /** Verilirse aranan metin listede yoksa "oluştur" seçeneği gösterilir; oluşturulan option döner. */
+  onCreate?: (label: string) => Promise<ComboOption>;
+  disabled?: boolean;
+  emptyHint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [highlight, setHighlight] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedIds = new Set(value.map((v) => v.value));
+  const q = query.trim().toLowerCase();
+  const filtered = options.filter(
+    (o) => !selectedIds.has(o.value) && (!q || o.label.toLowerCase().includes(q)),
+  );
+  const showCreate =
+    !!onCreate &&
+    query.trim().length > 0 &&
+    !options.some((o) => o.label.toLowerCase() === q) &&
+    !value.some((o) => o.label.toLowerCase() === q);
+  const itemCount = filtered.length + (showCreate ? 1 : 0);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const add = (opt: ComboOption) => {
+    onChange([...value, opt]);
+    setQuery('');
+    setHighlight(0);
+    inputRef.current?.focus();
+  };
+  const removeVal = (val: string) => onChange(value.filter((v) => v.value !== val));
+  const create = async () => {
+    if (!onCreate || busy) return;
+    const label = query.trim();
+    if (!label) return;
+    setBusy(true);
+    try {
+      const opt = await onCreate(label);
+      onChange([...value, opt]);
+      setQuery('');
+      setHighlight(0);
+    } catch {
+      /* hata onCreate tarafında toast'lanır */
+    } finally {
+      setBusy(false);
+      inputRef.current?.focus();
+    }
+  };
+  const choose = (i: number) => {
+    if (i < filtered.length) add(filtered[i]);
+    else if (showCreate) void create();
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) setOpen(true);
+      else setHighlight((h) => Math.min(h + 1, itemCount - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (open && itemCount > 0) {
+        e.preventDefault();
+        choose(highlight);
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setQuery('');
+    } else if (e.key === 'Backspace' && query === '' && value.length > 0) {
+      removeVal(value[value.length - 1].value);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <div
+        onClick={() => {
+          if (!disabled) {
+            setOpen(true);
+            inputRef.current?.focus();
+          }
+        }}
+        className={clsx(
+          'flex min-h-[44px] flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1.5 text-sm',
+          disabled ? 'cursor-not-allowed border-slate-200 bg-slate-100' : 'cursor-text bg-white',
+          open ? 'border-brand ring-2 ring-brand/20' : 'border-slate-300',
+        )}
+      >
+        {value.map((o) => (
+          <span
+            key={o.value}
+            className="inline-flex items-center gap-1 rounded-full bg-brand/10 py-0.5 pl-2.5 pr-1 text-xs font-medium text-brand"
+          >
+            {o.label}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeVal(o.value);
+              }}
+              className="flex h-4 w-4 items-center justify-center rounded-full text-brand/60 hover:bg-brand/20 hover:text-red-600"
+              aria-label="Kaldır"
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          autoComplete="off"
+          disabled={disabled}
+          value={query}
+          placeholder={value.length === 0 ? placeholder : ''}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setHighlight(0);
+            setOpen(true);
+          }}
+          onKeyDown={onKeyDown}
+          className="min-w-[90px] flex-1 bg-transparent px-1 py-1 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+        />
+      </div>
+
+      {open && !disabled && (
+        <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          {itemCount === 0 ? (
+            <li className="px-3 py-2 text-sm text-slate-400">{emptyHint}</li>
+          ) : (
+            <>
+              {filtered.map((opt, i) => (
+                <li key={opt.value}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHighlight(i)}
+                    onClick={() => add(opt)}
+                    className={clsx(
+                      'flex w-full items-center px-3 py-2 text-left text-sm',
+                      i === highlight ? 'bg-brand/10 text-brand' : 'text-slate-700',
+                    )}
+                  >
+                    <span className="truncate">
+                      {opt.label}
+                      {opt.hint && <span className="ml-1 text-xs text-slate-400">{opt.hint}</span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {showCreate && (
+                <li>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHighlight(filtered.length)}
+                    onClick={() => void create()}
+                    disabled={busy}
+                    className={clsx(
+                      'flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm',
+                      filtered.length === highlight ? 'bg-brand/10 text-brand' : 'text-slate-700',
+                    )}
+                  >
+                    {busy ? (
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+                    ) : (
+                      <span className="text-base leading-none text-brand">+</span>
+                    )}
+                    <span>
+                      "<b>{query.trim()}</b>" oluştur
+                    </span>
+                  </button>
+                </li>
+              )}
+            </>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Plaka girişi: yazıldıkça otomatik büyük harf + standart boşluklama. (kontrollü) */
 export function PlateInput({
   value,

@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   createAsnSchema,
   type CreateAsnInput,
   type Asn,
-  type ShipmentSourceInput,
-  type ShipmentRecipientInput,
+  type CustomerLocation,
+  type CustomerRecipient,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { Button, Card, Field, Input, Combobox } from '../components/ui';
+import { toast } from '../lib/toast';
+import { Button, Card, Field, Input, Combobox, MultiCombobox, type ComboOption } from '../components/ui';
 import {
   useCustomers,
   useWarehouses,
@@ -29,10 +30,8 @@ export function AsnFormPage() {
   const { data: warehouses } = useWarehouses();
   const { data: vehicles } = useVehicles();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [sources, setSources] = useState<ShipmentSourceInput[]>([]);
-  const [freeText, setFreeText] = useState('');
-  const [recipients, setRecipients] = useState<ShipmentRecipientInput[]>([]);
-  const [recipientFreeText, setRecipientFreeText] = useState('');
+  const [sourceSel, setSourceSel] = useState<ComboOption[]>([]);
+  const [recipientSel, setRecipientSel] = useState<ComboOption[]>([]);
 
   const {
     register,
@@ -54,36 +53,33 @@ export function AsnFormPage() {
   const { data: locations } = useCustomerLocations(customerId);
   const { data: recipientOptions } = useCustomerRecipients(customerId);
 
-  const toggleLocation = (locId: string, name: string) => {
-    setSources((prev) =>
-      prev.some((s) => s.customerLocationId === locId)
-        ? prev.filter((s) => s.customerLocationId !== locId)
-        : [...prev, { customerLocationId: locId, label: name }],
-    );
-  };
-  const addFreeText = () => {
-    const label = freeText.trim();
-    if (!label) return;
-    setSources((prev) => [...prev, { label }]);
-    setFreeText('');
-  };
-  const removeSource = (i: number) => setSources((prev) => prev.filter((_, idx) => idx !== i));
+  // Müşteri değişince önceki müşteriye ait seçili kaynak/alıcılar geçersiz olur → temizle.
+  useEffect(() => {
+    setSourceSel([]);
+    setRecipientSel([]);
+  }, [customerId]);
 
-  const toggleRecipient = (recId: string, name: string) => {
-    setRecipients((prev) =>
-      prev.some((r) => r.customerRecipientId === recId)
-        ? prev.filter((r) => r.customerRecipientId !== recId)
-        : [...prev, { customerRecipientId: recId, label: name }],
-    );
+  // Listede yoksa: yazılan adı kalıcı kayda çevirip seçime ekle (bir dahaki sefere listede çıkar).
+  const createSource = async (name: string): Promise<ComboOption> => {
+    try {
+      const loc = await api.post<CustomerLocation>(`/customers/${customerId}/locations`, { name });
+      qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] });
+      return { value: loc.id, label: loc.name };
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Depo oluşturulamadı');
+      throw err;
+    }
   };
-  const addRecipientFreeText = () => {
-    const label = recipientFreeText.trim();
-    if (!label) return;
-    setRecipients((prev) => [...prev, { label }]);
-    setRecipientFreeText('');
+  const createRecipient = async (name: string): Promise<ComboOption> => {
+    try {
+      const rec = await api.post<CustomerRecipient>(`/customers/${customerId}/recipients`, { name });
+      qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] });
+      return { value: rec.id, label: rec.name };
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Alıcı oluşturulamadı');
+      throw err;
+    }
   };
-  const removeRecipient = (i: number) =>
-    setRecipients((prev) => prev.filter((_, idx) => idx !== i));
 
   const mutation = useMutation({
     mutationFn: (input: CreateAsnInput) => api.post<Asn>('/asn', input),
@@ -104,7 +100,13 @@ export function AsnFormPage() {
       </div>
 
       <form
-        onSubmit={handleSubmit((v) => mutation.mutate({ ...v, sources, recipients }))}
+        onSubmit={handleSubmit((v) =>
+          mutation.mutate({
+            ...v,
+            sources: sourceSel.map((o) => ({ customerLocationId: o.value, label: o.label })),
+            recipients: recipientSel.map((o) => ({ customerRecipientId: o.value, label: o.label })),
+          }),
+        )}
         className="space-y-4"
       >
         <Card className="space-y-3">
@@ -147,162 +149,32 @@ export function AsnFormPage() {
             </Field>
           </div>
 
-          {/* Kaynak (çoklu) */}
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Kaynak (alınacak yer)</span>
-            {!customerId ? (
-              <p className="text-xs text-slate-400">Önce müşteri seçin.</p>
-            ) : (
-              <>
-                {locations && locations.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {locations.map((loc) => {
-                      const selected = sources.some((s) => s.customerLocationId === loc.id);
-                      return (
-                        <button
-                          key={loc.id}
-                          type="button"
-                          onClick={() => toggleLocation(loc.id, loc.name)}
-                          className={
-                            'rounded-full border px-3 py-1.5 text-sm ' +
-                            (selected
-                              ? 'border-brand bg-brand text-white'
-                              : 'border-slate-300 bg-white text-slate-600')
-                          }
-                        >
-                          {selected ? '✓ ' : ''}
-                          {loc.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">
-                    Bu müşterinin kayıtlı deposu yok.{' '}
-                    <Link to={`/musteriler/${customerId}`} className="text-brand underline">
-                      Depo ekle
-                    </Link>{' '}
-                    veya aşağıdan elle girin.
-                  </p>
-                )}
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Elle adres/depo ekle"
-                    value={freeText}
-                    onChange={(e) => setFreeText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addFreeText();
-                      }
-                    }}
-                  />
-                  <Button type="button" variant="secondary" onClick={addFreeText}>
-                    Ekle
-                  </Button>
-                </div>
-
-                {sources.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {sources.map((s, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
-                      >
-                        {s.customerLocationId ? '🏭' : '📍'} {s.label}
-                        <button
-                          type="button"
-                          onClick={() => removeSource(i)}
-                          className="text-slate-400 hover:text-red-600"
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Alıcı (çoklu) — firmanın kendi müşterileri */}
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Alıcı (gönderilecek taraf)</span>
-            {!customerId ? (
-              <p className="text-xs text-slate-400">Önce müşteri seçin.</p>
-            ) : (
-              <>
-                {recipientOptions && recipientOptions.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {recipientOptions.map((rec) => {
-                      const selected = recipients.some((r) => r.customerRecipientId === rec.id);
-                      return (
-                        <button
-                          key={rec.id}
-                          type="button"
-                          onClick={() => toggleRecipient(rec.id, rec.name)}
-                          className={
-                            'rounded-full border px-3 py-1.5 text-sm ' +
-                            (selected
-                              ? 'border-brand bg-brand text-white'
-                              : 'border-slate-300 bg-white text-slate-600')
-                          }
-                        >
-                          {selected ? '✓ ' : ''}
-                          {rec.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">
-                    Bu müşterinin kayıtlı alıcısı yok.{' '}
-                    <Link to={`/musteriler/${customerId}`} className="text-brand underline">
-                      Alıcı ekle
-                    </Link>{' '}
-                    veya aşağıdan elle girin.
-                  </p>
-                )}
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Elle alıcı ekle"
-                    value={recipientFreeText}
-                    onChange={(e) => setRecipientFreeText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addRecipientFreeText();
-                      }
-                    }}
-                  />
-                  <Button type="button" variant="secondary" onClick={addRecipientFreeText}>
-                    Ekle
-                  </Button>
-                </div>
-
-                {recipients.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {recipients.map((r, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
-                      >
-                        {r.customerRecipientId ? '👤' : '📝'} {r.label}
-                        <button
-                          type="button"
-                          onClick={() => removeRecipient(i)}
-                          className="text-slate-400 hover:text-red-600"
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+          {/* Kaynak & Alıcı — çoklu seçim + listede yoksa anında oluştur */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Kaynak (alınacak yer)</span>
+              <MultiCombobox
+                options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
+                value={sourceSel}
+                onChange={setSourceSel}
+                onCreate={customerId ? createSource : undefined}
+                disabled={!customerId}
+                placeholder={customerId ? 'Depo seç / yaz…' : 'Önce müşteri seçin'}
+                emptyHint="Yazıp “oluştur” ile ekleyin"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Alıcı (gönderilecek taraf)</span>
+              <MultiCombobox
+                options={(recipientOptions ?? []).map((r) => ({ value: r.id, label: r.name }))}
+                value={recipientSel}
+                onChange={setRecipientSel}
+                onCreate={customerId ? createRecipient : undefined}
+                disabled={!customerId}
+                placeholder={customerId ? 'Alıcı seç / yaz…' : 'Önce müşteri seçin'}
+                emptyHint="Yazıp “oluştur” ile ekleyin"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
