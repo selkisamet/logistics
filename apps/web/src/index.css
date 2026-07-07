@@ -85,11 +85,13 @@ html.wb-camera-active #root {
     position: absolute;
     left: 0;
     top: 0;
-    width: auto !important;
+    right: 0;
+    width: 100% !important;
     min-height: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
+    overflow: hidden;
   }
   .qr-print {
     position: fixed;
