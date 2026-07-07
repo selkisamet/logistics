@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { QRCodeSVG } from 'qrcode.react';
+import { useReactToPrint } from 'react-to-print';
 import {
   upsertReceiptLineSchema,
   PACKAGE_TYPE_LABELS,
@@ -828,6 +829,19 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
 function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
   const [mode, setMode] = useState<SlipMode>('full');
   const [layout, setLayout] = useState<SlipLayout>('a5');
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Baskı izole bir iframe'de yapılır (react-to-print) → sayfalama düzgün, kırpılma yok.
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Tesellum_${receipt.reference}`,
+    pageStyle: `
+      @page { size: ${layout === 'a5' ? 'A5 landscape' : 'A4 portrait'}; margin: ${layout === 'a5' ? '5mm' : '4mm'}; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      body * { visibility: visible !important; }
+      .slip-doc { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+    `,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
@@ -866,7 +880,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
           <Button variant="secondary" onClick={onClose}>
             Kapat
           </Button>
-          <Button onClick={() => window.print()}>🖨️ Yazdır</Button>
+          <Button onClick={() => handlePrint()}>🖨️ Yazdır</Button>
         </div>
       </div>
 
@@ -884,37 +898,34 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
       )}
 
       <div className="flex-1 overflow-y-auto p-4">
-        {layout === 'a5' ? (
-          <div
-            className={clsx(
-              'receipt-print mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
-              mode === 'data' && 'slip-hide-chrome',
-              mode === 'blank' && 'slip-hide-data',
-            )}
-          >
+        <div
+          ref={printRef}
+          className={clsx(
+            'slip-doc mx-auto w-[210mm] bg-white text-slate-900 shadow-lg',
+            layout === 'a5' && 'p-[6mm]',
+            layout === 'a4x2' && 'slip-a4',
+            mode === 'data' && 'slip-hide-chrome',
+            mode === 'blank' && 'slip-hide-data',
+          )}
+        >
+          {layout === 'a5' ? (
             <SlipForm receipt={receipt} />
-          </div>
-        ) : (
-          <div
-            className={clsx(
-              'receipt-print slip-a4 mx-auto w-[210mm] bg-white text-slate-900 shadow-lg',
-              mode === 'data' && 'slip-hide-chrome',
-              mode === 'blank' && 'slip-hide-data',
-            )}
-          >
-            <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-              <SlipForm receipt={receipt} />
-            </div>
-            <div className="slip-cut relative my-1 border-t border-dashed border-slate-400">
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[8px] text-slate-400">
-                ✂ kesme çizgisi
-              </span>
-            </div>
-            <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-              <SlipForm receipt={receipt} />
-            </div>
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
+                <SlipForm receipt={receipt} />
+              </div>
+              <div className="slip-cut relative my-1 border-t border-dashed border-slate-400">
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[8px] text-slate-400">
+                  ✂ kesme çizgisi
+                </span>
+              </div>
+              <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
+                <SlipForm receipt={receipt} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

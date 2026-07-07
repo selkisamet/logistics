@@ -88,15 +88,17 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   **A5 YATAY**: kaşe/QR + ünvan, fiş bilgileri (seri/sıra no=fiş ref, tarih, gönderici sevk irs.=irsaliye no,
   sipariş no, ön ihbar), Alıcı/Teslim Alan (ambar) + Gönderen/Teslim Eden (müşteri) blokları, MALIN CİNSİ tablosu
   (Sıra·Cins·Adet·Kap·Kg·Ücret; kap/kg/ücret elle), gönderici/alıcı ödemeli kutuları, "tam ve sağlam teslim aldım"
-  beyanı + kaşe. `window.print()`; izole isimli sayfa `@page slip { size:A5 landscape }` + `.receipt-print`
-  (QR etiketleri A4 kalır) — [index.css](apps/web/src/index.css).
+  beyanı + kaşe. **Baskı `react-to-print` ile** (izole iframe → sayfalama düzgün, kırpılma/tekrarlama YOK; eski
+  `window.print()`+`position:absolute` hilesi kaldırıldı — o yaklaşım fixed-modal'ı her sayfada tekrarlıyordu).
+  `@page`/ölçü `useReactToPrint({ pageStyle })` ile verilir; kök `.slip-doc`. **QR etiketleri hâlâ eski
+  `window.print()`+`.qr-print`/`.print-sheet` ile** (değişmedi) — [index.css](apps/web/src/index.css).
   - **3 baskı modu** (aynı DOM → hizalama otomatik): `full`=boş kağıda tam; `data`=matbu forma **yalnız veri**
     (dot-matrix/karbonlu koçan için; çerçeve+etiketler saydam); `blank`=matbaaya verilecek **boş form master**
     (veriler+QR gizli). Statik parçalar `.slip-chrome`, değişkenler `.slip-data`; `.slip-hide-chrome` /
-    `.slip-hide-data` sınıfları ile — [index.css](apps/web/src/index.css).
-  - **2 yerleşim:** `a5`=tek fiş (`@page slip` A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş** (`.slip-a4`→
-    `@page slipA4` A4; iki `.slip-copy` h-143mm + ortada kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
-    `SlipForm` bileşeni (iki yerleşimde de aynen kullanılır).
+    `.slip-hide-data` sınıfları (global, `@media print` dışı) ile — [index.css](apps/web/src/index.css).
+  - **2 yerleşim** (`pageStyle` @page'i buna göre): `a5`=tek fiş (A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş**
+    (`.slip-a4`; iki `.slip-copy` h-140mm + ortada ✂ kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
+    `SlipForm` bileşeni; modalda tek `ref={printRef}`'li `.slip-doc`, içerik yerleşime göre 1 ya da 2 SlipForm.
 - Palet bazlı **kısmi sevk** desteklenir. Sevkiyatta QR okut: tek palet ya da "girişin tümü";
   "Hepsini Ekle"; "Bu araca planlı (N)".
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün

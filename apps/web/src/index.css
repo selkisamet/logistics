@@ -44,19 +44,8 @@ html.wb-camera-active #root {
   visibility: hidden;
 }
 
-/* Tesellüm fişi A5 sayfa (isimli sayfa: yalnızca .receipt-print'i etkiler, QR etiketleri A4 kalır) */
-@page slip {
-  size: A5 landscape;
-  margin: 5mm;
-}
-
-/* A4'e 2 fiş: A4 dikey sayfa; her fiş yarım sayfa, ortadan kesilir */
-@page slipA4 {
-  size: A4 portrait;
-  margin: 4mm;
-}
-
-/* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli) */
+/* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli).
+   Baskının kendisi react-to-print (izole iframe) ile yapılır; @page/sayfa ölçüsü orada verilir. */
 /* data: matbu forma yalnız veri — çerçeve/etiketler saydam, yerleşim korunur */
 .slip-hide-chrome .slip-chrome,
 .slip-hide-chrome .slip-chrome * {
@@ -80,28 +69,8 @@ html.wb-camera-active #root {
   .qr-print,
   .qr-print *,
   .print-sheet,
-  .print-sheet *,
-  .receipt-print,
-  .receipt-print * {
+  .print-sheet * {
     visibility: visible;
-  }
-  /* Tesellüm fişi: sayfanın tamamını kapla, önizleme çerçevesini sıfırla */
-  .receipt-print {
-    page: slip;
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    width: 100% !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-    overflow: hidden;
-  }
-  /* A4'e 2 fiş yerleşimi: A4 dikey sayfa kullan */
-  .receipt-print.slip-a4 {
-    page: slipA4;
   }
   .qr-print {
     position: fixed;
