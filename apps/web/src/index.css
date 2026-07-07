@@ -50,6 +50,22 @@ html.wb-camera-active #root {
   margin: 6mm;
 }
 
+/* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli) */
+/* data: matbu forma yalnız veri — çerçeve/etiketler saydam, yerleşim korunur */
+.slip-hide-chrome .slip-chrome,
+.slip-hide-chrome .slip-chrome * {
+  color: transparent !important;
+  border-color: transparent !important;
+}
+.slip-hide-chrome .slip-data,
+.slip-hide-chrome .slip-data * {
+  color: #000 !important;
+}
+/* blank: matbaa master — yalnız boş form, veriler (QR dahil) gizli, yerleşim korunur */
+.slip-hide-data .slip-data {
+  visibility: hidden !important;
+}
+
 /* QR etiket yazdırma: yalnızca etiket(ler)i bas */
 @media print {
   body * {

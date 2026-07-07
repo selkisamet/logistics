@@ -642,8 +642,17 @@ function LabelsPrintModal({
   );
 }
 
-/** Ambar Tesellüm Fişi: A5 YATAY yazdırılabilir resmi form (klasik ambar fişi düzeni). */
+type SlipMode = 'full' | 'data' | 'blank';
+const SLIP_MODES: { key: SlipMode; label: string }[] = [
+  { key: 'full', label: 'Boş kağıda tam' },
+  { key: 'data', label: 'Matbu forma (yalnız veri)' },
+  { key: 'blank', label: 'Boş form (matbaa master)' },
+];
+
+/** Ambar Tesellüm Fişi: A5 YATAY resmi form. 3 baskı modu (aynı yerleşim → hizalama otomatik):
+ *  full=boş kağıda tam, data=matbu forma yalnız veri (dot-matrix), blank=matbaaya boş form master. */
 function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
+  const [mode, setMode] = useState<SlipMode>('full');
   const totalCounted = receipt.lines.reduce((s, l) => s + l.countedQty, 0);
   const packages = receipt.packages ?? [];
   const discrepancies = receipt.discrepancies ?? [];
@@ -666,9 +675,23 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
       {/* Araç çubuğu — yazdırmada gizli */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white p-4">
-        <span className="font-semibold text-slate-900">Tesellüm Fişi · {receipt.reference}</span>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white p-4">
+        <span className="font-semibold text-slate-900">Tesellüm Fişi</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {SLIP_MODES.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setMode(m.key)}
+                className={clsx(
+                  'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                  mode === m.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
           <Button variant="secondary" onClick={onClose}>
             Kapat
           </Button>
@@ -676,9 +699,23 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
         </div>
       </div>
 
+      {mode !== 'full' && (
+        <div className="bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
+          {mode === 'data'
+            ? 'Yalnız veriler basılır — matbu (önceden basılı) forma yerleştirmek için. Çizgi/etiketler basılmaz.'
+            : 'Yalnız boş form basılır — matbaaya bu master ile bastırın. Veriler görünmez.'}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="receipt-print mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg">
-          <div className="flex min-h-[132mm] flex-col border-2 border-sky-800">
+        <div
+          className={clsx(
+            'receipt-print mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
+            mode === 'data' && 'slip-hide-chrome',
+            mode === 'blank' && 'slip-hide-data',
+          )}
+        >
+          <div className="slip-chrome flex min-h-[132mm] flex-col border-2 border-sky-800">
             {/* Başlık: kaşe/QR + ünvan + fiş bilgileri */}
             <div className="flex border-b-2 border-sky-800">
               <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
@@ -687,11 +724,11 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                   <span>AMBAR</span>
                   <span>KAŞE</span>
                 </div>
-                <div className="flex flex-col items-center">
+                <div className="slip-data flex flex-col items-center">
                   <QRCodeSVG value={receipt.reference} size={50} />
                   <span className="mt-0.5 text-[7px] font-semibold">{receipt.reference}</span>
                 </div>
-                <div className="text-[9px] font-semibold leading-snug text-slate-700">
+                <div className="slip-data text-[9px] font-semibold leading-snug text-slate-700">
                   {receipt.warehouse?.name ?? 'Merkez Depo'}
                 </div>
               </div>
@@ -737,9 +774,15 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                   <tbody>
                     {receipt.lines.map((l, i) => (
                       <tr key={l.id}>
-                        <td className={`${td} text-center`}>{i + 1}</td>
-                        <td className={td}>{l.description}</td>
-                        <td className={`${td} text-right font-semibold`}>{l.countedQty}</td>
+                        <td className={`${td} text-center`}>
+                          <span className="slip-data">{i + 1}</span>
+                        </td>
+                        <td className={td}>
+                          <span className="slip-data">{l.description}</span>
+                        </td>
+                        <td className={`${td} text-right font-semibold`}>
+                          <span className="slip-data">{l.countedQty}</span>
+                        </td>
                         <td className={td} />
                         <td className={td} />
                         <td className={td} />
@@ -748,7 +791,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                     {Array.from({ length: blanks }).map((_, i) => (
                       <tr key={`b${i}`}>
                         <td className={`${td} text-center text-slate-300`}>
-                          {receipt.lines.length + i + 1}
+                          <span className="slip-data">{receipt.lines.length + i + 1}</span>
                         </td>
                         <td className={td}>&nbsp;</td>
                         <td className={td} />
@@ -761,10 +804,14 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                       <td className={`${td} text-right font-bold`} colSpan={2}>
                         TOPLAM
                       </td>
-                      <td className={`${td} text-right font-bold`}>{totalCounted}</td>
+                      <td className={`${td} text-right font-bold`}>
+                        <span className="slip-data">{totalCounted}</span>
+                      </td>
                       <td className={td} colSpan={3}>
-                        Palet/Koli: {packages.length}
-                        {typeSummary ? ` · ${typeSummary}` : ''}
+                        <span className="slip-data">
+                          Palet/Koli: {packages.length}
+                          {typeSummary ? ` · ${typeSummary}` : ''}
+                        </span>
                       </td>
                     </tr>
                   </tbody>
@@ -802,14 +849,14 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                   <p className="text-[9px] text-slate-700">
                     İşbu ambar tesellüm fişindeki malları tam ve sağlam teslim aldım.
                     {discrepancies.length > 0 && (
-                      <span className="font-semibold text-red-700">
+                      <span className="slip-data font-semibold text-red-700">
                         {' '}
                         (Uyuşmazlık: {discrepancies.length} kayıt)
                       </span>
                     )}
                   </p>
                   {receipt.notes && (
-                    <p className="text-[8px] text-slate-500">Not: {receipt.notes}</p>
+                    <p className="slip-data text-[8px] text-slate-500">Not: {receipt.notes}</p>
                   )}
                   <p className="text-right text-[9px] font-semibold text-slate-600">
                     Lütfen kaşenizi basınız.
@@ -819,7 +866,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
             </div>
           </div>
 
-          <p className="mt-1 text-right text-[7px] text-slate-400">
+          <p className="slip-data mt-1 text-right text-[7px] text-slate-400">
             Yazdırma: {formatDateTime(new Date().toISOString())}
           </p>
         </div>
@@ -834,7 +881,7 @@ function MetaLine({ label, value }: { label: string; value: string }) {
     <div className="flex items-baseline gap-1 text-[9px]">
       <span className="font-bold text-slate-700">{label}</span>
       <span className="text-slate-400">:</span>
-      <span className="flex-1 border-b border-dotted border-slate-400 font-semibold text-slate-900">
+      <span className="slip-data flex-1 border-b border-dotted border-slate-400 font-semibold text-slate-900">
         {value || ' '}
       </span>
     </div>
@@ -847,7 +894,7 @@ function FieldLine({ label, value }: { label: string; value: string }) {
     <div className="mb-1 flex items-baseline gap-1 text-[9px]">
       <span className="w-[66px] shrink-0 font-semibold text-slate-600">{label}</span>
       <span className="text-slate-400">:</span>
-      <span className="flex-1 border-b border-dotted border-slate-400 text-slate-900">
+      <span className="slip-data flex-1 border-b border-dotted border-slate-400 text-slate-900">
         {value || ' '}
       </span>
     </div>
