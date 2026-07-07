@@ -53,7 +53,7 @@ html.wb-camera-active #root {
 /* A4'e 2 fiş: A4 dikey sayfa; her fiş yarım sayfa, ortadan kesilir */
 @page slipA4 {
   size: A4 portrait;
-  margin: 5mm;
+  margin: 4mm;
 }
 
 /* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli) */
