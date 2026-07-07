@@ -902,11 +902,15 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
               mode === 'blank' && 'slip-hide-data',
             )}
           >
-            <div className="slip-copy flex h-[143mm] overflow-hidden p-[5mm]">
+            <div className="slip-copy flex min-h-[136mm] p-[5mm]">
               <SlipForm receipt={receipt} />
             </div>
-            <div className="slip-cut border-t border-dashed border-slate-400" />
-            <div className="slip-copy flex h-[143mm] overflow-hidden p-[5mm]">
+            <div className="slip-cut relative my-1 border-t border-dashed border-slate-400">
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[8px] text-slate-400">
+                ✂ kesme çizgisi
+              </span>
+            </div>
+            <div className="slip-copy flex min-h-[136mm] p-[5mm]">
               <SlipForm receipt={receipt} />
             </div>
           </div>
