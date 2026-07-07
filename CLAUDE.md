@@ -84,9 +84,12 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - Mal Kabul: sayım (satırlar **id** ile güncellenir, SKU boş olabilir), **İrsaliye No + Sipariş No** (Belge Bilgileri),
   toplu palet QR etiketi üretimi (adet girilir), tamamla. Kör kabul (ASN'siz) da var.
 - **Tesellüm fişi:** mal kabul başlığındaki "🖨️ Tesellüm Fişi" ile her durumda basılır (`ReceiptSlipModal`,
-  [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)). **A5** yazdırılabilir belge: künye + kalem
-  tablosu (beklenen/sayılan) + palet özeti/kod listesi + uyuşmazlıklar + imza alanları + fiş-no QR. `window.print()`;
-  izole isimli sayfa `@page slip { size:A5 }` + `.receipt-print` (QR etiketleri A4 kalır) — [index.css](apps/web/src/index.css).
+  [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)). Klasik **"Ambar Tesellüm Fişi"** form düzeni,
+  **A5 YATAY**: kaşe/QR + ünvan, fiş bilgileri (seri/sıra no=fiş ref, tarih, gönderici sevk irs.=irsaliye no,
+  sipariş no, ön ihbar), Alıcı/Teslim Alan (ambar) + Gönderen/Teslim Eden (müşteri) blokları, MALIN CİNSİ tablosu
+  (Sıra·Cins·Adet·Kap·Kg·Ücret; kap/kg/ücret elle), gönderici/alıcı ödemeli kutuları, "tam ve sağlam teslim aldım"
+  beyanı + kaşe. `window.print()`; izole isimli sayfa `@page slip { size:A5 landscape }` + `.receipt-print`
+  (QR etiketleri A4 kalır) — [index.css](apps/web/src/index.css).
 - Palet bazlı **kısmi sevk** desteklenir. Sevkiyatta QR okut: tek palet ya da "girişin tümü";
   "Hepsini Ekle"; "Bu araca planlı (N)".
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün
