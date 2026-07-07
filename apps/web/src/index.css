@@ -50,6 +50,12 @@ html.wb-camera-active #root {
   margin: 5mm;
 }
 
+/* A4'e 2 fiş: A4 dikey sayfa; her fiş yarım sayfa, ortadan kesilir */
+@page slipA4 {
+  size: A4 portrait;
+  margin: 5mm;
+}
+
 /* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli) */
 /* data: matbu forma yalnız veri — çerçeve/etiketler saydam, yerleşim korunur */
 .slip-hide-chrome .slip-chrome,
@@ -92,6 +98,10 @@ html.wb-camera-active #root {
     margin: 0 !important;
     box-shadow: none !important;
     overflow: hidden;
+  }
+  /* A4'e 2 fiş yerleşimi: A4 dikey sayfa kullan */
+  .receipt-print.slip-a4 {
+    page: slipA4;
   }
   .qr-print {
     position: fixed;

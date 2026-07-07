@@ -19,7 +19,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
-import { formatDate, formatDateTime } from '../lib/format';
+import { formatDate } from '../lib/format';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
@@ -649,15 +649,19 @@ const SLIP_MODES: { key: SlipMode; label: string }[] = [
   { key: 'blank', label: 'Boş form (matbaa master)' },
 ];
 
-/** Ambar Tesellüm Fişi: A5 YATAY resmi form. 3 baskı modu (aynı yerleşim → hizalama otomatik):
- *  full=boş kağıda tam, data=matbu forma yalnız veri (dot-matrix), blank=matbaaya boş form master. */
-function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
-  const [mode, setMode] = useState<SlipMode>('full');
+type SlipLayout = 'a5' | 'a4x2';
+const SLIP_LAYOUTS: { key: SlipLayout; label: string }[] = [
+  { key: 'a5', label: 'A5 tek' },
+  { key: 'a4x2', label: "A4'e 2 fiş (kes)" },
+];
+
+/** Fişin görsel gövdesi — tek bir A5 form. A5-tek ve A4-2'li yerleşimde aynen kullanılır. */
+function SlipForm({ receipt }: { receipt: Receipt }) {
   const totalCounted = receipt.lines.reduce((s, l) => s + l.countedQty, 0);
   const packages = receipt.packages ?? [];
   const discrepancies = receipt.discrepancies ?? [];
 
-  // Palet/koli tip özeti: "5 Palet · 2 Koli"
+  // Palet/koli tip özeti (ör. 5 Palet, 2 Koli)
   const typeCounts = packages.reduce<Record<string, number>>((acc, p) => {
     acc[p.type] = (acc[p.type] ?? 0) + 1;
     return acc;
@@ -673,11 +677,178 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
   const td = 'border border-sky-800 px-1 py-1 align-top';
 
   return (
+    <div className="slip-chrome flex min-h-[124mm] flex-1 flex-col border-2 border-sky-800">
+      {/* Başlık: kaşe/QR + ünvan + fiş bilgileri */}
+      <div className="flex border-b-2 border-sky-800">
+        <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
+          <div className="flex h-[54px] w-[54px] shrink-0 flex-col items-center justify-center rounded-full border-2 border-sky-800 text-center text-[6px] font-bold leading-tight text-sky-800">
+            <span>3PL</span>
+            <span>AMBAR</span>
+            <span>KAŞE</span>
+          </div>
+          <div className="slip-data flex flex-col items-center">
+            <QRCodeSVG value={receipt.reference} size={50} />
+            <span className="mt-0.5 text-[7px] font-semibold">{receipt.reference}</span>
+          </div>
+          <div className="slip-data text-[9px] font-semibold leading-snug text-slate-700">
+            {receipt.warehouse?.name ?? 'Merkez Depo'}
+          </div>
+        </div>
+        <div className="flex flex-1 flex-col p-2">
+          <h1 className="text-right text-base font-black tracking-wide text-sky-800">
+            AMBAR TESELLÜM FİŞİ
+          </h1>
+          <div className="mt-1 space-y-0.5">
+            <MetaLine label="SERİ / SIRA NO" value={receipt.reference} />
+            <MetaLine label="TARİH" value={formatDate(receipt.completedAt ?? receipt.startedAt)} />
+            <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
+            <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
+            <MetaLine label="ÖN İHBAR" value={receipt.asnReference || 'Kör kabul'} />
+          </div>
+        </div>
+      </div>
+
+      {/* ALICI (teslim alan / ambar) + mal tablosu */}
+      <div className="flex border-b-2 border-sky-800">
+        <div className="w-[42%] border-r-2 border-sky-800 p-2">
+          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Teslim Alan</p>
+          <FieldLine label="ADI, ÜNVANI" value={receipt.warehouse?.name ?? ''} />
+          <FieldLine label="V.D. NO" value="" />
+          <FieldLine label="ADRESİ" value="" />
+        </div>
+        <div className="flex-1">
+          <table className="w-full border-collapse text-[9px]">
+            <thead>
+              <tr>
+                <th className={`${th} w-[8%]`}>SIRA</th>
+                <th className={th}>MALIN CİNSİ</th>
+                <th className={`${th} w-[11%] text-right`}>ADET</th>
+                <th className={`${th} w-[10%]`}>KAP</th>
+                <th className={`${th} w-[12%]`}>KG.</th>
+                <th className={`${th} w-[15%]`}>ÜCRET</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receipt.lines.map((l, i) => (
+                <tr key={l.id}>
+                  <td className={`${td} text-center`}>
+                    <span className="slip-data">{i + 1}</span>
+                  </td>
+                  <td className={td}>
+                    <span className="slip-data">{l.description}</span>
+                  </td>
+                  <td className={`${td} text-right font-semibold`}>
+                    <span className="slip-data">{l.countedQty}</span>
+                  </td>
+                  <td className={td} />
+                  <td className={td} />
+                  <td className={td} />
+                </tr>
+              ))}
+              {Array.from({ length: blanks }).map((_, i) => (
+                <tr key={`b${i}`}>
+                  <td className={`${td} text-center text-slate-300`}>
+                    <span className="slip-data">{receipt.lines.length + i + 1}</span>
+                  </td>
+                  <td className={td}>&nbsp;</td>
+                  <td className={td} />
+                  <td className={td} />
+                  <td className={td} />
+                  <td className={td} />
+                </tr>
+              ))}
+              <tr>
+                <td className={`${td} text-right font-bold`} colSpan={2}>
+                  TOPLAM
+                </td>
+                <td className={`${td} text-right font-bold`}>
+                  <span className="slip-data">{totalCounted}</span>
+                </td>
+                <td className={td} colSpan={3}>
+                  <span className="slip-data">
+                    Palet/Koli: {packages.length}
+                    {typeSummary ? ` · ${typeSummary}` : ''}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* GÖNDEREN + ödeme + tesellüm beyanı */}
+      <div className="flex flex-1">
+        <div className="w-[42%] border-r-2 border-sky-800 p-2">
+          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Gönderen / Teslim Eden</p>
+          <FieldLine
+            label="ADI, ÜNVANI"
+            value={`${receipt.customer?.name ?? ''}${
+              receipt.customer?.code ? ` (${receipt.customer.code})` : ''
+            }`}
+          />
+          <FieldLine label="V.H. NO" value="" />
+          <FieldLine label="ADRESİ" value="" />
+        </div>
+        <div className="flex flex-1 flex-col">
+          <div className="flex border-b-2 border-sky-800 text-[9px] font-semibold text-sky-800">
+            <div className="flex flex-1 items-center justify-center gap-2 border-r-2 border-sky-800 p-2">
+              GÖNDERİCİ ÖDEMELİ
+              <span className="h-3 w-3 border border-sky-800" />
+            </div>
+            <div className="flex flex-1 items-center justify-center gap-2 p-2">
+              ALICI ÖDEMELİ
+              <span className="h-3 w-3 border border-sky-800" />
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col justify-between p-2">
+            <p className="text-[9px] text-slate-700">
+              İşbu ambar tesellüm fişindeki malları tam ve sağlam teslim aldım.
+              {discrepancies.length > 0 && (
+                <span className="slip-data font-semibold text-red-700">
+                  {' '}
+                  (Uyuşmazlık: {discrepancies.length} kayıt)
+                </span>
+              )}
+            </p>
+            {receipt.notes && (
+              <p className="slip-data text-[8px] text-slate-500">Not: {receipt.notes}</p>
+            )}
+            <p className="text-right text-[9px] font-semibold text-slate-600">
+              Lütfen kaşenizi basınız.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Ambar Tesellüm Fişi: A5 YATAY resmi form. 3 baskı modu (aynı yerleşim → hizalama otomatik):
+ *  full=boş kağıda tam, data=matbu forma yalnız veri (dot-matrix), blank=matbaaya boş form master. */
+function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
+  const [mode, setMode] = useState<SlipMode>('full');
+  const [layout, setLayout] = useState<SlipLayout>('a5');
+
+  return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
       {/* Araç çubuğu — yazdırmada gizli */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white p-4">
         <span className="font-semibold text-slate-900">Tesellüm Fişi</span>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {SLIP_LAYOUTS.map((l) => (
+              <button
+                key={l.key}
+                onClick={() => setLayout(l.key)}
+                className={clsx(
+                  'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                  layout === l.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
+                )}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
             {SLIP_MODES.map((m) => (
               <button
@@ -706,170 +877,40 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
             : 'Yalnız boş form basılır — matbaaya bu master ile bastırın. Veriler görünmez.'}
         </div>
       )}
+      {layout === 'a4x2' && (
+        <div className="bg-sky-50 px-4 py-1.5 text-xs text-sky-800">
+          A4 sayfaya alt alta 2 fiş basılır; ortadaki kesik çizgiden keserek 2 adet A5 fiş elde edersin.
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4">
-        <div
-          className={clsx(
-            'receipt-print mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
-            mode === 'data' && 'slip-hide-chrome',
-            mode === 'blank' && 'slip-hide-data',
-          )}
-        >
-          <div className="slip-chrome flex min-h-[124mm] flex-col border-2 border-sky-800">
-            {/* Başlık: kaşe/QR + ünvan + fiş bilgileri */}
-            <div className="flex border-b-2 border-sky-800">
-              <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
-                <div className="flex h-[54px] w-[54px] shrink-0 flex-col items-center justify-center rounded-full border-2 border-sky-800 text-center text-[6px] font-bold leading-tight text-sky-800">
-                  <span>3PL</span>
-                  <span>AMBAR</span>
-                  <span>KAŞE</span>
-                </div>
-                <div className="slip-data flex flex-col items-center">
-                  <QRCodeSVG value={receipt.reference} size={50} />
-                  <span className="mt-0.5 text-[7px] font-semibold">{receipt.reference}</span>
-                </div>
-                <div className="slip-data text-[9px] font-semibold leading-snug text-slate-700">
-                  {receipt.warehouse?.name ?? 'Merkez Depo'}
-                </div>
-              </div>
-              <div className="flex flex-1 flex-col p-2">
-                <h1 className="text-right text-base font-black tracking-wide text-sky-800">
-                  AMBAR TESELLÜM FİŞİ
-                </h1>
-                <div className="mt-1 space-y-0.5">
-                  <MetaLine label="SERİ / SIRA NO" value={receipt.reference} />
-                  <MetaLine
-                    label="TARİH"
-                    value={formatDate(receipt.completedAt ?? receipt.startedAt)}
-                  />
-                  <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
-                  <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
-                  <MetaLine label="ÖN İHBAR" value={receipt.asnReference || 'Kör kabul'} />
-                </div>
-              </div>
+        {layout === 'a5' ? (
+          <div
+            className={clsx(
+              'receipt-print mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
+              mode === 'data' && 'slip-hide-chrome',
+              mode === 'blank' && 'slip-hide-data',
+            )}
+          >
+            <SlipForm receipt={receipt} />
+          </div>
+        ) : (
+          <div
+            className={clsx(
+              'receipt-print slip-a4 mx-auto w-[210mm] bg-white text-slate-900 shadow-lg',
+              mode === 'data' && 'slip-hide-chrome',
+              mode === 'blank' && 'slip-hide-data',
+            )}
+          >
+            <div className="slip-copy flex h-[143mm] overflow-hidden p-[5mm]">
+              <SlipForm receipt={receipt} />
             </div>
-
-            {/* ALICI (teslim alan / ambar) + mal tablosu */}
-            <div className="flex border-b-2 border-sky-800">
-              <div className="w-[42%] border-r-2 border-sky-800 p-2">
-                <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">
-                  Alıcı / Teslim Alan
-                </p>
-                <FieldLine label="ADI, ÜNVANI" value={receipt.warehouse?.name ?? ''} />
-                <FieldLine label="V.D. NO" value="" />
-                <FieldLine label="ADRESİ" value="" />
-              </div>
-              <div className="flex-1">
-                <table className="w-full border-collapse text-[9px]">
-                  <thead>
-                    <tr>
-                      <th className={`${th} w-[8%]`}>SIRA</th>
-                      <th className={th}>MALIN CİNSİ</th>
-                      <th className={`${th} w-[11%] text-right`}>ADET</th>
-                      <th className={`${th} w-[10%]`}>KAP</th>
-                      <th className={`${th} w-[12%]`}>KG.</th>
-                      <th className={`${th} w-[15%]`}>ÜCRET</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipt.lines.map((l, i) => (
-                      <tr key={l.id}>
-                        <td className={`${td} text-center`}>
-                          <span className="slip-data">{i + 1}</span>
-                        </td>
-                        <td className={td}>
-                          <span className="slip-data">{l.description}</span>
-                        </td>
-                        <td className={`${td} text-right font-semibold`}>
-                          <span className="slip-data">{l.countedQty}</span>
-                        </td>
-                        <td className={td} />
-                        <td className={td} />
-                        <td className={td} />
-                      </tr>
-                    ))}
-                    {Array.from({ length: blanks }).map((_, i) => (
-                      <tr key={`b${i}`}>
-                        <td className={`${td} text-center text-slate-300`}>
-                          <span className="slip-data">{receipt.lines.length + i + 1}</span>
-                        </td>
-                        <td className={td}>&nbsp;</td>
-                        <td className={td} />
-                        <td className={td} />
-                        <td className={td} />
-                        <td className={td} />
-                      </tr>
-                    ))}
-                    <tr>
-                      <td className={`${td} text-right font-bold`} colSpan={2}>
-                        TOPLAM
-                      </td>
-                      <td className={`${td} text-right font-bold`}>
-                        <span className="slip-data">{totalCounted}</span>
-                      </td>
-                      <td className={td} colSpan={3}>
-                        <span className="slip-data">
-                          Palet/Koli: {packages.length}
-                          {typeSummary ? ` · ${typeSummary}` : ''}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* GÖNDEREN + ödeme + tesellüm beyanı */}
-            <div className="flex flex-1">
-              <div className="w-[42%] border-r-2 border-sky-800 p-2">
-                <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">
-                  Gönderen / Teslim Eden
-                </p>
-                <FieldLine
-                  label="ADI, ÜNVANI"
-                  value={`${receipt.customer?.name ?? ''}${
-                    receipt.customer?.code ? ` (${receipt.customer.code})` : ''
-                  }`}
-                />
-                <FieldLine label="V.H. NO" value="" />
-                <FieldLine label="ADRESİ" value="" />
-              </div>
-              <div className="flex flex-1 flex-col">
-                <div className="flex border-b-2 border-sky-800 text-[9px] font-semibold text-sky-800">
-                  <div className="flex flex-1 items-center justify-center gap-2 border-r-2 border-sky-800 p-2">
-                    GÖNDERİCİ ÖDEMELİ
-                    <span className="h-3 w-3 border border-sky-800" />
-                  </div>
-                  <div className="flex flex-1 items-center justify-center gap-2 p-2">
-                    ALICI ÖDEMELİ
-                    <span className="h-3 w-3 border border-sky-800" />
-                  </div>
-                </div>
-                <div className="flex flex-1 flex-col justify-between p-2">
-                  <p className="text-[9px] text-slate-700">
-                    İşbu ambar tesellüm fişindeki malları tam ve sağlam teslim aldım.
-                    {discrepancies.length > 0 && (
-                      <span className="slip-data font-semibold text-red-700">
-                        {' '}
-                        (Uyuşmazlık: {discrepancies.length} kayıt)
-                      </span>
-                    )}
-                  </p>
-                  {receipt.notes && (
-                    <p className="slip-data text-[8px] text-slate-500">Not: {receipt.notes}</p>
-                  )}
-                  <p className="text-right text-[9px] font-semibold text-slate-600">
-                    Lütfen kaşenizi basınız.
-                  </p>
-                </div>
-              </div>
+            <div className="slip-cut border-t border-dashed border-slate-400" />
+            <div className="slip-copy flex h-[143mm] overflow-hidden p-[5mm]">
+              <SlipForm receipt={receipt} />
             </div>
           </div>
-
-          <p className="slip-data mt-1 text-right text-[7px] text-slate-400">
-            Yazdırma: {formatDateTime(new Date().toISOString())}
-          </p>
-        </div>
+        )}
       </div>
     </div>
   );

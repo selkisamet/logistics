@@ -94,6 +94,9 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     (dot-matrix/karbonlu koçan için; çerçeve+etiketler saydam); `blank`=matbaaya verilecek **boş form master**
     (veriler+QR gizli). Statik parçalar `.slip-chrome`, değişkenler `.slip-data`; `.slip-hide-chrome` /
     `.slip-hide-data` sınıfları ile — [index.css](apps/web/src/index.css).
+  - **2 yerleşim:** `a5`=tek fiş (`@page slip` A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş** (`.slip-a4`→
+    `@page slipA4` A4; iki `.slip-copy` h-143mm + ortada kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
+    `SlipForm` bileşeni (iki yerleşimde de aynen kullanılır).
 - Palet bazlı **kısmi sevk** desteklenir. Sevkiyatta QR okut: tek palet ya da "girişin tümü";
   "Hepsini Ekle"; "Bu araca planlı (N)".
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün
