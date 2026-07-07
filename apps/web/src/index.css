@@ -47,7 +47,7 @@ html.wb-camera-active #root {
 /* Tesellüm fişi A5 sayfa (isimli sayfa: yalnızca .receipt-print'i etkiler, QR etiketleri A4 kalır) */
 @page slip {
   size: A5 landscape;
-  margin: 6mm;
+  margin: 5mm;
 }
 
 /* Tesellüm fişi baskı modları (aynı yerleşim; ekran önizleme + baskı için geçerli) */

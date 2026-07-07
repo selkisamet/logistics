@@ -715,7 +715,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
             mode === 'blank' && 'slip-hide-data',
           )}
         >
-          <div className="slip-chrome flex min-h-[132mm] flex-col border-2 border-sky-800">
+          <div className="slip-chrome flex min-h-[124mm] flex-col border-2 border-sky-800">
             {/* Başlık: kaşe/QR + ünvan + fiş bilgileri */}
             <div className="flex border-b-2 border-sky-800">
               <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
