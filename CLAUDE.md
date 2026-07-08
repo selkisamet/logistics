@@ -99,6 +99,9 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   - **2 yerleşim** (`pageStyle` @page'i buna göre): `a5`=tek fiş (A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş**
     (`.slip-a4`; iki `.slip-copy` h-140mm + ortada ✂ kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
     `SlipForm` bileşeni; modalda tek `ref={printRef}`'li `.slip-doc`, içerik yerleşime göre 1 ya da 2 SlipForm.
+  - **QR = fişi açan link** (`${origin}/mal-kabul/${receipt.id}`; okutunca mal kabul kaydı açılır — data). **Marka:**
+    fiş başında **logo** (`apps/web/public/logo.png`, yoksa gizlenir) + firma adı/slogan; altta **iletişim şeridi**
+    (tel/e-posta/adres/web). Firma bilgileri [lib/company.ts](apps/web/src/lib/company.ts) `COMPANY` sabitinden.
 - Palet bazlı **kısmi sevk** desteklenir. Sevkiyatta QR okut: tek palet ya da "girişin tümü";
   "Hepsini Ekle"; "Bu araca planlı (N)".
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün

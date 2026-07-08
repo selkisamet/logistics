@@ -21,6 +21,7 @@ import {
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
 import { formatDate } from '../lib/format';
+import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
@@ -677,22 +678,33 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
   const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
   const td = 'border border-sky-800 px-1 py-1 align-top';
 
+  // QR = fişi uygulamada açan link (okutunca mal kabul kaydı gelir)
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const slipUrl = origin ? `${origin}/mal-kabul/${receipt.id}` : receipt.reference;
+  const logoUrl = origin ? `${origin}${COMPANY.logoPath}` : COMPANY.logoPath;
+
   return (
     <div className="slip-chrome flex min-h-[124mm] flex-1 flex-col border-2 border-sky-800">
-      {/* Başlık: kaşe/QR + ünvan + fiş bilgileri */}
+      {/* Başlık: logo/firma + QR + fiş bilgileri */}
       <div className="flex border-b-2 border-sky-800">
         <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
-          <div className="flex h-[54px] w-[54px] shrink-0 flex-col items-center justify-center rounded-full border-2 border-sky-800 text-center text-[6px] font-bold leading-tight text-sky-800">
-            <span>3PL</span>
-            <span>AMBAR</span>
-            <span>KAŞE</span>
+          <div className="flex flex-1 flex-col items-start justify-center gap-1 overflow-hidden">
+            <img
+              src={logoUrl}
+              alt={COMPANY.name}
+              className="h-[34px] w-auto max-w-[130px] object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="leading-tight">
+              <p className="text-[11px] font-black text-sky-800">{COMPANY.name}</p>
+              <p className="text-[7px] font-semibold text-slate-500">{COMPANY.slogan}</p>
+            </div>
           </div>
           <div className="slip-data flex flex-col items-center">
-            <QRCodeSVG value={receipt.reference} size={50} />
+            <QRCodeSVG value={slipUrl} size={48} />
             <span className="mt-0.5 text-[7px] font-semibold">{receipt.reference}</span>
-          </div>
-          <div className="slip-data text-[9px] font-semibold leading-snug text-slate-700">
-            {receipt.warehouse?.name ?? 'Merkez Depo'}
           </div>
         </div>
         <div className="flex flex-1 flex-col p-2">
@@ -819,6 +831,15 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Firma iletişim şeridi (marka / reklam) */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0 border-t-2 border-sky-800 px-2 py-1 text-center text-[7px] font-medium text-sky-800">
+        <span className="font-bold">{COMPANY.name}</span>
+        {COMPANY.phone && <span>· Tel: {COMPANY.phone}</span>}
+        {COMPANY.email && <span>· {COMPANY.email}</span>}
+        {COMPANY.address && <span>· {COMPANY.address}</span>}
+        {COMPANY.website && <span>· {COMPANY.website}</span>}
       </div>
     </div>
   );
