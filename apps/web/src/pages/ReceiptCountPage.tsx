@@ -692,7 +692,7 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             <img
               src={logoUrl}
               alt={COMPANY.name}
-              className="h-[46px] w-auto max-w-[150px] object-contain"
+              className="h-[62px] w-auto max-w-[175px] object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
@@ -701,12 +701,12 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
               {COMPANY.docs.map((d) => (
                 <div
                   key={d.code}
-                  className="flex flex-col overflow-hidden rounded-sm border border-sky-800 text-center leading-none text-sky-800"
+                  className="flex flex-col overflow-hidden rounded border border-sky-800 text-center leading-none text-sky-800"
                 >
-                  <span className="border-b border-sky-800 px-1 py-px text-[8px] font-black">
+                  <span className="border-b border-sky-800 px-1.5 py-0.5 text-[10px] font-black">
                     {d.code}
                   </span>
-                  <span className="px-1 py-px text-[5px]">
+                  <span className="px-1.5 py-0.5 text-[6px]">
                     {d.no.split('.').slice(-2).join('.')}
                   </span>
                 </div>
@@ -844,13 +844,19 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
         </div>
       </div>
 
-      {/* Firma iletişim şeridi (marka / reklam) */}
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0 border-t-2 border-sky-800 px-2 py-1 text-center text-[7px] font-medium text-sky-800">
-        <span className="font-bold">{COMPANY.name}</span>
-        {COMPANY.phone && <span>· Tel: {COMPANY.phone}</span>}
-        {COMPANY.email && <span>· {COMPANY.email}</span>}
-        {COMPANY.address && <span>· {COMPANY.address}</span>}
-        {COMPANY.website && <span>· {COMPANY.website}</span>}
+      {/* Firma iletişim şeridi (marka / reklam) — tam ünvan + iki şube */}
+      <div className="border-t-2 border-sky-800 px-2 py-1 text-center text-[7px] text-sky-800">
+        <p className="font-bold">
+          {COMPANY.name}
+          {COMPANY.website ? ` · ${COMPANY.website}` : ''}
+        </p>
+        <div className="mt-0.5 flex flex-wrap justify-center gap-x-3 gap-y-0">
+          {COMPANY.branches.map((b) => (
+            <span key={b.name}>
+              <span className="font-bold">{b.name}:</span> {b.address} · Tel: {b.phone} · {b.email}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

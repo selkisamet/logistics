@@ -10,11 +10,23 @@ export const COMPANY = {
   /** Kısa marka adı — fiş başında logonun yanında görünür. */
   shortName: 'ENDER NAKLİYAT',
   slogan: 'Depo & Lojistik Hizmetleri',
-  phone: '0216 394 48 33',
-  email: 'sevkiyat@endernakliyat.com',
-  address: 'Anadolu Mah. Adak Sok. B1 No:1A Depo No: 14/15 Tuzla/İstanbul',
   /** E-posta alan adından çıkarıldı; yanlışsa boşalt. */
   website: 'www.endernakliyat.com',
+  /** Şubeler — fişin alt iletişim şeridinde yan yana görünür. */
+  branches: [
+    {
+      name: 'Tuzla',
+      address: 'Anadolu Mah. Adak Sok. B1 No:1A Depo No: 14/15 Tuzla/İstanbul',
+      phone: '0216 394 48 33',
+      email: 'sevkiyat@endernakliyat.com',
+    },
+    {
+      name: 'Çorlu',
+      address: 'Silver Trade Center, Cumhuriyet, Bülent Ecevit Blv. D:2.etap A2/15, 59860 Çorlu/Tekirdağ',
+      phone: '0546 476 78 56',
+      email: 'corlusube@endernakliyat.com.tr',
+    },
+  ],
   /** public/ altındaki logo yolu. Dosya yoksa fişte logo gizlenir (fiş yine basılır). */
   logoPath: '/logo.png',
   /** Yetki belgeleri — fişte logo altında rozet olarak (kod). Numaralar kayıtta durur, gerekirse gösterilir. */
