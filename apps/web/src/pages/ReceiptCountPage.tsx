@@ -699,12 +699,17 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             />
             <div className="flex flex-wrap justify-center gap-1">
               {COMPANY.docs.map((d) => (
-                <span
+                <div
                   key={d.code}
-                  className="rounded border border-sky-800 px-1 text-[7px] font-bold leading-tight text-sky-800"
+                  className="flex flex-col overflow-hidden rounded-sm border border-sky-800 text-center leading-none text-sky-800"
                 >
-                  {d.code}
-                </span>
+                  <span className="border-b border-sky-800 px-1 py-px text-[8px] font-black">
+                    {d.code}
+                  </span>
+                  <span className="px-1 py-px text-[5px]">
+                    {d.no.split('.').slice(-2).join('.')}
+                  </span>
+                </div>
               ))}
             </div>
           </div>
