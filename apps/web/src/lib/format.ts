@@ -22,6 +22,19 @@ export function formatDate(value?: string | null): string {
   return dateOnlyFmt.format(new Date(value));
 }
 
+const moneyFmt = new Intl.NumberFormat('tr-TR', {
+  style: 'currency',
+  currency: 'TRY',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Para biçimi (₺). null/undefined → boş dize. */
+export function formatMoney(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return '';
+  return moneyFmt.format(value);
+}
+
 /** Verilen tarihten bugüne kaç tam gün geçtiği. */
 export function daysSince(value?: string | null): number {
   if (!value) return 0;

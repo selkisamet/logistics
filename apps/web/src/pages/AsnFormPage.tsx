@@ -38,20 +38,42 @@ export function AsnFormPage() {
     handleSubmit,
     control,
     watch,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<CreateAsnInput>({
     resolver: zodResolver(createAsnSchema),
     defaultValues: {
       lines: [{ ...emptyLine }],
       expectedAt: new Date().toISOString().slice(0, 10), // bugün (yyyy-mm-dd)
+      paymentType: 'RECIPIENT', // varsayılan: alıcı ödemeli
+      showAmountOnSlip: false,
+      vatIncluded: false,
     },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
 
   const customerId = watch('customerId');
+  const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId);
   const { data: recipientOptions } = useCustomerRecipients(customerId);
+
+  // Kaynak/alıcı seçilince ilgili adresi (boşsa) yükleme/teslimat adresine ön-dolar.
+  const onSourceChange = (sel: ComboOption[]) => {
+    setSourceSel(sel);
+    const addr = sel
+      .map((s) => locations?.find((l) => l.id === s.value)?.address)
+      .find((a): a is string => !!a);
+    if (addr && !getValues('loadAddress')) setValue('loadAddress', addr);
+  };
+  const onRecipientChange = (sel: ComboOption[]) => {
+    setRecipientSel(sel);
+    const addr = sel
+      .map((r) => recipientOptions?.find((o) => o.id === r.value)?.address)
+      .find((a): a is string => !!a);
+    if (addr && !getValues('deliveryAddress')) setValue('deliveryAddress', addr);
+  };
 
   // Müşteri değişince önceki müşteriye ait seçili kaynak/alıcılar geçersiz olur → temizle.
   useEffect(() => {
@@ -156,7 +178,7 @@ export function AsnFormPage() {
               <MultiCombobox
                 options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
                 value={sourceSel}
-                onChange={setSourceSel}
+                onChange={onSourceChange}
                 onCreate={customerId ? createSource : undefined}
                 disabled={!customerId}
                 placeholder={customerId ? 'Depo seç / yaz…' : 'Önce müşteri seçin'}
@@ -168,12 +190,61 @@ export function AsnFormPage() {
               <MultiCombobox
                 options={(recipientOptions ?? []).map((r) => ({ value: r.id, label: r.name }))}
                 value={recipientSel}
-                onChange={setRecipientSel}
+                onChange={onRecipientChange}
                 onCreate={customerId ? createRecipient : undefined}
                 disabled={!customerId}
                 placeholder={customerId ? 'Alıcı seç / yaz…' : 'Önce müşteri seçin'}
                 emptyHint="Yazıp “oluştur” ile ekleyin"
               />
+            </div>
+          </div>
+
+          {/* İşi veren + yükleme/teslimat adresleri (fişe yansır) */}
+          <Field label="İşi Veren / Cari (opsiyonel)">
+            <Input placeholder="Örn. Misya Lojistik — işi veren firma" {...register('principalName')} />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Yükleme Adresi (gönderici)">
+              <Input placeholder="Malın alınacağı adres" {...register('loadAddress')} />
+            </Field>
+            <Field label="Teslimat Adresi (alıcı)">
+              <Input placeholder="Malın gideceği adres" {...register('deliveryAddress')} />
+            </Field>
+          </div>
+
+          {/* Ödeme & KDV */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Ödeme</span>
+              <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700">
+                <label className="inline-flex items-center gap-1.5">
+                  <input type="radio" value="RECIPIENT" {...register('paymentType')} /> Alıcı ödemeli
+                </label>
+                <label className="inline-flex items-center gap-1.5">
+                  <input type="radio" value="SENDER" {...register('paymentType')} /> Gönderici ödemeli
+                </label>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Ücret / KDV</span>
+              <div className="flex flex-col gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+                <label className="inline-flex items-center gap-1.5">
+                  <input type="checkbox" {...register('vatIncluded')} /> Fiyatlar KDV dahil (değilse %20 eklenir)
+                </label>
+                <label
+                  className={
+                    'inline-flex items-center gap-1.5 ' +
+                    (paymentType !== 'SENDER' ? 'text-slate-400' : '')
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    disabled={paymentType !== 'SENDER'}
+                    {...register('showAmountOnSlip')}
+                  />{' '}
+                  Ücreti fişte göster (gönderici ödemeli)
+                </label>
+              </div>
             </div>
           </div>
 
@@ -238,6 +309,15 @@ export function AsnFormPage() {
                 </Field>
                 <Field label="Adet *" error={errors.lines?.[i]?.expectedQty?.message}>
                   <Input type="number" min={1} {...register(`lines.${i}.expectedQty`)} />
+                </Field>
+                <Field label="Birim Fiyat (₺)" error={errors.lines?.[i]?.unitPrice?.message}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0,00"
+                    {...register(`lines.${i}.unitPrice`)}
+                  />
                 </Field>
               </div>
             </div>

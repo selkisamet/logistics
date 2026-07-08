@@ -74,6 +74,20 @@ export function AsnDetailPage() {
             label="Alıcı"
             value={asn.recipients.length ? asn.recipients.map((r) => r.label).join(', ') : '–'}
           />
+          {asn.principalName && <Info label="İşi Veren" value={asn.principalName} />}
+          {asn.loadAddress && <Info label="Yükleme adresi" value={asn.loadAddress} />}
+          {asn.deliveryAddress && <Info label="Teslimat adresi" value={asn.deliveryAddress} />}
+          <Info
+            label="Ödeme"
+            value={
+              asn.paymentType === 'SENDER'
+                ? 'Gönderici ödemeli'
+                : asn.paymentType === 'RECIPIENT'
+                  ? 'Alıcı ödemeli'
+                  : '–'
+            }
+          />
+          <Info label="KDV" value={asn.vatIncluded ? 'Dahil' : 'Hariç (%20 eklenir)'} />
           <Info label="Toplam kalem" value={String(asn.lines.length)} />
           <Info label="Toplam adet" value={String(totalExpected)} />
         </dl>

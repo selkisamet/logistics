@@ -11,6 +11,7 @@ import {
   PACKAGE_TYPE_LABELS,
   PACKAGE_TYPES,
   DISCREPANCY_TYPE_LABELS,
+  VAT_RATE,
   type Receipt,
   type ReceiptLine,
   type UpsertReceiptLineInput,
@@ -20,7 +21,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
-import { formatDate } from '../lib/format';
+import { formatDate, formatMoney } from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -683,6 +684,19 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
   const slipUrl = origin ? `${origin}/mal-kabul/${receipt.id}` : receipt.reference;
   const logoUrl = origin ? `${origin}${COMPANY.logoPath}` : COMPANY.logoPath;
 
+  // Ücret: alıcı ödemeli→görünür; gönderici ödemeli→yalnız "göster" işaretliyse görünür.
+  const showAmount =
+    receipt.paymentType === 'RECIPIENT' ||
+    (receipt.paymentType === 'SENDER' && !!receipt.showAmountOnSlip);
+  const lineAmount = (l: ReceiptLine) => (l.unitPrice != null ? l.countedQty * l.unitPrice : null);
+  const hasPrice = receipt.lines.some((l) => l.unitPrice != null);
+  const subtotal = receipt.lines.reduce((s, l) => s + (lineAmount(l) ?? 0), 0);
+  const vatIncluded = !!receipt.vatIncluded;
+  const net = vatIncluded ? subtotal / (1 + VAT_RATE) : subtotal;
+  const vat = vatIncluded ? subtotal - net : subtotal * VAT_RATE;
+  const grand = vatIncluded ? subtotal : subtotal + vat;
+  const recipientNames = (receipt.recipients ?? []).map((r) => r.label).join(', ');
+
   return (
     <div className="slip-chrome flex min-h-[124mm] flex-1 flex-col border-2 border-sky-800">
       {/* Başlık: logo/firma + QR + fiş bilgileri */}
@@ -728,6 +742,7 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
             <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
             <MetaLine label="ÖN İHBAR" value={receipt.asnReference || 'Kör kabul'} />
+            {receipt.principalName && <MetaLine label="İŞİ VEREN" value={receipt.principalName} />}
           </div>
         </div>
       </div>
@@ -735,10 +750,10 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
       {/* ALICI (teslim alan / ambar) + mal tablosu */}
       <div className="flex border-b-2 border-sky-800">
         <div className="w-[42%] border-r-2 border-sky-800 p-2">
-          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Teslim Alan</p>
-          <FieldLine label="ADI, ÜNVANI" value={receipt.warehouse?.name ?? ''} />
+          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Delivery</p>
+          <FieldLine label="ADI, ÜNVANI" value={recipientNames} />
           <FieldLine label="V.D. NO" value="" />
-          <FieldLine label="ADRESİ" value="" />
+          <FieldLine label="ADRESİ" value={receipt.deliveryAddress || ''} />
         </div>
         <div className="flex-1">
           <table className="w-full border-collapse text-[9px]">
@@ -766,7 +781,11 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
                   </td>
                   <td className={td} />
                   <td className={td} />
-                  <td className={td} />
+                  <td className={`${td} text-right`}>
+                    {showAmount && lineAmount(l) != null ? (
+                      <span className="slip-data">{formatMoney(lineAmount(l))}</span>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
               {Array.from({ length: blanks }).map((_, i) => (
@@ -788,13 +807,29 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
                 <td className={`${td} text-right font-bold`}>
                   <span className="slip-data">{totalCounted}</span>
                 </td>
-                <td className={td} colSpan={3}>
+                <td className={td} colSpan={2}>
                   <span className="slip-data">
                     Palet/Koli: {packages.length}
                     {typeSummary ? ` · ${typeSummary}` : ''}
                   </span>
                 </td>
+                <td className={`${td} text-right font-bold`}>
+                  {showAmount && hasPrice ? (
+                    <span className="slip-data">{formatMoney(grand)}</span>
+                  ) : null}
+                </td>
               </tr>
+              {showAmount && hasPrice && (
+                <tr>
+                  <td className={`${td} text-right`} colSpan={6}>
+                    <span className="slip-data text-[8px]">
+                      {vatIncluded
+                        ? `Genel Toplam: ${formatMoney(grand)} (KDV dahil)`
+                        : `Ara Toplam: ${formatMoney(net)} · KDV %20: ${formatMoney(vat)} · Genel Toplam: ${formatMoney(grand)}`}
+                    </span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -803,7 +838,7 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
       {/* GÖNDEREN + ödeme + tesellüm beyanı */}
       <div className="flex flex-1">
         <div className="w-[42%] border-r-2 border-sky-800 p-2">
-          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Gönderen / Teslim Eden</p>
+          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Gönderen / Sender</p>
           <FieldLine
             label="ADI, ÜNVANI"
             value={`${receipt.customer?.name ?? ''}${
@@ -811,17 +846,25 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             }`}
           />
           <FieldLine label="V.H. NO" value="" />
-          <FieldLine label="ADRESİ" value="" />
+          <FieldLine label="ADRESİ" value={receipt.loadAddress || ''} />
         </div>
         <div className="flex flex-1 flex-col">
           <div className="flex border-b-2 border-sky-800 text-[9px] font-semibold text-sky-800">
             <div className="flex flex-1 items-center justify-center gap-2 border-r-2 border-sky-800 p-2">
               GÖNDERİCİ ÖDEMELİ
-              <span className="h-3 w-3 border border-sky-800" />
+              <span className="flex h-3 w-3 items-center justify-center border border-sky-800">
+                <span className="slip-data text-[9px] font-black leading-none text-sky-800">
+                  {receipt.paymentType === 'SENDER' ? 'X' : ''}
+                </span>
+              </span>
             </div>
             <div className="flex flex-1 items-center justify-center gap-2 p-2">
               ALICI ÖDEMELİ
-              <span className="h-3 w-3 border border-sky-800" />
+              <span className="flex h-3 w-3 items-center justify-center border border-sky-800">
+                <span className="slip-data text-[9px] font-black leading-none text-sky-800">
+                  {receipt.paymentType === 'RECIPIENT' ? 'X' : ''}
+                </span>
+              </span>
             </div>
           </div>
           <div className="flex flex-1 flex-col justify-between p-2">

@@ -76,6 +76,12 @@ export class AsnService {
       vehicleId: input.vehicleId || null,
       expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
       notes: input.notes,
+      principalName: input.principalName || null,
+      loadAddress: input.loadAddress || null,
+      deliveryAddress: input.deliveryAddress || null,
+      paymentType: input.paymentType ?? null,
+      showAmountOnSlip: input.showAmountOnSlip ?? false,
+      vatIncluded: input.vatIncluded ?? false,
       status: ShipmentStatus.EXPECTED,
       lines: { create: input.lines.map(toLineData) },
       sources: { create: sources },
@@ -164,6 +170,12 @@ export class AsnService {
           expectedAt:
             input.expectedAt === undefined ? undefined : input.expectedAt ? new Date(input.expectedAt) : null,
           notes: input.notes,
+          principalName: input.principalName === undefined ? undefined : input.principalName || null,
+          loadAddress: input.loadAddress === undefined ? undefined : input.loadAddress || null,
+          deliveryAddress: input.deliveryAddress === undefined ? undefined : input.deliveryAddress || null,
+          paymentType: input.paymentType === undefined ? undefined : input.paymentType ?? null,
+          showAmountOnSlip: input.showAmountOnSlip,
+          vatIncluded: input.vatIncluded,
           status: input.status,
         },
         include: SHIPMENT_INCLUDE,
@@ -276,6 +288,7 @@ function toLineData(line: CreateAsnInput['lines'][number]) {
     expectedQty: line.expectedQty,
     unit: line.unit,
     barcode: line.barcode,
+    unitPrice: line.unitPrice ?? null,
   };
 }
 
@@ -304,6 +317,12 @@ function serializeShipment(s: ShipmentWithRelations) {
     })),
     expectedAt: s.expectedAt,
     notes: s.notes,
+    principalName: s.principalName,
+    loadAddress: s.loadAddress,
+    deliveryAddress: s.deliveryAddress,
+    paymentType: s.paymentType as 'SENDER' | 'RECIPIENT' | null,
+    showAmountOnSlip: s.showAmountOnSlip,
+    vatIncluded: s.vatIncluded,
     createdAt: s.createdAt,
     lines: s.lines.map((l) => ({
       id: l.id,
@@ -312,6 +331,7 @@ function serializeShipment(s: ShipmentWithRelations) {
       expectedQty: l.expectedQty,
       unit: l.unit,
       barcode: l.barcode,
+      unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
       receivedQty: l.receiptLines.reduce((sum, r) => sum + r.countedQty, 0),
     })),
   };

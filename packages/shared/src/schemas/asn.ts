@@ -2,13 +2,25 @@ import { z } from 'zod';
 import { SHIPMENT_STATUSES, ShipmentStatus } from '../enums';
 import { paginationQuerySchema } from './common';
 
-/** Beklenen sevkiyat satırı (ürün + beklenen adet) */
+/** KDV oranı (%20). */
+export const VAT_RATE = 0.2;
+
+/** Ödeme tipi: gönderici mi alıcı mı öder. */
+export const PAYMENT_TYPES = ['SENDER', 'RECIPIENT'] as const;
+export type PaymentType = (typeof PAYMENT_TYPES)[number];
+
+/** Beklenen sevkiyat satırı (ürün + beklenen adet + opsiyonel birim fiyat) */
 export const expectedLineSchema = z.object({
   sku: z.string().optional(), // opsiyonel: müşteri ürün kodu/varsa
   description: z.string().min(1, 'Ürün açıklaması gerekli'),
   expectedQty: z.coerce.number().int().positive('Adet pozitif olmalı'),
   unit: z.string().default('ADET'),
   barcode: z.string().optional(),
+  // birim fiyat (opsiyonel) — boş input '' → undefined (coerce NaN'ı önle)
+  unitPrice: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().nonnegative('Fiyat negatif olamaz').optional(),
+  ),
 });
 export type ExpectedLineInput = z.infer<typeof expectedLineSchema>;
 
@@ -35,6 +47,13 @@ export const createAsnSchema = z.object({
   vehicleId: z.string().optional(), // plaka belli değilse boş
   expectedAt: z.string().optional(), // ISO tarih
   notes: z.string().optional(),
+  // Fiş için taraf/adres/ödeme (hepsi opsiyonel)
+  principalName: z.string().optional(), // işi veren / cari
+  loadAddress: z.string().optional(), // yükleme (gönderici) adresi
+  deliveryAddress: z.string().optional(), // teslimat (alıcı) adresi
+  paymentType: z.enum(PAYMENT_TYPES).optional(),
+  showAmountOnSlip: z.boolean().optional().default(false),
+  vatIncluded: z.boolean().optional().default(false),
   lines: z.array(expectedLineSchema).min(1, 'En az bir satır ekleyin'),
 });
 export type CreateAsnInput = z.infer<typeof createAsnSchema>;
@@ -53,6 +72,7 @@ export type UpdateAsnVehicleInput = z.infer<typeof updateAsnVehicleSchema>;
 export const asnLineSchema = expectedLineSchema.extend({
   id: z.string(),
   receivedQty: z.number().int().default(0),
+  unitPrice: z.number().nonnegative().nullable().optional(),
 });
 
 export const asnListQuerySchema = paginationQuerySchema.extend({
@@ -108,6 +128,12 @@ export const asnSchema = z.object({
     .default([]),
   expectedAt: z.string().nullable(),
   notes: z.string().nullable(),
+  principalName: z.string().nullable().optional(),
+  loadAddress: z.string().nullable().optional(),
+  deliveryAddress: z.string().nullable().optional(),
+  paymentType: z.enum(PAYMENT_TYPES).nullable().optional(),
+  showAmountOnSlip: z.boolean().optional().default(false),
+  vatIncluded: z.boolean().optional().default(false),
   lines: z.array(asnLineSchema),
   createdAt: z.string(),
 });

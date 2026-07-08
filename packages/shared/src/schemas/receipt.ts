@@ -80,6 +80,7 @@ export const receiptLineSchema = z.object({
   countedQty: z.number().int(),
   unit: z.string(),
   barcode: z.string().nullable(),
+  unitPrice: z.number().nonnegative().nullable().optional(), // birim fiyat (ön ihbardan)
 });
 export type ReceiptLine = z.infer<typeof receiptLineSchema>;
 
@@ -97,6 +98,14 @@ export const receiptSchema = z.object({
   notes: z.string().nullable(),
   waybillNo: z.string().nullable().optional(),
   orderNo: z.string().nullable().optional(),
+  // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
+  principalName: z.string().nullable().optional(),
+  loadAddress: z.string().nullable().optional(),
+  deliveryAddress: z.string().nullable().optional(),
+  paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),
+  showAmountOnSlip: z.boolean().optional().default(false),
+  vatIncluded: z.boolean().optional().default(false),
+  recipients: z.array(z.object({ label: z.string() })).optional().default([]),
   lines: z.array(receiptLineSchema),
   packages: z.array(packageSchema).optional(),
   discrepancies: z.array(discrepancySchema).optional(),
