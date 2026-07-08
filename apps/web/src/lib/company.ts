@@ -17,4 +17,11 @@ export const COMPANY = {
   website: 'www.endernakliyat.com',
   /** public/ altındaki logo yolu. Dosya yoksa fişte logo gizlenir (fiş yine basılır). */
   logoPath: '/logo.png',
+  /** Yetki belgeleri — fişte logo altında rozet olarak (kod). Numaralar kayıtta durur, gerekirse gösterilir. */
+  docs: [
+    { code: 'K1', no: 'İST.U-NET.K1.34.139419' },
+    { code: 'H1', no: 'İST.U-NET.H1.34.868' },
+    { code: 'ADR', no: 'İST.U-NET.TMFB.34.39892' },
+    { code: 'TİO', no: 'İST.U-NET.TİO.34.2471' },
+  ],
 };
