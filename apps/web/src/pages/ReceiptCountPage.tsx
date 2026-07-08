@@ -698,7 +698,7 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
               }}
             />
             <div className="leading-tight">
-              <p className="text-[11px] font-black text-sky-800">{COMPANY.name}</p>
+              <p className="text-[12px] font-black text-sky-800">{COMPANY.shortName}</p>
               <p className="text-[7px] font-semibold text-slate-500">{COMPANY.slogan}</p>
             </div>
           </div>
