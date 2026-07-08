@@ -688,19 +688,15 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
       {/* Başlık: logo/firma + QR + fiş bilgileri */}
       <div className="flex border-b-2 border-sky-800">
         <div className="flex w-[42%] items-center gap-2 border-r-2 border-sky-800 p-2">
-          <div className="flex flex-1 flex-col items-start justify-center gap-1 overflow-hidden">
+          <div className="flex flex-1 items-center justify-center overflow-hidden">
             <img
               src={logoUrl}
               alt={COMPANY.name}
-              className="h-[34px] w-auto max-w-[130px] object-contain"
+              className="h-[50px] w-auto max-w-[150px] object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <div className="leading-tight">
-              <p className="text-[12px] font-black text-sky-800">{COMPANY.shortName}</p>
-              <p className="text-[7px] font-semibold text-slate-500">{COMPANY.slogan}</p>
-            </div>
           </div>
           <div className="slip-data flex flex-col items-center">
             <QRCodeSVG value={slipUrl} size={48} />
