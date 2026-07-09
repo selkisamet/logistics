@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   createAsnSchema,
   type CreateAsnInput,
@@ -11,14 +11,31 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
-import { Button, Card, Field, Input, Combobox, MultiCombobox, type ComboOption } from '../components/ui';
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Combobox,
+  MultiCombobox,
+  Spinner,
+  type ComboOption,
+} from '../components/ui';
 import { useCustomers, useWarehouses, useCustomerLocations, useVehicles } from '../lib/lookups';
 
 const emptyLine = { sku: '', description: '', expectedQty: 1, unit: 'ADET', barcode: '' };
 
+/** ShipmentSource/Recipient seçimini geri (input'a) çevirir. __ft_ = eski serbest metin. */
+const selToInput = (o: ComboOption) => ({
+  customerLocationId: o.value.startsWith('__ft_') ? undefined : o.value,
+  label: o.label,
+});
+
 export function AsnFormPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { id } = useParams<{ id: string }>();
+  const editing = !!id;
   const { data: customers } = useCustomers();
   const { data: warehouses } = useWarehouses();
   const { data: vehicles } = useVehicles();
@@ -26,11 +43,19 @@ export function AsnFormPage() {
   const [sourceSel, setSourceSel] = useState<ComboOption[]>([]);
   const [recipientSel, setRecipientSel] = useState<ComboOption[]>([]);
 
+  // Düzenleme: mevcut ön ihbarı yükle
+  const { data: existing } = useQuery({
+    queryKey: ['asn', id],
+    queryFn: () => api.get<Asn>(`/asn/${id}`),
+    enabled: editing,
+  });
+
   const {
     register,
     handleSubmit,
     control,
     watch,
+    reset,
     formState: { errors },
   } = useForm<CreateAsnInput>({
     resolver: zodResolver(createAsnSchema),
@@ -51,13 +76,41 @@ export function AsnFormPage() {
   const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
   const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
 
-  // Gönderici değişince yükleme yerleri, alıcı değişince boşaltma yerleri geçersiz → temizle.
+  // Düzenlemede formu bir kez mevcut kayıttan doldur.
+  const prefilled = useRef(false);
   useEffect(() => {
-    setSourceSel([]);
-  }, [customerId]);
-  useEffect(() => {
-    setRecipientSel([]);
-  }, [recipientCustomerId]);
+    if (!existing || prefilled.current) return;
+    prefilled.current = true;
+    reset({
+      customerId: existing.customerId,
+      recipientCustomerId: existing.recipientCustomerId ?? undefined,
+      warehouseId: existing.warehouseId,
+      vehicleId: existing.vehicleId ?? undefined,
+      expectedAt: existing.expectedAt ? existing.expectedAt.slice(0, 10) : undefined,
+      notes: existing.notes ?? undefined,
+      principalName: existing.principalName ?? undefined,
+      paymentType: existing.paymentType ?? 'RECIPIENT',
+      showAmountOnSlip: existing.showAmountOnSlip ?? false,
+      vatIncluded: existing.vatIncluded ?? false,
+      lines: existing.lines.map((l) => ({
+        sku: l.sku ?? '',
+        description: l.description,
+        expectedQty: l.expectedQty,
+        unit: l.unit,
+        barcode: l.barcode ?? '',
+        unitPrice: l.unitPrice ?? undefined,
+      })),
+    });
+    setSourceSel(
+      existing.sources.map((s, i) => ({ value: s.customerLocationId || `__ft_${i}`, label: s.label })),
+    );
+    setRecipientSel(
+      existing.recipients.map((r, i) => ({
+        value: r.customerLocationId || `__ft_${i}`,
+        label: r.label,
+      })),
+    );
+  }, [existing, reset]);
 
   // Listede yoksa: yazılan adı ilgili müşteriye lokasyon olarak kaydedip seçime ekle.
   const createLocationFor = (ownerId: string | undefined) => async (name: string): Promise<ComboOption> => {
@@ -74,7 +127,8 @@ export function AsnFormPage() {
   const createDrop = createLocationFor(recipientCustomerId);
 
   const mutation = useMutation({
-    mutationFn: (input: CreateAsnInput) => api.post<Asn>('/asn', input),
+    mutationFn: (input: CreateAsnInput) =>
+      editing ? api.patch<Asn>(`/asn/${id}`, input) : api.post<Asn>('/asn', input),
     onSuccess: (asn) => {
       qc.invalidateQueries({ queryKey: ['asn'] });
       navigate(`/on-ihbar/${asn.id}`, { replace: true });
@@ -82,21 +136,25 @@ export function AsnFormPage() {
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kayıt başarısız'),
   });
 
+  if (editing && !existing) return <Spinner />;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <button onClick={() => navigate(-1)} className="text-slate-500">
           ← Geri
         </button>
-        <h2 className="text-xl font-bold text-slate-900">Yeni Ön İhbar</h2>
+        <h2 className="text-xl font-bold text-slate-900">
+          {editing ? 'Ön İhbar Düzenle' : 'Yeni Ön İhbar'}
+        </h2>
       </div>
 
       <form
         onSubmit={handleSubmit((v) =>
           mutation.mutate({
             ...v,
-            sources: sourceSel.map((o) => ({ customerLocationId: o.value, label: o.label })),
-            recipients: recipientSel.map((o) => ({ customerLocationId: o.value, label: o.label })),
+            sources: sourceSel.map(selToInput),
+            recipients: recipientSel.map(selToInput),
           }),
         )}
         className="space-y-4"
@@ -116,7 +174,10 @@ export function AsnFormPage() {
                       hint: `(${c.code})`,
                     }))}
                     value={field.value ?? ''}
-                    onChange={field.onChange}
+                    onChange={(v) => {
+                      field.onChange(v);
+                      setSourceSel([]);
+                    }}
                     placeholder="Gönderici müşteri ara / seç..."
                   />
                 )}
@@ -134,7 +195,10 @@ export function AsnFormPage() {
                       hint: `(${c.code})`,
                     }))}
                     value={field.value ?? ''}
-                    onChange={field.onChange}
+                    onChange={(v) => {
+                      field.onChange(v);
+                      setRecipientSel([]);
+                    }}
                     nullable
                     nullableLabel="Alıcı seçilmedi"
                     placeholder="Alıcı müşteri ara / seç..."
@@ -317,7 +381,7 @@ export function AsnFormPage() {
         )}
 
         <Button type="submit" className="w-full" loading={mutation.isPending}>
-          Ön İhbarı Kaydet
+          {editing ? 'Güncelle' : 'Ön İhbarı Kaydet'}
         </Button>
       </form>
     </div>

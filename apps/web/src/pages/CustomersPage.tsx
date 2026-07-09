@@ -71,21 +71,37 @@ export function CustomersPage() {
   );
 }
 
-function CustomerForm({ onDone }: { onDone: () => void }) {
+export function CustomerForm({ initial, onDone }: { initial?: Customer; onDone: () => void }) {
   const qc = useQueryClient();
+  const editing = !!initial;
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreateCustomerInput>({ resolver: zodResolver(createCustomerSchema) });
+  } = useForm<CreateCustomerInput>({
+    resolver: zodResolver(createCustomerSchema),
+    defaultValues: initial
+      ? {
+          name: initial.name,
+          contactName: initial.contactName ?? '',
+          phone: initial.phone ?? '',
+          email: initial.email ?? '',
+          address: initial.address ?? '',
+        }
+      : undefined,
+  });
 
   const mutation = useMutation({
-    mutationFn: (input: CreateCustomerInput) => api.post<Customer>('/customers', input),
+    mutationFn: (input: CreateCustomerInput) =>
+      editing
+        ? api.patch<Customer>(`/customers/${initial!.id}`, input)
+        : api.post<Customer>('/customers', input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] });
-      reset();
+      if (editing) qc.invalidateQueries({ queryKey: ['customers', initial!.id] });
+      if (!editing) reset();
       onDone();
     },
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kayıt başarısız'),
@@ -97,9 +113,11 @@ function CustomerForm({ onDone }: { onDone: () => void }) {
         <Field label="Ad *" error={errors.name?.message}>
           <Input {...register('name')} placeholder="Örn. Arkem Kimya" />
         </Field>
-        <p className="text-xs text-slate-400">
-          Müşteri kodu otomatik atanır (MST0001, MST0002…).
-        </p>
+        {!editing && (
+          <p className="text-xs text-slate-400">
+            Müşteri kodu otomatik atanır (MST0001, MST0002…).
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Yetkili" error={errors.contactName?.message}>
             <Input {...register('contactName')} />
@@ -115,9 +133,16 @@ function CustomerForm({ onDone }: { onDone: () => void }) {
           <Input {...register('address')} />
         </Field>
         {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-        <Button type="submit" className="w-full" loading={isSubmitting || mutation.isPending}>
-          Kaydet
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" className="flex-1" loading={isSubmitting || mutation.isPending}>
+            {editing ? 'Güncelle' : 'Kaydet'}
+          </Button>
+          {editing && (
+            <Button type="button" variant="secondary" onClick={onDone}>
+              Vazgeç
+            </Button>
+          )}
+        </div>
       </form>
     </Card>
   );

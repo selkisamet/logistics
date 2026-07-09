@@ -31,6 +31,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="/on-ihbar" element={<AsnListPage />} />
           <Route path="/on-ihbar/yeni" element={<AsnFormPage />} />
+          <Route path="/on-ihbar/:id/duzenle" element={<AsnFormPage />} />
           <Route path="/on-ihbar/:id" element={<AsnDetailPage />} />
           <Route path="/mal-kabul" element={<ReceiptListPage />} />
           <Route path="/mal-kabul/baslat" element={<ReceiptStartPage />} />

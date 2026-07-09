@@ -12,6 +12,7 @@ import {
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
 import { Button, Card, EmptyState, Field, Input, Spinner } from '../components/ui';
+import { CustomerForm } from './CustomersPage';
 import { useAuthStore } from '../stores/auth';
 
 export function CustomerDetailPage() {
@@ -19,6 +20,7 @@ export function CustomerDetailPage() {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'ADMIN' || role === 'SUPERVISOR';
+  const [editing, setEditing] = useState(false);
 
   const { data: customer, isLoading } = useQuery({
     queryKey: ['customers', id],
@@ -39,13 +41,27 @@ export function CustomerDetailPage() {
         ← Müşteriler
       </button>
 
-      <Card className="space-y-1">
-        <h2 className="text-xl font-bold text-slate-900">{customer.name}</h2>
-        <p className="text-sm text-slate-500">Kod: {customer.code}</p>
-        {customer.contactName && <p className="text-sm text-slate-600">Yetkili: {customer.contactName}</p>}
-        {customer.phone && <p className="text-sm text-slate-600">Tel: {customer.phone}</p>}
-        {customer.address && <p className="text-sm text-slate-600">Adres: {customer.address}</p>}
-      </Card>
+      {editing ? (
+        <CustomerForm initial={customer} onDone={() => setEditing(false)} />
+      ) : (
+        <Card className="space-y-1">
+          <div className="flex items-start justify-between">
+            <h2 className="text-xl font-bold text-slate-900">{customer.name}</h2>
+            {canEdit && (
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                Düzenle
+              </Button>
+            )}
+          </div>
+          <p className="text-sm text-slate-500">Kod: {customer.code}</p>
+          {customer.contactName && (
+            <p className="text-sm text-slate-600">Yetkili: {customer.contactName}</p>
+          )}
+          {customer.phone && <p className="text-sm text-slate-600">Tel: {customer.phone}</p>}
+          {customer.email && <p className="text-sm text-slate-600">E-posta: {customer.email}</p>}
+          {customer.address && <p className="text-sm text-slate-600">Adres: {customer.address}</p>}
+        </Card>
+      )}
 
       <div>
         <h3 className="mb-2 font-semibold text-slate-900">Depolar / Lokasyonlar</h3>

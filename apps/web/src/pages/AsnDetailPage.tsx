@@ -135,6 +135,15 @@ export function AsnDetailPage() {
             <Button
               variant="secondary"
               className="flex-1"
+              onClick={() => navigate(`/on-ihbar/${asn.id}/duzenle`)}
+            >
+              Düzenle
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="secondary"
+              className="flex-1"
               loading={cancelMut.isPending}
               onClick={async () => {
                 if (await confirmDialog({ message: 'Ön ihbar iptal edilsin mi?', danger: true }))
