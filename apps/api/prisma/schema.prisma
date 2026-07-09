@@ -199,6 +199,7 @@ model ShipmentSource {
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
   label              String // görünen ad (kayıtlı depo adı kopyası veya elle girilen metin)
+  address            String? // kayıtlı deponun adres kopyası (fişte yükleme noktası)
 
   @@index([shipmentId])
 }
@@ -211,6 +212,7 @@ model ShipmentRecipient {
   customerRecipientId String?
   customerRecipient   CustomerRecipient? @relation(fields: [customerRecipientId], references: [id])
   label               String // görünen ad (kayıtlı alıcı adı kopyası veya elle girilen metin)
+  address             String? // kayıtlı alıcının adres kopyası (fişte teslim noktası)
 
   @@index([shipmentId])
 }

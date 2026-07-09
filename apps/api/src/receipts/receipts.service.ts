@@ -13,7 +13,7 @@ import {
 } from '@lojistik/shared';
 
 const RECEIPT_INCLUDE = {
-  customer: { select: { id: true, name: true, code: true } },
+  customer: { select: { id: true, name: true, code: true, address: true } },
   warehouse: { select: { id: true, name: true, code: true } },
   shipment: {
     select: {
@@ -25,7 +25,8 @@ const RECEIPT_INCLUDE = {
       paymentType: true,
       showAmountOnSlip: true,
       vatIncluded: true,
-      recipients: { select: { label: true } },
+      sources: { select: { label: true, address: true } },
+      recipients: { select: { label: true, address: true } },
     },
   },
   lines: { orderBy: { createdAt: 'asc' } as const },
@@ -393,7 +394,9 @@ function serializeReceipt(r: ReceiptWithRelations) {
     paymentType: (r.shipment?.paymentType ?? null) as 'SENDER' | 'RECIPIENT' | null,
     showAmountOnSlip: r.shipment?.showAmountOnSlip ?? false,
     vatIncluded: r.shipment?.vatIncluded ?? false,
-    recipients: r.shipment?.recipients?.map((rec) => ({ label: rec.label })) ?? [],
+    sources: r.shipment?.sources?.map((s) => ({ label: s.label, address: s.address })) ?? [],
+    recipients:
+      r.shipment?.recipients?.map((rec) => ({ label: rec.label, address: rec.address })) ?? [],
     startedById: r.startedById,
     startedAt: r.startedAt,
     completedAt: r.completedAt,

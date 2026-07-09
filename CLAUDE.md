@@ -81,12 +81,15 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   **çoklu alıcı** (firmanın kendi müşterileri = malın gideceği taraf; CustomerRecipient + ShipmentRecipient,
   kaynak deseninin birebir aynası; müşteri detayında yönetilir, ön ihbarda çoklu seçilir).
   Satır = **Açıklama + Adet + opsiyonel Birim Fiyat** (SKU/Barkod kaldırıldı; müşteri belgelerinde İrsaliye No + Sipariş No + irsaliye QR var, ürün barkodu yok).
-  - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — hepsi InboundShipment'ta, additive: `principalName`
-    (İşi Veren/cari, ör. Misya), `loadAddress` (yükleme/gönderici), `deliveryAddress` (teslimat/alıcı; kayıtlı
-    kaynak/alıcı seçilince adres ön-dolar, editable), `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip`
-    (gönderici ödemeli iken ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici**
-    (malın sahibi), İşi Veren ayrı. Satır `unitPrice` (Decimal) → ReceiptLine'a kopyalanır; fiş receipt→shipment
-    yolundan besleniyor (serializeReceipt yüzeye çıkarır).
+  - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive: `principalName`
+    (İşi Veren/cari, ör. Misya), `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
+    ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi), İşi Veren
+    ayrı. Satır `unitPrice` (Decimal) → ReceiptLine'a kopyalanır. **Adresler:** `ShipmentSource`/`ShipmentRecipient`'e
+    seçilen kaydın `address`'i snapshot'lanır; fişte **her yükleme/teslim noktası ayrı listelenir** (kaynak yoksa
+    müşteri fatura adresi). `CustomerLocation`/`CustomerRecipient` = ad+adres+**telefon**, müşteri detayından
+    düzenlenebilir (PATCH). Fiş receipt→shipment yolundan besleniyor (serializeReceipt sources/recipients+adres
+    ve customer.address'i yüzeye çıkarır). (`loadAddress`/`deliveryAddress` kolonları duruyor ama fiş artık listeyi
+    kullanıyor.)
 - Mal Kabul: sayım (satırlar **id** ile güncellenir, SKU boş olabilir), **İrsaliye No + Sipariş No** (Belge Bilgileri),
   toplu palet QR etiketi üretimi (adet girilir), tamamla. Kör kabul (ASN'siz) da var.
 - **Tesellüm fişi:** mal kabul başlığındaki "🖨️ Tesellüm Fişi" ile her durumda basılır (`ReceiptSlipModal`,

@@ -92,7 +92,14 @@ export const receiptSchema = z.object({
   asnReference: z.string().nullable().optional(),
   plannedVehicle: vehicleSummarySchema.nullable().optional(), // ön ihbarda planlanan araç
   customerId: z.string(),
-  customer: z.object({ id: z.string(), name: z.string(), code: z.string() }).optional(),
+  customer: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      code: z.string(),
+      address: z.string().nullable().optional(),
+    })
+    .optional(),
   warehouseId: z.string(),
   warehouse: z.object({ id: z.string(), name: z.string(), code: z.string() }).optional(),
   notes: z.string().nullable(),
@@ -105,7 +112,15 @@ export const receiptSchema = z.object({
   paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),
   showAmountOnSlip: z.boolean().optional().default(false),
   vatIncluded: z.boolean().optional().default(false),
-  recipients: z.array(z.object({ label: z.string() })).optional().default([]),
+  // Yükleme (kaynak) ve teslim (alıcı) noktaları — fişte ayrı ayrı listelenir
+  sources: z
+    .array(z.object({ label: z.string(), address: z.string().nullable().optional() }))
+    .optional()
+    .default([]),
+  recipients: z
+    .array(z.object({ label: z.string(), address: z.string().nullable().optional() }))
+    .optional()
+    .default([]),
   lines: z.array(receiptLineSchema),
   packages: z.array(packageSchema).optional(),
   discrepancies: z.array(discrepancySchema).optional(),

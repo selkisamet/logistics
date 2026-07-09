@@ -85,9 +85,19 @@ export class AsnService {
       vatIncluded: input.vatIncluded ?? false,
       status: ShipmentStatus.EXPECTED,
       lines: { create: input.lines.map(toLineData) },
-      sources: { create: sources.map(({ customerLocationId, label }) => ({ customerLocationId, label })) },
+      sources: {
+        create: sources.map(({ customerLocationId, label, address }) => ({
+          customerLocationId,
+          label,
+          address,
+        })),
+      },
       recipients: {
-        create: recipients.map(({ customerRecipientId, label }) => ({ customerRecipientId, label })),
+        create: recipients.map(({ customerRecipientId, label, address }) => ({
+          customerRecipientId,
+          label,
+          address,
+        })),
       },
     };
 
@@ -151,7 +161,12 @@ export class AsnService {
       if (sources) {
         await tx.shipmentSource.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentSource.createMany({
-          data: sources.map(({ customerLocationId, label }) => ({ customerLocationId, label, shipmentId: id })),
+          data: sources.map(({ customerLocationId, label, address }) => ({
+            customerLocationId,
+            label,
+            address,
+            shipmentId: id,
+          })),
         });
       }
 
@@ -159,9 +174,10 @@ export class AsnService {
       if (recipients) {
         await tx.shipmentRecipient.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentRecipient.createMany({
-          data: recipients.map(({ customerRecipientId, label }) => ({
+          data: recipients.map(({ customerRecipientId, label, address }) => ({
             customerRecipientId,
             label,
+            address,
             shipmentId: id,
           })),
         });
