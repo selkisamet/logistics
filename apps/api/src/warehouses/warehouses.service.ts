@@ -73,6 +73,16 @@ export class WarehousesService {
     return { success: true };
   }
 
+  /** Bu depoyu varsayılan yapar; diğerlerinin varsayılanını kaldırır. */
+  async setDefault(id: string) {
+    await this.findOne(id);
+    await this.prisma.$transaction([
+      this.prisma.warehouse.updateMany({ where: { isDefault: true }, data: { isDefault: false } }),
+      this.prisma.warehouse.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+    return this.prisma.warehouse.findUnique({ where: { id } });
+  }
+
   async addLocation(input: CreateLocationInput) {
     await this.findOne(input.warehouseId);
     return this.prisma.location.create({ data: input });

@@ -56,6 +56,8 @@ export function AsnFormPage() {
     control,
     watch,
     reset,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<CreateAsnInput>({
     resolver: zodResolver(createAsnSchema),
@@ -75,6 +77,17 @@ export function AsnFormPage() {
   const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
   const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
+
+  // Yeni ön ihbarda varsayılan depoyu ön-seç (kullanıcı isterse değiştirir).
+  const whPrefilled = useRef(false);
+  useEffect(() => {
+    if (editing || whPrefilled.current || !warehouses) return;
+    const def = warehouses.find((w) => w.isDefault);
+    if (def && !getValues('warehouseId')) {
+      whPrefilled.current = true;
+      setValue('warehouseId', def.id);
+    }
+  }, [warehouses, editing, getValues, setValue]);
 
   // Düzenlemede formu bir kez mevcut kayıttan doldur.
   const prefilled = useRef(false);

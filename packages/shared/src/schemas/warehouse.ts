@@ -20,6 +20,7 @@ export const warehouseSchema = z.object({
   name: z.string(),
   code: z.string(),
   address: z.string().nullable(),
+  isDefault: z.boolean().optional().default(false),
   createdAt: z.string(),
 });
 export type Warehouse = z.infer<typeof warehouseSchema>;

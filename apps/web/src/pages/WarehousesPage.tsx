@@ -15,10 +15,16 @@ export function WarehousesPage() {
   const [showForm, setShowForm] = useState(false);
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'ADMIN' || role === 'SUPERVISOR';
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['warehouses'],
     queryFn: () => api.get<Warehouse[]>('/warehouses'),
+  });
+
+  const setDefaultMut = useMutation({
+    mutationFn: (id: string) => api.post(`/warehouses/${id}/default`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['warehouses'] }),
   });
 
   return (
@@ -41,12 +47,29 @@ export function WarehousesPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {data.map((w) => (
-            <Card key={w.id} className="flex items-center justify-between">
+            <Card key={w.id} className="flex items-center justify-between gap-2">
               <div>
-                <p className="font-semibold text-slate-900">{w.name}</p>
+                <p className="font-semibold text-slate-900">
+                  {w.name}
+                  {w.isDefault && (
+                    <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+                      Varsayılan
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-slate-500">{w.code}</p>
+                {w.address && <p className="text-xs text-slate-400">{w.address}</p>}
               </div>
-              {w.address && <span className="text-xs text-slate-400">{w.address}</span>}
+              {canEdit && !w.isDefault && (
+                <Button
+                  variant="secondary"
+                  className="shrink-0"
+                  loading={setDefaultMut.isPending && setDefaultMut.variables === w.id}
+                  onClick={() => setDefaultMut.mutate(w.id)}
+                >
+                  Varsayılan yap
+                </Button>
+              )}
             </Card>
           ))}
         </div>

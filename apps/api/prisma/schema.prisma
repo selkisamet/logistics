@@ -127,6 +127,7 @@ model Warehouse {
   code      String   @unique
   name      String
   address   String?
+  isDefault Boolean  @default(false) // ön ihbarda ön-seçili gelen depo
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -54,6 +54,12 @@ export class WarehousesController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Post(':id/default')
+  setDefault(@Param('id') id: string) {
+    return this.warehousesService.setDefault(id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @Post('locations')
   addLocation(@Body(new ZodValidationPipe(createLocationSchema)) dto: CreateLocationInput) {
     return this.warehousesService.addLocation(dto);
