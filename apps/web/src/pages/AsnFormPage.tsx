@@ -160,6 +160,26 @@ export function AsnFormPage() {
         className="space-y-4"
       >
         <Card className="space-y-3">
+          {/* Hedef depo — malın hangi depoda depolanacağı, önce belirlenir */}
+          <Field label="Hedef Depo *" error={errors.warehouseId?.message}>
+            <Controller
+              name="warehouseId"
+              control={control}
+              render={({ field }) => (
+                <Combobox
+                  options={(warehouses ?? []).map((w) => ({
+                    value: w.id,
+                    label: w.name,
+                    hint: `(${w.code})`,
+                  }))}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="Depo ara / seç..."
+                />
+              )}
+            />
+          </Field>
+
           {/* Gönderici & Alıcı — ikisi de kayıtlı Müşteri */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Gönderici (Müşteri) *" error={errors.customerId?.message}>
@@ -235,25 +255,6 @@ export function AsnFormPage() {
               />
             </div>
           </div>
-
-          <Field label="Hedef Depo *" error={errors.warehouseId?.message}>
-            <Controller
-              name="warehouseId"
-              control={control}
-              render={({ field }) => (
-                <Combobox
-                  options={(warehouses ?? []).map((w) => ({
-                    value: w.id,
-                    label: w.name,
-                    hint: `(${w.code})`,
-                  }))}
-                  value={field.value ?? ''}
-                  onChange={field.onChange}
-                  placeholder="Depo ara / seç..."
-                />
-              )}
-            />
-          </Field>
 
           {/* İşi veren (fişe yansır). Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
           <Field label="İşi Veren / Cari (opsiyonel)">
