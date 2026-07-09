@@ -77,15 +77,18 @@ export class AsnService {
       expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
       notes: input.notes,
       principalName: input.principalName || null,
-      loadAddress: input.loadAddress || null,
-      deliveryAddress: input.deliveryAddress || null,
+      // Yükleme/teslimat adresi seçilen kaynak/alıcı kayıtlarının adresinden türetilir.
+      loadAddress: joinAddresses(sources),
+      deliveryAddress: joinAddresses(recipients),
       paymentType: input.paymentType ?? null,
       showAmountOnSlip: input.showAmountOnSlip ?? false,
       vatIncluded: input.vatIncluded ?? false,
       status: ShipmentStatus.EXPECTED,
       lines: { create: input.lines.map(toLineData) },
-      sources: { create: sources },
-      recipients: { create: recipients },
+      sources: { create: sources.map(({ customerLocationId, label }) => ({ customerLocationId, label })) },
+      recipients: {
+        create: recipients.map(({ customerRecipientId, label }) => ({ customerRecipientId, label })),
+      },
     };
 
     // Referans verilmediyse otomatik üret (ON-...), çakışmada yeniden dene
@@ -148,7 +151,7 @@ export class AsnService {
       if (sources) {
         await tx.shipmentSource.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentSource.createMany({
-          data: sources.map((s) => ({ ...s, shipmentId: id })),
+          data: sources.map(({ customerLocationId, label }) => ({ customerLocationId, label, shipmentId: id })),
         });
       }
 
@@ -156,7 +159,11 @@ export class AsnService {
       if (recipients) {
         await tx.shipmentRecipient.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentRecipient.createMany({
-          data: recipients.map((r) => ({ ...r, shipmentId: id })),
+          data: recipients.map(({ customerRecipientId, label }) => ({
+            customerRecipientId,
+            label,
+            shipmentId: id,
+          })),
         });
       }
 
@@ -171,8 +178,9 @@ export class AsnService {
             input.expectedAt === undefined ? undefined : input.expectedAt ? new Date(input.expectedAt) : null,
           notes: input.notes,
           principalName: input.principalName === undefined ? undefined : input.principalName || null,
-          loadAddress: input.loadAddress === undefined ? undefined : input.loadAddress || null,
-          deliveryAddress: input.deliveryAddress === undefined ? undefined : input.deliveryAddress || null,
+          // Adresler seçilen kaynak/alıcıdan; yalnızca ilgili liste verildiyse güncelle
+          loadAddress: sources ? joinAddresses(sources) : undefined,
+          deliveryAddress: recipients ? joinAddresses(recipients) : undefined,
           paymentType: input.paymentType === undefined ? undefined : input.paymentType ?? null,
           showAmountOnSlip: input.showAmountOnSlip,
           vatIncluded: input.vatIncluded,
@@ -225,11 +233,11 @@ export class AsnService {
     if (found) throw new ConflictException('Bu referans no zaten kullanılıyor');
   }
 
-  /** Kaynakları doğrular; kayıtlı depo seçildiyse etiketi depo adıyla sabitler. */
+  /** Kaynakları doğrular; kayıtlı depo seçildiyse etiket+adres depo kaydından sabitlenir. */
   private async validateSources(
     customerId: string,
     sources: CreateAsnInput['sources'],
-  ): Promise<{ customerLocationId: string | null; label: string }[]> {
+  ): Promise<{ customerLocationId: string | null; label: string; address: string | null }[]> {
     if (!sources || sources.length === 0) return [];
 
     const ids = sources.map((s) => s.customerLocationId).filter((x): x is string => !!x);
@@ -242,17 +250,17 @@ export class AsnService {
       if (s.customerLocationId) {
         const loc = byId.get(s.customerLocationId);
         if (!loc) throw new BadRequestException('Geçersiz kaynak depo seçimi');
-        return { customerLocationId: loc.id, label: loc.name };
+        return { customerLocationId: loc.id, label: loc.name, address: loc.address };
       }
-      return { customerLocationId: null, label: s.label };
+      return { customerLocationId: null, label: s.label, address: null };
     });
   }
 
-  /** Alıcıları doğrular; kayıtlı alıcı seçildiyse etiketi alıcı adıyla sabitler. */
+  /** Alıcıları doğrular; kayıtlı alıcı seçildiyse etiket+adres alıcı kaydından sabitlenir. */
   private async validateRecipients(
     customerId: string,
     recipients: CreateAsnInput['recipients'],
-  ): Promise<{ customerRecipientId: string | null; label: string }[]> {
+  ): Promise<{ customerRecipientId: string | null; label: string; address: string | null }[]> {
     if (!recipients || recipients.length === 0) return [];
 
     const ids = recipients.map((r) => r.customerRecipientId).filter((x): x is string => !!x);
@@ -265,9 +273,9 @@ export class AsnService {
       if (r.customerRecipientId) {
         const rec = byId.get(r.customerRecipientId);
         if (!rec) throw new BadRequestException('Geçersiz alıcı seçimi');
-        return { customerRecipientId: rec.id, label: rec.name };
+        return { customerRecipientId: rec.id, label: rec.name, address: rec.address };
       }
-      return { customerRecipientId: null, label: r.label };
+      return { customerRecipientId: null, label: r.label, address: null };
     });
   }
 
@@ -279,6 +287,12 @@ export class AsnService {
     if (!customer) throw new BadRequestException('Geçersiz müşteri');
     if (!warehouse) throw new BadRequestException('Geçersiz depo');
   }
+}
+
+/** Seçili kaynak/alıcı adreslerini tekilleştirip birleştirir (fiş yükleme/teslimat adresi). */
+function joinAddresses(arr: { address: string | null }[]): string | null {
+  const addrs = arr.map((x) => x.address).filter((a): a is string => !!a);
+  return addrs.length ? Array.from(new Set(addrs)).join(' / ') : null;
 }
 
 function toLineData(line: CreateAsnInput['lines'][number]) {

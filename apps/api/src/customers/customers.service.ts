@@ -110,6 +110,18 @@ export class CustomersService {
     return this.prisma.customerLocation.create({ data: { customerId, ...input } });
   }
 
+  async updateLocation(
+    customerId: string,
+    locationId: string,
+    input: CreateCustomerLocationInput,
+  ) {
+    await this.prisma.customerLocation.updateMany({
+      where: { id: locationId, customerId },
+      data: input,
+    });
+    return this.prisma.customerLocation.findUnique({ where: { id: locationId } });
+  }
+
   async removeLocation(customerId: string, locationId: string) {
     await this.prisma.customerLocation.deleteMany({ where: { id: locationId, customerId } });
     return { success: true };
@@ -128,6 +140,18 @@ export class CustomersService {
   async addRecipient(customerId: string, input: CreateCustomerRecipientInput) {
     await this.findOne(customerId);
     return this.prisma.customerRecipient.create({ data: { customerId, ...input } });
+  }
+
+  async updateRecipient(
+    customerId: string,
+    recipientId: string,
+    input: CreateCustomerRecipientInput,
+  ) {
+    await this.prisma.customerRecipient.updateMany({
+      where: { id: recipientId, customerId },
+      data: input,
+    });
+    return this.prisma.customerRecipient.findUnique({ where: { id: recipientId } });
   }
 
   async removeRecipient(customerId: string, recipientId: string) {

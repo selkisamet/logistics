@@ -34,6 +34,7 @@ export type Customer = z.infer<typeof customerSchema>;
 export const createCustomerLocationSchema = z.object({
   name: z.string().min(2, 'Depo/lokasyon adı gerekli'),
   address: z.string().optional(),
+  phone: z.string().optional(),
 });
 export type CreateCustomerLocationInput = z.infer<typeof createCustomerLocationSchema>;
 
@@ -42,6 +43,7 @@ export const customerLocationSchema = z.object({
   customerId: z.string(),
   name: z.string(),
   address: z.string().nullable(),
+  phone: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type CustomerLocation = z.infer<typeof customerLocationSchema>;
@@ -50,6 +52,7 @@ export type CustomerLocation = z.infer<typeof customerLocationSchema>;
 export const createCustomerRecipientSchema = z.object({
   name: z.string().min(2, 'Alıcı adı gerekli'),
   address: z.string().optional(),
+  phone: z.string().optional(),
 });
 export type CreateCustomerRecipientInput = z.infer<typeof createCustomerRecipientSchema>;
 
@@ -58,6 +61,7 @@ export const customerRecipientSchema = z.object({
   customerId: z.string(),
   name: z.string(),
   address: z.string().nullable(),
+  phone: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type CustomerRecipient = z.infer<typeof customerRecipientSchema>;

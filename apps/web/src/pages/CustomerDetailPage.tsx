@@ -5,12 +5,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   createCustomerLocationSchema,
-  createCustomerRecipientSchema,
   type Customer,
   type CustomerLocation,
   type CustomerRecipient,
   type CreateCustomerLocationInput,
-  type CreateCustomerRecipientInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
@@ -62,14 +60,18 @@ export function CustomerDetailPage() {
           Bu müşterinin malının alınacağı depo/adresler. Ön ihbar oluştururken buradan seçilir.
         </p>
 
-        {canEdit && id && <LocationForm customerId={id} />}
+        {canEdit && id && (
+          <Card className="mb-3">
+            <PartyForm kind="locations" customerId={id} />
+          </Card>
+        )}
 
         {!locations || locations.length === 0 ? (
           <EmptyState title="Henüz kaynak depo yok" hint="Yukarıdan ekleyebilirsiniz." />
         ) : (
           <div className="flex flex-col gap-4">
             {locations.map((loc) => (
-              <LocationRow key={loc.id} customerId={id!} location={loc} canEdit={canEdit} />
+              <PartyRow key={loc.id} kind="locations" customerId={id!} item={loc} canEdit={canEdit} />
             ))}
           </div>
         )}
@@ -81,14 +83,18 @@ export function CustomerDetailPage() {
           Bu müşterinin kendi müşterileri (malın gideceği taraf). Ön ihbar oluştururken buradan seçilir.
         </p>
 
-        {canEdit && id && <RecipientForm customerId={id} />}
+        {canEdit && id && (
+          <Card className="mb-3">
+            <PartyForm kind="recipients" customerId={id} />
+          </Card>
+        )}
 
         {!recipients || recipients.length === 0 ? (
           <EmptyState title="Henüz alıcı yok" hint="Yukarıdan ekleyebilirsiniz." />
         ) : (
           <div className="flex flex-col gap-4">
             {recipients.map((rec) => (
-              <RecipientRow key={rec.id} customerId={id!} recipient={rec} canEdit={canEdit} />
+              <PartyRow key={rec.id} kind="recipients" customerId={id!} item={rec} canEdit={canEdit} />
             ))}
           </div>
         )}
@@ -97,165 +103,158 @@ export function CustomerDetailPage() {
   );
 }
 
-function LocationForm({ customerId }: { customerId: string }) {
+type PartyKind = 'locations' | 'recipients';
+type PartyItem = { id: string; name: string; address: string | null; phone?: string | null };
+
+const PARTY_META: Record<
+  PartyKind,
+  { nameLabel: string; namePh: string; addrPh: string; addBtn: string; delMsg: string }
+> = {
+  locations: {
+    nameLabel: 'Depo/Lokasyon Adı',
+    namePh: 'Gebze Deposu',
+    addrPh: 'Gebze OSB ...',
+    addBtn: '+ Depo Ekle',
+    delMsg: 'Bu kaynak depo silinsin mi?',
+  },
+  recipients: {
+    nameLabel: 'Alıcı Adı',
+    namePh: 'X Market',
+    addrPh: 'İzmit ...',
+    addBtn: '+ Alıcı Ekle',
+    delMsg: 'Bu alıcı silinsin mi?',
+  },
+};
+
+/** Depo veya alıcı ekle/düzenle formu (aynı yapı: ad + adres + telefon). */
+function PartyForm({
+  customerId,
+  kind,
+  initial,
+  onDone,
+}: {
+  customerId: string;
+  kind: PartyKind;
+  initial?: PartyItem;
+  onDone?: () => void;
+}) {
   const qc = useQueryClient();
+  const meta = PARTY_META[kind];
+  const editing = !!initial;
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<CreateCustomerLocationInput>({ resolver: zodResolver(createCustomerLocationSchema) });
+  } = useForm<CreateCustomerLocationInput>({
+    resolver: zodResolver(createCustomerLocationSchema),
+    defaultValues: initial
+      ? { name: initial.name, address: initial.address ?? '', phone: initial.phone ?? '' }
+      : undefined,
+  });
 
   const mutation = useMutation({
     mutationFn: (input: CreateCustomerLocationInput) =>
-      api.post<CustomerLocation>(`/customers/${customerId}/locations`, input),
+      editing
+        ? api.patch(`/customers/${customerId}/${kind}/${initial!.id}`, input)
+        : api.post(`/customers/${customerId}/${kind}`, input),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] });
-      reset();
+      qc.invalidateQueries({ queryKey: ['customers', customerId, kind] });
+      if (!editing) reset();
+      onDone?.();
     },
-    onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Eklenemedi'),
+    onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
 
   return (
-    <Card className="mb-3">
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-2">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Field label="Depo/Lokasyon Adı *" error={errors.name?.message}>
-            <Input placeholder="Gebze Deposu" {...register('name')} />
-          </Field>
-          <Field label="Adres" error={errors.address?.message}>
-            <Input placeholder="Gebze OSB ..." {...register('address')} />
-          </Field>
-        </div>
-        {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+    <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Field label={`${meta.nameLabel} *`} error={errors.name?.message}>
+          <Input placeholder={meta.namePh} {...register('name')} />
+        </Field>
+        <Field label="Adres" error={errors.address?.message}>
+          <Input placeholder={meta.addrPh} {...register('address')} />
+        </Field>
+        <Field label="Telefon" error={errors.phone?.message}>
+          <Input placeholder="0212 000 00 00" {...register('phone')} />
+        </Field>
+      </div>
+      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      <div className="flex gap-2">
         <Button type="submit" loading={mutation.isPending}>
-          + Depo Ekle
+          {editing ? 'Kaydet' : meta.addBtn}
         </Button>
-      </form>
-    </Card>
+        {editing && (
+          <Button type="button" variant="secondary" onClick={onDone}>
+            Vazgeç
+          </Button>
+        )}
+      </div>
+    </form>
   );
 }
 
-function LocationRow({
+/** Depo/alıcı satırı — görüntüle + inline düzenle + sil. */
+function PartyRow({
   customerId,
-  location,
+  kind,
+  item,
   canEdit,
 }: {
   customerId: string;
-  location: CustomerLocation;
+  kind: PartyKind;
+  item: PartyItem;
   canEdit: boolean;
 }) {
   const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const del = useMutation({
-    mutationFn: () => api.delete(`/customers/${customerId}/locations/${location.id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] }),
+    mutationFn: () => api.delete(`/customers/${customerId}/${kind}/${item.id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, kind] }),
   });
+
+  if (editing) {
+    return (
+      <Card>
+        <PartyForm
+          customerId={customerId}
+          kind={kind}
+          initial={item}
+          onDone={() => setEditing(false)}
+        />
+      </Card>
+    );
+  }
 
   return (
     <Card className="flex items-center justify-between">
       <div>
-        <p className="font-medium text-slate-900">{location.name}</p>
-        {location.address && <p className="text-xs text-slate-500">{location.address}</p>}
+        <p className="font-medium text-slate-900">{item.name}</p>
+        {item.address && <p className="text-xs text-slate-500">{item.address}</p>}
+        {item.phone && <p className="text-xs text-slate-500">Tel: {item.phone}</p>}
       </div>
       {canEdit && (
-        <button
-          onClick={async () => {
-            if (
-              await confirmDialog({
-                message: 'Bu kaynak depo silinsin mi?',
-                confirmText: 'Sil',
-                danger: true,
-              })
-            )
-              del.mutate();
-          }}
-          className="text-sm font-medium text-red-600"
-        >
-          Sil
-        </button>
-      )}
-    </Card>
-  );
-}
-
-function RecipientForm({ customerId }: { customerId: string }) {
-  const qc = useQueryClient();
-  const [serverError, setServerError] = useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<CreateCustomerRecipientInput>({ resolver: zodResolver(createCustomerRecipientSchema) });
-
-  const mutation = useMutation({
-    mutationFn: (input: CreateCustomerRecipientInput) =>
-      api.post<CustomerRecipient>(`/customers/${customerId}/recipients`, input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] });
-      reset();
-    },
-    onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Eklenemedi'),
-  });
-
-  return (
-    <Card className="mb-3">
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-2">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Field label="Alıcı Adı *" error={errors.name?.message}>
-            <Input placeholder="X Market" {...register('name')} />
-          </Field>
-          <Field label="Adres" error={errors.address?.message}>
-            <Input placeholder="İzmit ..." {...register('address')} />
-          </Field>
+        <div className="flex shrink-0 gap-3">
+          <button onClick={() => setEditing(true)} className="text-sm font-medium text-brand">
+            Düzenle
+          </button>
+          <button
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  message: PARTY_META[kind].delMsg,
+                  confirmText: 'Sil',
+                  danger: true,
+                })
+              )
+                del.mutate();
+            }}
+            className="text-sm font-medium text-red-600"
+          >
+            Sil
+          </button>
         </div>
-        {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-        <Button type="submit" loading={mutation.isPending}>
-          + Alıcı Ekle
-        </Button>
-      </form>
-    </Card>
-  );
-}
-
-function RecipientRow({
-  customerId,
-  recipient,
-  canEdit,
-}: {
-  customerId: string;
-  recipient: CustomerRecipient;
-  canEdit: boolean;
-}) {
-  const qc = useQueryClient();
-  const del = useMutation({
-    mutationFn: () => api.delete(`/customers/${customerId}/recipients/${recipient.id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] }),
-  });
-
-  return (
-    <Card className="flex items-center justify-between">
-      <div>
-        <p className="font-medium text-slate-900">{recipient.name}</p>
-        {recipient.address && <p className="text-xs text-slate-500">{recipient.address}</p>}
-      </div>
-      {canEdit && (
-        <button
-          onClick={async () => {
-            if (
-              await confirmDialog({
-                message: 'Bu alıcı silinsin mi?',
-                confirmText: 'Sil',
-                danger: true,
-              })
-            )
-              del.mutate();
-          }}
-          className="text-sm font-medium text-red-600"
-        >
-          Sil
-        </button>
       )}
     </Card>
   );

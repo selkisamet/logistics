@@ -97,6 +97,7 @@ model CustomerLocation {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   name       String
   address    String?
+  phone      String?
   createdAt  DateTime @default(now())
 
   shipmentSources ShipmentSource[]
@@ -111,6 +112,7 @@ model CustomerRecipient {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   name       String
   address    String?
+  phone      String?
   createdAt  DateTime @default(now())
 
   shipmentRecipients ShipmentRecipient[]

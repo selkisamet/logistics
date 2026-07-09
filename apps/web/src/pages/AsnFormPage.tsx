@@ -38,8 +38,6 @@ export function AsnFormPage() {
     handleSubmit,
     control,
     watch,
-    setValue,
-    getValues,
     formState: { errors },
   } = useForm<CreateAsnInput>({
     resolver: zodResolver(createAsnSchema),
@@ -58,22 +56,6 @@ export function AsnFormPage() {
   const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId);
   const { data: recipientOptions } = useCustomerRecipients(customerId);
-
-  // Kaynak/alıcı seçilince ilgili adresi (boşsa) yükleme/teslimat adresine ön-dolar.
-  const onSourceChange = (sel: ComboOption[]) => {
-    setSourceSel(sel);
-    const addr = sel
-      .map((s) => locations?.find((l) => l.id === s.value)?.address)
-      .find((a): a is string => !!a);
-    if (addr && !getValues('loadAddress')) setValue('loadAddress', addr);
-  };
-  const onRecipientChange = (sel: ComboOption[]) => {
-    setRecipientSel(sel);
-    const addr = sel
-      .map((r) => recipientOptions?.find((o) => o.id === r.value)?.address)
-      .find((a): a is string => !!a);
-    if (addr && !getValues('deliveryAddress')) setValue('deliveryAddress', addr);
-  };
 
   // Müşteri değişince önceki müşteriye ait seçili kaynak/alıcılar geçersiz olur → temizle.
   useEffect(() => {
@@ -178,7 +160,7 @@ export function AsnFormPage() {
               <MultiCombobox
                 options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
                 value={sourceSel}
-                onChange={onSourceChange}
+                onChange={setSourceSel}
                 onCreate={customerId ? createSource : undefined}
                 disabled={!customerId}
                 placeholder={customerId ? 'Depo seç / yaz…' : 'Önce müşteri seçin'}
@@ -190,7 +172,7 @@ export function AsnFormPage() {
               <MultiCombobox
                 options={(recipientOptions ?? []).map((r) => ({ value: r.id, label: r.name }))}
                 value={recipientSel}
-                onChange={onRecipientChange}
+                onChange={setRecipientSel}
                 onCreate={customerId ? createRecipient : undefined}
                 disabled={!customerId}
                 placeholder={customerId ? 'Alıcı seç / yaz…' : 'Önce müşteri seçin'}
@@ -199,18 +181,14 @@ export function AsnFormPage() {
             </div>
           </div>
 
-          {/* İşi veren + yükleme/teslimat adresleri (fişe yansır) */}
+          {/* İşi veren (fişe yansır). Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
           <Field label="İşi Veren / Cari (opsiyonel)">
             <Input placeholder="Örn. Misya Lojistik — işi veren firma" {...register('principalName')} />
           </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Yükleme Adresi (gönderici)">
-              <Input placeholder="Malın alınacağı adres" {...register('loadAddress')} />
-            </Field>
-            <Field label="Teslimat Adresi (alıcı)">
-              <Input placeholder="Malın gideceği adres" {...register('deliveryAddress')} />
-            </Field>
-          </div>
+          <p className="text-xs text-slate-500">
+            Yükleme/teslimat adresi seçilen <b>Kaynak</b> ve <b>Alıcı</b> kayıtlarının adresinden otomatik
+            alınır; fişte öyle görünür. (Adresleri müşteri detayından güncelleyebilirsiniz.)
+          </p>
 
           {/* Ödeme & KDV */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

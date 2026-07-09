@@ -81,6 +81,16 @@ export class CustomersController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/locations/:locationId')
+  updateLocation(
+    @Param('id') id: string,
+    @Param('locationId') locationId: string,
+    @Body(new ZodValidationPipe(createCustomerLocationSchema)) dto: CreateCustomerLocationInput,
+  ) {
+    return this.customersService.updateLocation(id, locationId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @Delete(':id/locations/:locationId')
   removeLocation(@Param('id') id: string, @Param('locationId') locationId: string) {
     return this.customersService.removeLocation(id, locationId);
@@ -100,6 +110,16 @@ export class CustomersController {
     @Body(new ZodValidationPipe(createCustomerRecipientSchema)) dto: CreateCustomerRecipientInput,
   ) {
     return this.customersService.addRecipient(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/recipients/:recipientId')
+  updateRecipient(
+    @Param('id') id: string,
+    @Param('recipientId') recipientId: string,
+    @Body(new ZodValidationPipe(createCustomerRecipientSchema)) dto: CreateCustomerRecipientInput,
+  ) {
+    return this.customersService.updateRecipient(id, recipientId, dto);
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
