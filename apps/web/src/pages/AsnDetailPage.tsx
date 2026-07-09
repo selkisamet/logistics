@@ -66,17 +66,17 @@ export function AsnDetailPage() {
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <Info label="Beklenen tarih" value={formatDate(asn.expectedAt)} />
+          <Info label="Gönderici" value={asn.customer?.name ?? '–'} />
           <Info
-            label="Kaynak"
+            label="Yükleme Yeri"
             value={asn.sources.length ? asn.sources.map((s) => s.label).join(', ') : '–'}
           />
+          <Info label="Alıcı" value={asn.recipientCustomer?.name ?? '–'} />
           <Info
-            label="Alıcı"
+            label="Boşaltma Yeri"
             value={asn.recipients.length ? asn.recipients.map((r) => r.label).join(', ') : '–'}
           />
           {asn.principalName && <Info label="İşi Veren" value={asn.principalName} />}
-          {asn.loadAddress && <Info label="Yükleme adresi" value={asn.loadAddress} />}
-          {asn.deliveryAddress && <Info label="Teslimat adresi" value={asn.deliveryAddress} />}
           <Info
             label="Ödeme"
             value={

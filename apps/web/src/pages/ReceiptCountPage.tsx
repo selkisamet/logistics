@@ -751,27 +751,31 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
       {/* ALICI (teslim alan / ambar) + mal tablosu */}
       <div className="flex border-b-2 border-sky-800">
         <div className="w-[42%] border-r-2 border-sky-800 p-2">
-          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">
-            Alıcı / Delivery{recipients.length > 1 ? ` (${recipients.length} nokta)` : ''}
-          </p>
+          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Delivery</p>
+          <FieldLine label="ADI, ÜNVANI" value={receipt.recipientCustomer?.name ?? ''} />
+          <FieldLine label="V.D. NO" value="" />
           {recipients.length > 0 ? (
-            <ul className="slip-data space-y-1">
-              {recipients.map((r, i) => (
-                <li key={i} className="text-[9px] leading-tight text-slate-900">
-                  <span className="font-bold">
-                    {recipients.length > 1 ? `${i + 1}. ` : ''}
-                    {r.label}
-                  </span>
-                  {r.address ? <div className="text-[8px] text-slate-600">{r.address}</div> : null}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-0.5">
+              <span className="text-[8px] font-semibold uppercase text-sky-800">
+                Boşaltma Noktaları{recipients.length > 1 ? ` (${recipients.length})` : ''}
+              </span>
+              <ul className="slip-data mt-0.5 space-y-1">
+                {recipients.map((r, i) => (
+                  <li key={i} className="text-[9px] leading-tight text-slate-900">
+                    <span className="font-bold">
+                      {recipients.length > 1 ? `${i + 1}. ` : ''}
+                      {r.label}
+                    </span>
+                    {r.address ? (
+                      <div className="text-[8px] text-slate-600">{r.address}</div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
-            <>
-              <FieldLine label="ADI, ÜNVANI" value="" />
-              <FieldLine label="V.D. NO" value="" />
-              <FieldLine label="ADRESİ" value="" />
-            </>
+            // Boşaltma yeri seçilmediyse alıcının (fatura) adresi
+            <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} />
           )}
         </div>
         <div className="flex-1">

@@ -112,7 +112,17 @@ export const receiptSchema = z.object({
   paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),
   showAmountOnSlip: z.boolean().optional().default(false),
   vatIncluded: z.boolean().optional().default(false),
-  // Yükleme (kaynak) ve teslim (alıcı) noktaları — fişte ayrı ayrı listelenir
+  // Alıcı = kayıtlı müşteri (fişte ALICI ünvanı)
+  recipientCustomer: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      code: z.string(),
+      address: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  // Yükleme (kaynak) ve boşaltma (alıcı) noktaları — fişte ayrı ayrı listelenir
   sources: z
     .array(z.object({ label: z.string(), address: z.string().nullable().optional() }))
     .optional()

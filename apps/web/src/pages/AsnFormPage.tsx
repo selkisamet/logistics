@@ -8,18 +8,11 @@ import {
   type CreateAsnInput,
   type Asn,
   type CustomerLocation,
-  type CustomerRecipient,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { Button, Card, Field, Input, Combobox, MultiCombobox, type ComboOption } from '../components/ui';
-import {
-  useCustomers,
-  useWarehouses,
-  useCustomerLocations,
-  useCustomerRecipients,
-  useVehicles,
-} from '../lib/lookups';
+import { useCustomers, useWarehouses, useCustomerLocations, useVehicles } from '../lib/lookups';
 
 const emptyLine = { sku: '', description: '', expectedQty: 1, unit: 'ADET', barcode: '' };
 
@@ -52,38 +45,33 @@ export function AsnFormPage() {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
 
-  const customerId = watch('customerId');
+  const customerId = watch('customerId'); // gönderici müşteri
+  const recipientCustomerId = watch('recipientCustomerId'); // alıcı müşteri
   const paymentType = watch('paymentType');
-  const { data: locations } = useCustomerLocations(customerId);
-  const { data: recipientOptions } = useCustomerRecipients(customerId);
+  const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
+  const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
 
-  // Müşteri değişince önceki müşteriye ait seçili kaynak/alıcılar geçersiz olur → temizle.
+  // Gönderici değişince yükleme yerleri, alıcı değişince boşaltma yerleri geçersiz → temizle.
   useEffect(() => {
     setSourceSel([]);
-    setRecipientSel([]);
   }, [customerId]);
+  useEffect(() => {
+    setRecipientSel([]);
+  }, [recipientCustomerId]);
 
-  // Listede yoksa: yazılan adı kalıcı kayda çevirip seçime ekle (bir dahaki sefere listede çıkar).
-  const createSource = async (name: string): Promise<ComboOption> => {
+  // Listede yoksa: yazılan adı ilgili müşteriye lokasyon olarak kaydedip seçime ekle.
+  const createLocationFor = (ownerId: string | undefined) => async (name: string): Promise<ComboOption> => {
     try {
-      const loc = await api.post<CustomerLocation>(`/customers/${customerId}/locations`, { name });
-      qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] });
+      const loc = await api.post<CustomerLocation>(`/customers/${ownerId}/locations`, { name });
+      qc.invalidateQueries({ queryKey: ['customers', ownerId, 'locations'] });
       return { value: loc.id, label: loc.name };
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Depo oluşturulamadı');
+      toast.error(err instanceof ApiError ? err.message : 'Lokasyon oluşturulamadı');
       throw err;
     }
   };
-  const createRecipient = async (name: string): Promise<ComboOption> => {
-    try {
-      const rec = await api.post<CustomerRecipient>(`/customers/${customerId}/recipients`, { name });
-      qc.invalidateQueries({ queryKey: ['customers', customerId, 'recipients'] });
-      return { value: rec.id, label: rec.name };
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Alıcı oluşturulamadı');
-      throw err;
-    }
-  };
+  const createSource = createLocationFor(customerId);
+  const createDrop = createLocationFor(recipientCustomerId);
 
   const mutation = useMutation({
     mutationFn: (input: CreateAsnInput) => api.post<Asn>('/asn', input),
@@ -108,14 +96,15 @@ export function AsnFormPage() {
           mutation.mutate({
             ...v,
             sources: sourceSel.map((o) => ({ customerLocationId: o.value, label: o.label })),
-            recipients: recipientSel.map((o) => ({ customerRecipientId: o.value, label: o.label })),
+            recipients: recipientSel.map((o) => ({ customerLocationId: o.value, label: o.label })),
           }),
         )}
         className="space-y-4"
       >
         <Card className="space-y-3">
+          {/* Gönderici & Alıcı — ikisi de kayıtlı Müşteri */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Müşteri *" error={errors.customerId?.message}>
+            <Field label="Gönderici (Müşteri) *" error={errors.customerId?.message}>
               <Controller
                 name="customerId"
                 control={control}
@@ -128,66 +117,87 @@ export function AsnFormPage() {
                     }))}
                     value={field.value ?? ''}
                     onChange={field.onChange}
-                    placeholder="Müşteri ara / seç..."
+                    placeholder="Gönderici müşteri ara / seç..."
                   />
                 )}
               />
             </Field>
-            <Field label="Hedef Depo *" error={errors.warehouseId?.message}>
+            <Field label="Alıcı (Müşteri)" error={errors.recipientCustomerId?.message}>
               <Controller
-                name="warehouseId"
+                name="recipientCustomerId"
                 control={control}
                 render={({ field }) => (
                   <Combobox
-                    options={(warehouses ?? []).map((w) => ({
-                      value: w.id,
-                      label: w.name,
-                      hint: `(${w.code})`,
+                    options={(customers ?? []).map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      hint: `(${c.code})`,
                     }))}
                     value={field.value ?? ''}
                     onChange={field.onChange}
-                    placeholder="Depo ara / seç..."
+                    nullable
+                    nullableLabel="Alıcı seçilmedi"
+                    placeholder="Alıcı müşteri ara / seç..."
                   />
                 )}
               />
             </Field>
           </div>
 
-          {/* Kaynak & Alıcı — çoklu seçim + listede yoksa anında oluştur */}
+          {/* Yükleme Yeri (göndericinin) & Boşaltma Yeri (alıcının) — çoklu, listede yoksa oluştur */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Kaynak (alınacak yer)</span>
+              <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
               <MultiCombobox
                 options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
                 value={sourceSel}
                 onChange={setSourceSel}
                 onCreate={customerId ? createSource : undefined}
                 disabled={!customerId}
-                placeholder={customerId ? 'Depo seç / yaz…' : 'Önce müşteri seçin'}
+                placeholder={customerId ? 'Yükleme yeri seç / yaz…' : 'Önce gönderici seçin'}
                 emptyHint="Yazıp “oluştur” ile ekleyin"
               />
             </div>
             <div className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Alıcı (gönderilecek taraf)</span>
+              <span className="text-sm font-medium text-slate-700">Boşaltma Yeri</span>
               <MultiCombobox
-                options={(recipientOptions ?? []).map((r) => ({ value: r.id, label: r.name }))}
+                options={(dropLocations ?? []).map((l) => ({ value: l.id, label: l.name }))}
                 value={recipientSel}
                 onChange={setRecipientSel}
-                onCreate={customerId ? createRecipient : undefined}
-                disabled={!customerId}
-                placeholder={customerId ? 'Alıcı seç / yaz…' : 'Önce müşteri seçin'}
+                onCreate={recipientCustomerId ? createDrop : undefined}
+                disabled={!recipientCustomerId}
+                placeholder={recipientCustomerId ? 'Boşaltma yeri seç / yaz…' : 'Önce alıcı seçin'}
                 emptyHint="Yazıp “oluştur” ile ekleyin"
               />
             </div>
           </div>
+
+          <Field label="Hedef Depo *" error={errors.warehouseId?.message}>
+            <Controller
+              name="warehouseId"
+              control={control}
+              render={({ field }) => (
+                <Combobox
+                  options={(warehouses ?? []).map((w) => ({
+                    value: w.id,
+                    label: w.name,
+                    hint: `(${w.code})`,
+                  }))}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="Depo ara / seç..."
+                />
+              )}
+            />
+          </Field>
 
           {/* İşi veren (fişe yansır). Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
           <Field label="İşi Veren / Cari (opsiyonel)">
             <Input placeholder="Örn. Misya Lojistik — işi veren firma" {...register('principalName')} />
           </Field>
           <p className="text-xs text-slate-500">
-            Yükleme/teslimat adresi seçilen <b>Kaynak</b> ve <b>Alıcı</b> kayıtlarının adresinden otomatik
-            alınır; fişte öyle görünür. (Adresleri müşteri detayından güncelleyebilirsiniz.)
+            Yükleme/boşaltma adresi seçilen <b>yerlerin</b> adresinden otomatik alınır; fişte öyle görünür.
+            (Adresleri müşteri detayından güncelleyebilirsiniz.)
           </p>
 
           {/* Ödeme & KDV */}

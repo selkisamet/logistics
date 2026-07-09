@@ -31,10 +31,10 @@ export const shipmentSourceInputSchema = z.object({
 });
 export type ShipmentSourceInput = z.infer<typeof shipmentSourceInputSchema>;
 
-/** Alıcı: kayıtlı müşteri alıcısı (customerRecipientId) ya da serbest metin. */
+/** Boşaltma yeri: alıcı müşterinin lokasyonu (customerLocationId) ya da serbest metin. */
 export const shipmentRecipientInputSchema = z.object({
-  customerRecipientId: z.string().optional(),
-  label: z.string().min(1, 'Alıcı adı gerekli'),
+  customerLocationId: z.string().optional(),
+  label: z.string().min(1, 'Boşaltma yeri gerekli'),
 });
 export type ShipmentRecipientInput = z.infer<typeof shipmentRecipientInputSchema>;
 
@@ -42,8 +42,9 @@ export const createAsnSchema = z.object({
   reference: z.string().optional(), // boşsa sunucu otomatik üretir (ON-...)
   customerId: z.string().min(1, 'Müşteri seçilmeli'),
   warehouseId: z.string().min(1, 'Hedef depo seçilmeli'),
-  sources: z.array(shipmentSourceInputSchema).optional().default([]), // çoklu kaynak depo/adres
-  recipients: z.array(shipmentRecipientInputSchema).optional().default([]), // çoklu alıcı
+  sources: z.array(shipmentSourceInputSchema).optional().default([]), // göndericinin yükleme yerleri
+  recipientCustomerId: z.string().optional(), // alıcı = kayıtlı müşteri
+  recipients: z.array(shipmentRecipientInputSchema).optional().default([]), // alıcının boşaltma yerleri
   vehicleId: z.string().optional(), // plaka belli değilse boş
   expectedAt: z.string().optional(), // ISO tarih
   notes: z.string().optional(),
@@ -117,12 +118,18 @@ export const asnSchema = z.object({
       }),
     )
     .default([]),
+  recipientCustomerId: z.string().nullable().optional(),
+  recipientCustomer: z
+    .object({ id: z.string(), name: z.string(), code: z.string() })
+    .nullable()
+    .optional(),
   recipients: z
     .array(
       z.object({
         id: z.string(),
-        customerRecipientId: z.string().nullable(),
+        customerLocationId: z.string().nullable(),
         label: z.string(),
+        address: z.string().nullable().optional(),
       }),
     )
     .default([]),

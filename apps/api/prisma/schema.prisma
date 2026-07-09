@@ -84,10 +84,11 @@ model Customer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  shipments       InboundShipment[]
-  receipts        Receipt[]
-  sourceLocations CustomerLocation[]
-  recipients      CustomerRecipient[]
+  shipments          InboundShipment[]   @relation("ShipmentSender")
+  recipientShipments InboundShipment[]   @relation("ShipmentRecipient")
+  receipts           Receipt[]
+  sourceLocations    CustomerLocation[]
+  recipients         CustomerRecipient[]
 }
 
 // Müşteriye ait kaynak depo/adres (malın alınacağı yer - pickup)
@@ -100,7 +101,8 @@ model CustomerLocation {
   phone      String?
   createdAt  DateTime @default(now())
 
-  shipmentSources ShipmentSource[]
+  shipmentSources            ShipmentSource[]
+  shipmentRecipientLocations ShipmentRecipient[]
 
   @@index([customerId])
 }
@@ -150,7 +152,10 @@ model InboundShipment {
   reference      String         @unique
   status         ShipmentStatus @default(EXPECTED)
   customerId     String
-  customer       Customer       @relation(fields: [customerId], references: [id])
+  customer       Customer       @relation("ShipmentSender", fields: [customerId], references: [id])
+  // Alıcı = kayıtlı bir Müşteri (opsiyonel); lokasyonları boşaltma yerleri olur
+  recipientCustomerId String?
+  recipientCustomer   Customer?  @relation("ShipmentRecipient", fields: [recipientCustomerId], references: [id])
   warehouseId    String
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
   vehicleId      String?
@@ -173,6 +178,7 @@ model InboundShipment {
   receipts   Receipt[]
 
   @@index([vehicleId])
+  @@index([recipientCustomerId])
 }
 
 // Araç havuzu: plaka, şoför, tip, dorse (tır için)
@@ -209,10 +215,12 @@ model ShipmentRecipient {
   id                  String             @id @default(cuid())
   shipmentId          String
   shipment            InboundShipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  customerRecipientId String?
+  customerRecipientId String? // DORMANT (eski model; artık kullanılmıyor)
   customerRecipient   CustomerRecipient? @relation(fields: [customerRecipientId], references: [id])
-  label               String // görünen ad (kayıtlı alıcı adı kopyası veya elle girilen metin)
-  address             String? // kayıtlı alıcının adres kopyası (fişte teslim noktası)
+  customerLocationId  String? // alıcı müşterinin boşaltma lokasyonu
+  customerLocation    CustomerLocation?  @relation(fields: [customerLocationId], references: [id])
+  label               String // görünen ad (lokasyon adı kopyası veya elle girilen metin)
+  address             String? // lokasyon adres kopyası (fişte boşaltma noktası)
 
   @@index([shipmentId])
 }

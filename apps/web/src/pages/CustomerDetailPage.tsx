@@ -7,7 +7,6 @@ import {
   createCustomerLocationSchema,
   type Customer,
   type CustomerLocation,
-  type CustomerRecipient,
   type CreateCustomerLocationInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
@@ -31,12 +30,6 @@ export function CustomerDetailPage() {
     queryFn: () => api.get<CustomerLocation[]>(`/customers/${id}/locations`),
     enabled: !!id,
   });
-  const { data: recipients } = useQuery({
-    queryKey: ['customers', id, 'recipients'],
-    queryFn: () => api.get<CustomerRecipient[]>(`/customers/${id}/recipients`),
-    enabled: !!id,
-  });
-
   if (isLoading) return <Spinner />;
   if (!customer) return <p className="text-slate-500">Müşteri bulunamadı.</p>;
 
@@ -55,9 +48,10 @@ export function CustomerDetailPage() {
       </Card>
 
       <div>
-        <h3 className="mb-2 font-semibold text-slate-900">Kaynak Depolar</h3>
+        <h3 className="mb-2 font-semibold text-slate-900">Depolar / Lokasyonlar</h3>
         <p className="mb-3 text-xs text-slate-500">
-          Bu müşterinin malının alınacağı depo/adresler. Ön ihbar oluştururken buradan seçilir.
+          Bu müşterinin depo/adresleri. Ön ihbarda bu müşteri <b>gönderici</b> ise yükleme yeri,{' '}
+          <b>alıcı</b> ise boşaltma yeri olarak buradan seçilir.
         </p>
 
         {canEdit && id && (
@@ -67,34 +61,11 @@ export function CustomerDetailPage() {
         )}
 
         {!locations || locations.length === 0 ? (
-          <EmptyState title="Henüz kaynak depo yok" hint="Yukarıdan ekleyebilirsiniz." />
+          <EmptyState title="Henüz lokasyon yok" hint="Yukarıdan ekleyebilirsiniz." />
         ) : (
           <div className="flex flex-col gap-4">
             {locations.map((loc) => (
               <PartyRow key={loc.id} kind="locations" customerId={id!} item={loc} canEdit={canEdit} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 className="mb-2 font-semibold text-slate-900">Alıcılar</h3>
-        <p className="mb-3 text-xs text-slate-500">
-          Bu müşterinin kendi müşterileri (malın gideceği taraf). Ön ihbar oluştururken buradan seçilir.
-        </p>
-
-        {canEdit && id && (
-          <Card className="mb-3">
-            <PartyForm kind="recipients" customerId={id} />
-          </Card>
-        )}
-
-        {!recipients || recipients.length === 0 ? (
-          <EmptyState title="Henüz alıcı yok" hint="Yukarıdan ekleyebilirsiniz." />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {recipients.map((rec) => (
-              <PartyRow key={rec.id} kind="recipients" customerId={id!} item={rec} canEdit={canEdit} />
             ))}
           </div>
         )}

@@ -12,6 +12,7 @@ import { ShipmentStatus, type AsnListQuery, type CreateAsnInput, type UpdateAsnI
 
 const SHIPMENT_INCLUDE = {
   customer: { select: { id: true, name: true, code: true } },
+  recipientCustomer: { select: { id: true, name: true, code: true } },
   warehouse: { select: { id: true, name: true, code: true } },
   vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
   sources: true,
@@ -67,17 +68,18 @@ export class AsnService {
   async create(input: CreateAsnInput) {
     await this.ensureCustomerAndWarehouse(input.customerId, input.warehouseId);
     const sources = await this.validateSources(input.customerId, input.sources);
-    const recipients = await this.validateRecipients(input.customerId, input.recipients);
+    const recipients = await this.validateRecipients(input.recipientCustomerId, input.recipients);
     if (input.reference) await this.ensureReferenceFree(input.reference);
 
     const data = {
       customerId: input.customerId,
+      recipientCustomerId: input.recipientCustomerId || null,
       warehouseId: input.warehouseId,
       vehicleId: input.vehicleId || null,
       expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
       notes: input.notes,
       principalName: input.principalName || null,
-      // Yükleme/teslimat adresi seçilen kaynak/alıcı kayıtlarının adresinden türetilir.
+      // Yükleme/boşaltma adresi seçilen lokasyonların adresinden türetilir.
       loadAddress: joinAddresses(sources),
       deliveryAddress: joinAddresses(recipients),
       paymentType: input.paymentType ?? null,
@@ -93,8 +95,8 @@ export class AsnService {
         })),
       },
       recipients: {
-        create: recipients.map(({ customerRecipientId, label, address }) => ({
-          customerRecipientId,
+        create: recipients.map(({ customerLocationId, label, address }) => ({
+          customerLocationId,
           label,
           address,
         })),
@@ -142,7 +144,10 @@ export class AsnService {
         : undefined;
     const recipients =
       input.recipients !== undefined
-        ? await this.validateRecipients(input.customerId ?? existing.customerId, input.recipients)
+        ? await this.validateRecipients(
+            input.recipientCustomerId ?? existing.recipientCustomerId,
+            input.recipients,
+          )
         : undefined;
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -174,8 +179,8 @@ export class AsnService {
       if (recipients) {
         await tx.shipmentRecipient.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentRecipient.createMany({
-          data: recipients.map(({ customerRecipientId, label, address }) => ({
-            customerRecipientId,
+          data: recipients.map(({ customerLocationId, label, address }) => ({
+            customerLocationId,
             label,
             address,
             shipmentId: id,
@@ -188,6 +193,8 @@ export class AsnService {
         data: {
           reference: input.reference,
           customerId: input.customerId,
+          recipientCustomerId:
+            input.recipientCustomerId === undefined ? undefined : input.recipientCustomerId || null,
           warehouseId: input.warehouseId,
           vehicleId: input.vehicleId === undefined ? undefined : input.vehicleId || null,
           expectedAt:
@@ -272,26 +279,29 @@ export class AsnService {
     });
   }
 
-  /** Alıcıları doğrular; kayıtlı alıcı seçildiyse etiket+adres alıcı kaydından sabitlenir. */
+  /** Boşaltma yerlerini doğrular; alıcı müşterinin lokasyonuysa etiket+adres o lokasyondan sabitlenir. */
   private async validateRecipients(
-    customerId: string,
+    recipientCustomerId: string | null | undefined,
     recipients: CreateAsnInput['recipients'],
-  ): Promise<{ customerRecipientId: string | null; label: string; address: string | null }[]> {
+  ): Promise<{ customerLocationId: string | null; label: string; address: string | null }[]> {
     if (!recipients || recipients.length === 0) return [];
 
-    const ids = recipients.map((r) => r.customerRecipientId).filter((x): x is string => !!x);
-    const found = ids.length
-      ? await this.prisma.customerRecipient.findMany({ where: { id: { in: ids }, customerId } })
-      : [];
-    const byId = new Map(found.map((r) => [r.id, r]));
+    const ids = recipients.map((r) => r.customerLocationId).filter((x): x is string => !!x);
+    const locations =
+      ids.length && recipientCustomerId
+        ? await this.prisma.customerLocation.findMany({
+            where: { id: { in: ids }, customerId: recipientCustomerId },
+          })
+        : [];
+    const byId = new Map(locations.map((l) => [l.id, l]));
 
     return recipients.map((r) => {
-      if (r.customerRecipientId) {
-        const rec = byId.get(r.customerRecipientId);
-        if (!rec) throw new BadRequestException('Geçersiz alıcı seçimi');
-        return { customerRecipientId: rec.id, label: rec.name, address: rec.address };
+      if (r.customerLocationId) {
+        const loc = byId.get(r.customerLocationId);
+        if (!loc) throw new BadRequestException('Geçersiz boşaltma yeri seçimi');
+        return { customerLocationId: loc.id, label: loc.name, address: loc.address };
       }
-      return { customerRecipientId: null, label: r.label, address: null };
+      return { customerLocationId: null, label: r.label, address: null };
     });
   }
 
@@ -331,6 +341,8 @@ function serializeShipment(s: ShipmentWithRelations) {
     status: s.status,
     customerId: s.customerId,
     customer: s.customer,
+    recipientCustomerId: s.recipientCustomerId,
+    recipientCustomer: s.recipientCustomer,
     warehouseId: s.warehouseId,
     warehouse: s.warehouse,
     vehicleId: s.vehicleId,
@@ -342,8 +354,9 @@ function serializeShipment(s: ShipmentWithRelations) {
     })),
     recipients: s.recipients.map((rec) => ({
       id: rec.id,
-      customerRecipientId: rec.customerRecipientId,
+      customerLocationId: rec.customerLocationId,
       label: rec.label,
+      address: rec.address,
     })),
     expectedAt: s.expectedAt,
     notes: s.notes,

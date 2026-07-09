@@ -25,6 +25,7 @@ const RECEIPT_INCLUDE = {
       paymentType: true,
       showAmountOnSlip: true,
       vatIncluded: true,
+      recipientCustomer: { select: { id: true, name: true, code: true, address: true } },
       sources: { select: { label: true, address: true } },
       recipients: { select: { label: true, address: true } },
     },
@@ -394,6 +395,7 @@ function serializeReceipt(r: ReceiptWithRelations) {
     paymentType: (r.shipment?.paymentType ?? null) as 'SENDER' | 'RECIPIENT' | null,
     showAmountOnSlip: r.shipment?.showAmountOnSlip ?? false,
     vatIncluded: r.shipment?.vatIncluded ?? false,
+    recipientCustomer: r.shipment?.recipientCustomer ?? null,
     sources: r.shipment?.sources?.map((s) => ({ label: s.label, address: s.address })) ?? [],
     recipients:
       r.shipment?.recipients?.map((rec) => ({ label: rec.label, address: rec.address })) ?? [],
