@@ -98,11 +98,11 @@ const PARTY_META: Record<
   { nameLabel: string; namePh: string; addrPh: string; addBtn: string; delMsg: string }
 > = {
   locations: {
-    nameLabel: 'Depo/Lokasyon Adı',
-    namePh: 'Gebze Deposu',
+    nameLabel: 'Lokasyon Adı',
+    namePh: 'Gebze Deposu / Fabrika',
     addrPh: 'Gebze OSB ...',
-    addBtn: '+ Depo Ekle',
-    delMsg: 'Bu kaynak depo silinsin mi?',
+    addBtn: '+ Lokasyon Ekle',
+    delMsg: 'Bu lokasyon silinsin mi?',
   },
   recipients: {
     nameLabel: 'Alıcı Adı',
