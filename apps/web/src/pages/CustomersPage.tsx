@@ -89,6 +89,8 @@ export function CustomerForm({ initial, onDone }: { initial?: Customer; onDone: 
           phone: initial.phone ?? '',
           email: initial.email ?? '',
           address: initial.address ?? '',
+          taxOffice: initial.taxOffice ?? '',
+          taxNumber: initial.taxNumber ?? '',
         }
       : undefined,
   });
@@ -119,19 +121,25 @@ export function CustomerForm({ initial, onDone }: { initial?: Customer; onDone: 
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Yetkili" error={errors.contactName?.message}>
-            <Input {...register('contactName')} />
+          <Field label="Vergi Dairesi" error={errors.taxOffice?.message}>
+            <Input {...register('taxOffice')} placeholder="Örn. Sarıyer" />
           </Field>
+          <Field label="Vergi No" error={errors.taxNumber?.message}>
+            <Input {...register('taxNumber')} placeholder="10 haneli" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Telefon" error={errors.phone?.message}>
             <Input {...register('phone')} />
           </Field>
+          <Field label="E-posta" error={errors.email?.message}>
+            <Input type="email" {...register('email')} />
+          </Field>
         </div>
-        <Field label="E-posta" error={errors.email?.message}>
-          <Input type="email" {...register('email')} />
-        </Field>
         <Field label="Adres" error={errors.address?.message}>
           <Input {...register('address')} />
         </Field>
+        <p className="text-xs text-slate-400">Yetkili kişileri müşteri detayından ekleyebilirsiniz.</p>
         {serverError && <p className="text-sm text-red-600">{serverError}</p>}
         <div className="flex gap-2">
           <Button type="submit" className="flex-1" loading={isSubmitting || mutation.isPending}>

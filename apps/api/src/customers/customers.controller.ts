@@ -14,12 +14,14 @@ import {
   updateCustomerSchema,
   createCustomerLocationSchema,
   createCustomerRecipientSchema,
+  createCustomerContactSchema,
   paginationQuerySchema,
   UserRole,
   type CreateCustomerInput,
   type UpdateCustomerInput,
   type CreateCustomerLocationInput,
   type CreateCustomerRecipientInput,
+  type CreateCustomerContactInput,
   type PaginationQuery,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -126,5 +128,37 @@ export class CustomersController {
   @Delete(':id/recipients/:recipientId')
   removeRecipient(@Param('id') id: string, @Param('recipientId') recipientId: string) {
     return this.customersService.removeRecipient(id, recipientId);
+  }
+
+  // ---- Yetkililer (çoklu kişi) ----
+
+  @Get(':id/contacts')
+  findContacts(@Param('id') id: string) {
+    return this.customersService.listContacts(id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Post(':id/contacts')
+  addContact(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(createCustomerContactSchema)) dto: CreateCustomerContactInput,
+  ) {
+    return this.customersService.addContact(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/contacts/:contactId')
+  updateContact(
+    @Param('id') id: string,
+    @Param('contactId') contactId: string,
+    @Body(new ZodValidationPipe(createCustomerContactSchema)) dto: CreateCustomerContactInput,
+  ) {
+    return this.customersService.updateContact(id, contactId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Delete(':id/contacts/:contactId')
+  removeContact(@Param('id') id: string, @Param('contactId') contactId: string) {
+    return this.customersService.removeContact(id, contactId);
   }
 }

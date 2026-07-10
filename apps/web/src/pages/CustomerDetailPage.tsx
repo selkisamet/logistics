@@ -5,9 +5,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   createCustomerLocationSchema,
+  createCustomerContactSchema,
   type Customer,
   type CustomerLocation,
+  type CustomerContact,
   type CreateCustomerLocationInput,
+  type CreateCustomerContactInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
@@ -32,6 +35,11 @@ export function CustomerDetailPage() {
     queryFn: () => api.get<CustomerLocation[]>(`/customers/${id}/locations`),
     enabled: !!id,
   });
+  const { data: contacts } = useQuery({
+    queryKey: ['customers', id, 'contacts'],
+    queryFn: () => api.get<CustomerContact[]>(`/customers/${id}/contacts`),
+    enabled: !!id,
+  });
   if (isLoading) return <Spinner />;
   if (!customer) return <p className="text-slate-500">Müşteri bulunamadı.</p>;
 
@@ -54,14 +62,38 @@ export function CustomerDetailPage() {
             )}
           </div>
           <p className="text-sm text-slate-500">Kod: {customer.code}</p>
-          {customer.contactName && (
-            <p className="text-sm text-slate-600">Yetkili: {customer.contactName}</p>
+          {(customer.taxOffice || customer.taxNumber) && (
+            <p className="text-sm text-slate-600">
+              Vergi: {customer.taxOffice ?? '—'}
+              {customer.taxNumber ? ` / ${customer.taxNumber}` : ''}
+            </p>
           )}
           {customer.phone && <p className="text-sm text-slate-600">Tel: {customer.phone}</p>}
           {customer.email && <p className="text-sm text-slate-600">E-posta: {customer.email}</p>}
           {customer.address && <p className="text-sm text-slate-600">Adres: {customer.address}</p>}
         </Card>
       )}
+
+      <div>
+        <h3 className="mb-2 font-semibold text-slate-900">Yetkililer</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Bu firmadaki ilgili kişiler (ad soyad, görev, telefon, dahili, e-posta).
+        </p>
+        {canEdit && id && (
+          <Card className="mb-3">
+            <ContactForm customerId={id} />
+          </Card>
+        )}
+        {!contacts || contacts.length === 0 ? (
+          <EmptyState title="Henüz yetkili yok" hint="Yukarıdan ekleyebilirsiniz." />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {contacts.map((c) => (
+              <ContactRow key={c.id} customerId={id!} contact={c} canEdit={canEdit} />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div>
         <h3 className="mb-2 font-semibold text-slate-900">Depolar / Lokasyonlar</h3>
@@ -231,6 +263,154 @@ function PartyRow({
               if (
                 await confirmDialog({
                   message: PARTY_META[kind].delMsg,
+                  confirmText: 'Sil',
+                  danger: true,
+                })
+              )
+                del.mutate();
+            }}
+            className="text-sm font-medium text-red-600"
+          >
+            Sil
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Yetkili ekle/düzenle formu (ad, görev, telefon, dahili, e-posta). */
+function ContactForm({
+  customerId,
+  initial,
+  onDone,
+}: {
+  customerId: string;
+  initial?: CustomerContact;
+  onDone?: () => void;
+}) {
+  const qc = useQueryClient();
+  const editing = !!initial;
+  const [serverError, setServerError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateCustomerContactInput>({
+    resolver: zodResolver(createCustomerContactSchema),
+    defaultValues: initial
+      ? {
+          name: initial.name,
+          role: initial.role ?? '',
+          phone: initial.phone ?? '',
+          email: initial.email ?? '',
+          extension: initial.extension ?? '',
+        }
+      : undefined,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (input: CreateCustomerContactInput) =>
+      editing
+        ? api.patch(`/customers/${customerId}/contacts/${initial!.id}`, input)
+        : api.post(`/customers/${customerId}/contacts`, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers', customerId, 'contacts'] });
+      if (!editing) reset();
+      onDone?.();
+    },
+    onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
+  });
+
+  return (
+    <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Field label="Ad Soyad *" error={errors.name?.message}>
+          <Input placeholder="Ali Yılmaz" {...register('name')} />
+        </Field>
+        <Field label="Görev" error={errors.role?.message}>
+          <Input placeholder="Satın Alma" {...register('role')} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Field label="Telefon" error={errors.phone?.message}>
+          <Input {...register('phone')} />
+        </Field>
+        <Field label="Dahili" error={errors.extension?.message}>
+          <Input placeholder="101" {...register('extension')} />
+        </Field>
+        <Field label="E-posta" error={errors.email?.message}>
+          <Input type="email" {...register('email')} />
+        </Field>
+      </div>
+      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" loading={mutation.isPending}>
+          {editing ? 'Kaydet' : '+ Yetkili Ekle'}
+        </Button>
+        {editing && (
+          <Button type="button" variant="secondary" onClick={onDone}>
+            Vazgeç
+          </Button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/** Yetkili satırı — görüntüle + inline düzenle + sil. */
+function ContactRow({
+  customerId,
+  contact,
+  canEdit,
+}: {
+  customerId: string;
+  contact: CustomerContact;
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const del = useMutation({
+    mutationFn: () => api.delete(`/customers/${customerId}/contacts/${contact.id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, 'contacts'] }),
+  });
+
+  if (editing) {
+    return (
+      <Card>
+        <ContactForm customerId={customerId} initial={contact} onDone={() => setEditing(false)} />
+      </Card>
+    );
+  }
+
+  const meta = [
+    contact.phone && `Tel: ${contact.phone}`,
+    contact.extension && `Dahili: ${contact.extension}`,
+    contact.email,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <Card className="flex items-center justify-between gap-2">
+      <div>
+        <p className="font-medium text-slate-900">
+          {contact.name}
+          {contact.role ? <span className="text-slate-500"> — {contact.role}</span> : null}
+        </p>
+        {meta && <p className="text-xs text-slate-500">{meta}</p>}
+      </div>
+      {canEdit && (
+        <div className="flex shrink-0 gap-3">
+          <button onClick={() => setEditing(true)} className="text-sm font-medium text-brand">
+            Düzenle
+          </button>
+          <button
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  message: 'Bu yetkili silinsin mi?',
                   confirmText: 'Sil',
                   danger: true,
                 })

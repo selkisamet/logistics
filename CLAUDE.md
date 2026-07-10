@@ -138,8 +138,13 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   elle `migration.sql` + `prisma migrate deploy` (non-interactive ortamda `migrate dev` bloklanır).
 - **Client üretimi EPERM:** `prisma generate` çalışan BASLAT node süreçleri motor DLL'ini kilitler.
   Çözüm: önce node'u durdur (`Stop-Process -Name node -Force`), `pnpm prisma generate`, sonra tekrar BASLAT.
-- **Modeller:** User, Customer, CustomerLocation, CustomerRecipient, Warehouse, Location,
-  InboundShipment(+vehicleId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,
+- **Alıcı = kayıtlı Müşteri:** Ön ihbarda gönderici (customerId) ve alıcı (recipientCustomerId) ikisi de Customer;
+  her birinin `CustomerLocation`'ları yükleme/boşaltma yeridir. `CustomerRecipient` dormant (kullanılmıyor).
+  Müşteride `taxOffice`/`taxNumber` + çoklu `CustomerContact` (ad/görev/tel/e-posta/dahili). **Fişte GÖNDEREN/ALICI
+  = firma bilgileri** (ünvan, vergi dairesi/no, adres, tel); yükleme/boşaltma nokta listeleri kaldırıldı.
+- **Modeller:** User, Customer(+taxOffice,taxNumber), CustomerContact, CustomerLocation, CustomerRecipient(dormant),
+  Warehouse(+isDefault), Location,
+  InboundShipment(+vehicleId,recipientCustomerId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,
   Receipt(+waybillNo, orderNo, dispatchId), ReceiptLine, Package(+dispatchId,
   dispatchedAt), Discrepancy, Attachment, Dispatch(+vehicleId, packages), Vehicle(type=String), AuditEvent.
 

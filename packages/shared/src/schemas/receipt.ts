@@ -98,6 +98,9 @@ export const receiptSchema = z.object({
       name: z.string(),
       code: z.string(),
       address: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      taxOffice: z.string().nullable().optional(),
+      taxNumber: z.string().nullable().optional(),
     })
     .optional(),
   warehouseId: z.string(),
@@ -119,6 +122,9 @@ export const receiptSchema = z.object({
       name: z.string(),
       code: z.string(),
       address: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      taxOffice: z.string().nullable().optional(),
+      taxNumber: z.string().nullable().optional(),
     })
     .nullable()
     .optional(),

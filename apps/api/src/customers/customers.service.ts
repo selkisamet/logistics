@@ -8,6 +8,7 @@ import type {
   PaginationQuery,
   CreateCustomerLocationInput,
   CreateCustomerRecipientInput,
+  CreateCustomerContactInput,
 } from '@lojistik/shared';
 
 @Injectable()
@@ -156,6 +157,34 @@ export class CustomersService {
 
   async removeRecipient(customerId: string, recipientId: string) {
     await this.prisma.customerRecipient.deleteMany({ where: { id: recipientId, customerId } });
+    return { success: true };
+  }
+
+  // ---- Müşteri yetkilileri (çoklu kişi) ----
+
+  async listContacts(customerId: string) {
+    await this.findOne(customerId);
+    return this.prisma.customerContact.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addContact(customerId: string, input: CreateCustomerContactInput) {
+    await this.findOne(customerId);
+    return this.prisma.customerContact.create({ data: { customerId, ...this.normalize(input) } });
+  }
+
+  async updateContact(customerId: string, contactId: string, input: CreateCustomerContactInput) {
+    await this.prisma.customerContact.updateMany({
+      where: { id: contactId, customerId },
+      data: this.normalize(input),
+    });
+    return this.prisma.customerContact.findUnique({ where: { id: contactId } });
+  }
+
+  async removeContact(customerId: string, contactId: string) {
+    await this.prisma.customerContact.deleteMany({ where: { id: contactId, customerId } });
     return { success: true };
   }
 

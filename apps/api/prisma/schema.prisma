@@ -81,6 +81,8 @@ model Customer {
   phone       String?
   email       String?
   address     String?
+  taxOffice   String? // vergi dairesi
+  taxNumber   String? // vergi numarası
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -89,6 +91,22 @@ model Customer {
   receipts           Receipt[]
   sourceLocations    CustomerLocation[]
   recipients         CustomerRecipient[]
+  contacts           CustomerContact[]
+}
+
+// Müşteri yetkili kişileri (çoklu) — ad, görev, telefon, e-posta, dahili
+model CustomerContact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  role       String? // görev/ünvan
+  phone      String?
+  email      String?
+  extension  String? // dahili
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 // Müşteriye ait kaynak depo/adres (malın alınacağı yer - pickup)

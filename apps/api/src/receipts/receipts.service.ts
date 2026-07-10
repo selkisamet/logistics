@@ -13,7 +13,17 @@ import {
 } from '@lojistik/shared';
 
 const RECEIPT_INCLUDE = {
-  customer: { select: { id: true, name: true, code: true, address: true } },
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      address: true,
+      phone: true,
+      taxOffice: true,
+      taxNumber: true,
+    },
+  },
   warehouse: { select: { id: true, name: true, code: true } },
   shipment: {
     select: {
@@ -25,7 +35,17 @@ const RECEIPT_INCLUDE = {
       paymentType: true,
       showAmountOnSlip: true,
       vatIncluded: true,
-      recipientCustomer: { select: { id: true, name: true, code: true, address: true } },
+      recipientCustomer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          address: true,
+          phone: true,
+          taxOffice: true,
+          taxNumber: true,
+        },
+      },
       sources: { select: { label: true, address: true } },
       recipients: { select: { label: true, address: true } },
     },

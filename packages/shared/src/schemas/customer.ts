@@ -12,6 +12,8 @@ export const createCustomerSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email('Geçerli bir e-posta girin').optional().or(z.literal('')),
   address: z.string().optional(),
+  taxOffice: z.string().optional(), // vergi dairesi
+  taxNumber: z.string().optional(), // vergi numarası
 });
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 
@@ -26,9 +28,33 @@ export const customerSchema = z.object({
   phone: z.string().nullable(),
   email: z.string().nullable(),
   address: z.string().nullable(),
+  taxOffice: z.string().nullable().optional(),
+  taxNumber: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type Customer = z.infer<typeof customerSchema>;
+
+/** Müşteri yetkili kişisi (çoklu). */
+export const createCustomerContactSchema = z.object({
+  name: z.string().min(2, 'Ad soyad gerekli'),
+  role: z.string().optional(), // görev
+  phone: z.string().optional(),
+  email: z.string().email('Geçerli bir e-posta girin').optional().or(z.literal('')),
+  extension: z.string().optional(), // dahili
+});
+export type CreateCustomerContactInput = z.infer<typeof createCustomerContactSchema>;
+
+export const customerContactSchema = z.object({
+  id: z.string(),
+  customerId: z.string(),
+  name: z.string(),
+  role: z.string().nullable(),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+  extension: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type CustomerContact = z.infer<typeof customerContactSchema>;
 
 /** Müşteriye ait kaynak depo/adres (malın alınacağı yer - pickup) */
 export const createCustomerLocationSchema = z.object({
