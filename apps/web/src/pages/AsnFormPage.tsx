@@ -101,7 +101,6 @@ export function AsnFormPage() {
       vehicleId: existing.vehicleId ?? undefined,
       expectedAt: existing.expectedAt ? existing.expectedAt.slice(0, 10) : undefined,
       notes: existing.notes ?? undefined,
-      principalName: existing.principalName ?? undefined,
       paymentType: existing.paymentType ?? 'RECIPIENT',
       showAmountOnSlip: existing.showAmountOnSlip ?? false,
       vatIncluded: existing.vatIncluded ?? false,
@@ -269,10 +268,7 @@ export function AsnFormPage() {
             </div>
           </div>
 
-          {/* İşi veren (fişe yansır). Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
-          <Field label="İşi Veren / Cari (opsiyonel)">
-            <Input placeholder="Örn. Misya Lojistik — işi veren firma" {...register('principalName')} />
-          </Field>
+          {/* Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
           <p className="text-xs text-slate-500">
             Yükleme/boşaltma adresi seçilen <b>yerlerin</b> adresinden otomatik alınır; fişte öyle görünür.
             (Adresleri müşteri detayından güncelleyebilirsiniz.)

@@ -809,7 +809,6 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
             <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
             <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
             <MetaLine label="ÖN İHBAR" value={receipt.asnReference || 'Kör kabul'} />
-            {receipt.principalName && <MetaLine label="İŞİ VEREN" value={receipt.principalName} />}
           </div>
         </div>
       </div>

@@ -111,7 +111,6 @@ export const receiptSchema = z.object({
   dispatchId: z.string().nullable().optional(),
   dispatchedAt: z.string().nullable().optional(),
   // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
-  principalName: z.string().nullable().optional(),
   loadAddress: z.string().nullable().optional(),
   deliveryAddress: z.string().nullable().optional(),
   paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),

@@ -29,7 +29,6 @@ const RECEIPT_INCLUDE = {
     select: {
       reference: true,
       vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
-      principalName: true,
       loadAddress: true,
       deliveryAddress: true,
       paymentType: true,
@@ -452,7 +451,6 @@ function serializeReceipt(r: ReceiptWithRelations) {
     dispatchId: r.dispatchId,
     dispatchedAt: r.dispatchedAt,
     // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
-    principalName: r.shipment?.principalName ?? null,
     loadAddress: r.shipment?.loadAddress ?? null,
     deliveryAddress: r.shipment?.deliveryAddress ?? null,
     paymentType: (r.shipment?.paymentType ?? null) as 'SENDER' | 'RECIPIENT' | null,

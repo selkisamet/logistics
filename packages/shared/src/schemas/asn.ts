@@ -49,7 +49,6 @@ export const createAsnSchema = z.object({
   expectedAt: z.string().optional(), // ISO tarih
   notes: z.string().optional(),
   // Fiş için taraf/adres/ödeme (hepsi opsiyonel)
-  principalName: z.string().optional(), // işi veren / cari
   loadAddress: z.string().optional(), // yükleme (gönderici) adresi
   deliveryAddress: z.string().optional(), // teslimat (alıcı) adresi
   paymentType: z.enum(PAYMENT_TYPES).optional(),
@@ -135,7 +134,6 @@ export const asnSchema = z.object({
     .default([]),
   expectedAt: z.string().nullable(),
   notes: z.string().nullable(),
-  principalName: z.string().nullable().optional(),
   loadAddress: z.string().nullable().optional(),
   deliveryAddress: z.string().nullable().optional(),
   paymentType: z.enum(PAYMENT_TYPES).nullable().optional(),

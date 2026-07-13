@@ -76,7 +76,6 @@ export function AsnDetailPage() {
             label="Boşaltma Yeri"
             value={asn.recipients.length ? asn.recipients.map((r) => r.label).join(', ') : '–'}
           />
-          {asn.principalName && <Info label="İşi Veren" value={asn.principalName} />}
           <Info
             label="Ödeme"
             value={

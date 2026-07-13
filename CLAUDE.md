@@ -81,10 +81,11 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   **çoklu alıcı** (firmanın kendi müşterileri = malın gideceği taraf; CustomerRecipient + ShipmentRecipient,
   kaynak deseninin birebir aynası; müşteri detayında yönetilir, ön ihbarda çoklu seçilir).
   Satır = **Açıklama + Adet + opsiyonel Birim Fiyat** (SKU/Barkod kaldırıldı; müşteri belgelerinde İrsaliye No + Sipariş No + irsaliye QR var, ürün barkodu yok).
-  - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive: `principalName`
-    (İşi Veren/cari, ör. Misya), `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
-    ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi), İşi Veren
-    ayrı. Satır `unitPrice` (Decimal) → ReceiptLine'a kopyalanır. **Adresler:** `ShipmentSource`/`ShipmentRecipient`'e
+  - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive:
+    `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
+    ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi).
+    (`principalName`/"İşi Veren/Cari" alanı KALDIRILDI — kolon dormant; gönderici/alıcı yeterli görüldü.)
+    Satır `unitPrice` (Decimal) → ReceiptLine'a kopyalanır. **Adresler:** `ShipmentSource`/`ShipmentRecipient`'e
     seçilen kaydın `address`'i snapshot'lanır; fişte **her yükleme/teslim noktası ayrı listelenir** (kaynak yoksa
     müşteri fatura adresi). `CustomerLocation`/`CustomerRecipient` = ad+adres+**telefon**, müşteri detayından
     düzenlenebilir (PATCH). Fiş receipt→shipment yolundan besleniyor (serializeReceipt sources/recipients+adres

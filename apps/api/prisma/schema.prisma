@@ -182,7 +182,7 @@ model InboundShipment {
   expectedAt     DateTime?
   notes          String?
   // Fiş için taraf/adres/ödeme bilgileri (hepsi opsiyonel — kör kabul/eski akış etkilenmez)
-  principalName    String? // işi veren / cari (ör. Misya Lojistik)
+  principalName    String? // DORMANT: "İşi Veren/Cari" alanı kaldırıldı (kolon duruyor, yazılmıyor/okunmuyor)
   loadAddress      String? // yükleme (gönderici) adresi
   deliveryAddress  String? // teslimat (alıcı) adresi
   paymentType      String? // 'SENDER' | 'RECIPIENT'
