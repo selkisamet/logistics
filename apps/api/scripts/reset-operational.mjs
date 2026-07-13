@@ -20,9 +20,9 @@ function readDbUrl(path) {
 }
 const isPlaceholder = (u) => !u || /HOST|PAROLA|KULLANICI|buraya/i.test(u);
 
-/** Hedef: apps/api/.env.reset (varsa BULUT için) — doldurulmamışsa uyar; yoksa .env (yerel). */
+/** Öncelik: apps/api/.env.reset (BULUT) > ortam DATABASE_URL > apps/api/.env (yerel).
+ *  .env.reset ortam değişkenini de EZER (yanlışlıkla localhost'a bağlanmayı önler). */
 function loadDatabaseUrl() {
-  if (process.env.DATABASE_URL) return { url: process.env.DATABASE_URL };
   const resetPath = join(here, '..', '.env.reset');
   if (existsSync(resetPath)) {
     const u = readDbUrl(resetPath);
@@ -34,11 +34,12 @@ function loadDatabaseUrl() {
           '.env.reset içine  DATABASE_URL="..."  olarak yapıştırın, sonra tekrar deneyin.',
       };
     }
-    return { url: u };
+    return { url: u, source: '.env.reset' };
   }
+  if (process.env.DATABASE_URL) return { url: process.env.DATABASE_URL, source: 'ortam' };
   const u = readDbUrl(join(here, '..', '.env'));
   if (!u) return { error: 'DATABASE_URL bulunamadı (.env.reset veya .env).' };
-  return { url: u };
+  return { url: u, source: '.env' };
 }
 
 const res = loadDatabaseUrl();
@@ -47,6 +48,7 @@ if (res.error) {
   process.exit(1);
 }
 const url = res.url;
+const source = res.source;
 if (!process.argv.includes('--yes')) {
   console.error('Bu script veri SİLER. Onay için --yes ile çalıştırın (ya da SIFIRLA.bat kullanın).');
   process.exit(1);
@@ -57,6 +59,7 @@ const redacted = url.replace(/\/\/[^@]*@/, '//***:***@');
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('Kaynak   :', source);
   console.log('Hedef DB :', redacted);
   const before = {
     onIhbar: await prisma.inboundShipment.count(),
