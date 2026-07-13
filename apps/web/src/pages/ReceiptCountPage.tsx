@@ -726,8 +726,18 @@ const SLIP_LAYOUTS: { key: SlipLayout; label: string }[] = [
   { key: 'a4x2', label: "A4'e 2 fiş (kes)" },
 ];
 
+// Nüsha etiketi (matbu/chrome — matbaa master'ında görünür, "yalnız veri" baskısında gizli).
+// 3 nüshalı karbonlu koçan için matbaaya her nüsha ayrı ayrı bastırılır.
+type SlipCopy = 'none' | 'c1' | 'c2' | 'c3';
+const SLIP_COPIES: { key: SlipCopy; label: string; badge: string }[] = [
+  { key: 'none', label: 'Nüsha yok', badge: '' },
+  { key: 'c1', label: '1· Gönderici', badge: '1. NÜSHA · GÖNDERİCİ' },
+  { key: 'c2', label: '2· Alıcı', badge: '2. NÜSHA · ALICI' },
+  { key: 'c3', label: '3· Dosya', badge: '3. NÜSHA · DOSYA' },
+];
+
 /** Fişin görsel gövdesi — tek bir A5 form. A5-tek ve A4-2'li yerleşimde aynen kullanılır. */
-function SlipForm({ receipt }: { receipt: Receipt }) {
+function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: string }) {
   const totalCounted = receipt.lines.reduce((s, l) => s + l.countedQty, 0);
   const packages = receipt.packages ?? [];
   const discrepancies = receipt.discrepancies ?? [];
@@ -800,6 +810,11 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
           </div>
         </div>
         <div className="flex flex-1 flex-col p-2">
+          {copyBadge && (
+            <div className="mb-0.5 self-end rounded-sm border border-sky-800 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-sky-800">
+              {copyBadge}
+            </div>
+          )}
           <h1 className="text-right text-base font-black tracking-wide text-sky-800">
             AMBAR TESELLÜM FİŞİ
           </h1>
@@ -980,6 +995,8 @@ function SlipForm({ receipt }: { receipt: Receipt }) {
 function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
   const [mode, setMode] = useState<SlipMode>('full');
   const [layout, setLayout] = useState<SlipLayout>('a5');
+  const [copy, setCopy] = useState<SlipCopy>('none');
+  const copyBadge = SLIP_COPIES.find((c) => c.key === copy)?.badge ?? '';
   const printRef = useRef<HTMLDivElement>(null);
 
   // Baskı izole bir iframe'de yapılır (react-to-print) → sayfalama düzgün, kırpılma yok.
@@ -1028,6 +1045,21 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+            <span className="pl-1 pr-0.5 text-[10px] font-semibold uppercase text-slate-400">Nüsha</span>
+            {SLIP_COPIES.map((c) => (
+              <button
+                key={c.key}
+                onClick={() => setCopy(c.key)}
+                className={clsx(
+                  'rounded-md px-2 py-1 text-xs font-medium transition',
+                  copy === c.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
+                )}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
           <Button variant="secondary" onClick={onClose}>
             Kapat
           </Button>
@@ -1040,6 +1072,12 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
           {mode === 'data'
             ? 'Yalnız veriler basılır — matbu (önceden basılı) forma yerleştirmek için. Çizgi/etiketler basılmaz.'
             : 'Yalnız boş form basılır — matbaaya bu master ile bastırın. Veriler görünmez.'}
+        </div>
+      )}
+      {mode === 'blank' && (
+        <div className="bg-emerald-50 px-4 py-1.5 text-xs text-emerald-800">
+          3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Gönderici → Alıcı → Dosya</b> seçip her birini ayrı
+          PDF'e basın; 3 dosyayı matbaaya verin (her nüsha ilgili renkli kağıda). Nüsha etiketi sağ üstte görünür.
         </div>
       )}
       {layout === 'a4x2' && (
@@ -1060,11 +1098,11 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
           )}
         >
           {layout === 'a5' ? (
-            <SlipForm receipt={receipt} />
+            <SlipForm receipt={receipt} copyBadge={copyBadge} />
           ) : (
             <>
               <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-                <SlipForm receipt={receipt} />
+                <SlipForm receipt={receipt} copyBadge={copyBadge} />
               </div>
               <div className="slip-cut relative my-1 border-t border-dashed border-slate-400">
                 <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[8px] text-slate-400">
@@ -1072,7 +1110,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
                 </span>
               </div>
               <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-                <SlipForm receipt={receipt} />
+                <SlipForm receipt={receipt} copyBadge={copyBadge} />
               </div>
             </>
           )}

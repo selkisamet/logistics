@@ -109,6 +109,10 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   - **2 yerleşim** (`pageStyle` @page'i buna göre): `a5`=tek fiş (A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş**
     (`.slip-a4`; iki `.slip-copy` h-140mm + ortada ✂ kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
     `SlipForm` bileşeni; modalda tek `ref={printRef}`'li `.slip-doc`, içerik yerleşime göre 1 ya da 2 SlipForm.
+  - **Nüsha etiketi** (3 nüshalı karbonlu koçan; dot-matrix baskı): modalda **Nüsha** seçici
+    (`SLIP_COPIES`: yok/1·Gönderici/2·Alıcı/3·Dosya) → başlık sağ üstte `copyBadge` rozeti basar. Rozet **chrome**
+    (matbu) olduğundan `blank` master'da görünür, `data` (günlük) baskıda gizli. Matbaa master'ı: `blank` modda
+    nüshayı sırayla seçip 3 ayrı PDF çıkar → matbaaya ver (her nüsha ayrı renkli kağıda).
   - **QR = fişi açan link** (`${origin}/mal-kabul/${receipt.id}`; okutunca mal kabul kaydı açılır — data). **Marka:**
     fiş başında **logo** (`apps/web/public/logo.png`, yoksa gizlenir) + firma adı/slogan; altta **iletişim şeridi**
     (tel/e-posta/adres/web). Firma bilgileri [lib/company.ts](apps/web/src/lib/company.ts) `COMPANY` sabitinden.
