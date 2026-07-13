@@ -75,6 +75,17 @@ export function ReceiptCountPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Tamamlanamadı'),
   });
 
+  const cancelMut = useMutation({
+    mutationFn: () => api.post<Receipt>(`/receipts/${id}/cancel`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['asn'] });
+      toast('Mal kabul iptal edildi; ön ihbar tekrar düzenlenebilir.');
+      navigate('/mal-kabul', { replace: true });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İptal edilemedi'),
+  });
+
   const packageMut = useMutation({
     mutationFn: (body: { type: string; count: number }) =>
       api.post<Package[]>(`/receipts/${id}/packages`, body),
@@ -309,20 +320,41 @@ export function ReceiptCountPage() {
       </Card>
 
       {editable && (
-        <Button
-          className="w-full"
-          variant={hasDiscrepancy ? 'secondary' : 'primary'}
-          loading={completeMut.isPending}
-          onClick={async () => {
-            const msg = hasDiscrepancy
-              ? 'Beklenen ile sayılan arasında fark var. Yine de tamamlansın mı?'
-              : 'Mal kabul tamamlansın mı?';
-            if (await confirmDialog({ message: msg, confirmText: 'Tamamla', danger: hasDiscrepancy }))
-              completeMut.mutate();
-          }}
-        >
-          {hasDiscrepancy ? '⚠ Farklı Tamamla' : '✓ Tamamla'}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full"
+            variant={hasDiscrepancy ? 'secondary' : 'primary'}
+            loading={completeMut.isPending}
+            onClick={async () => {
+              const msg = hasDiscrepancy
+                ? 'Beklenen ile sayılan arasında fark var. Yine de tamamlansın mı?'
+                : 'Mal kabul tamamlansın mı?';
+              if (await confirmDialog({ message: msg, confirmText: 'Tamamla', danger: hasDiscrepancy }))
+                completeMut.mutate();
+            }}
+          >
+            {hasDiscrepancy ? '⚠ Farklı Tamamla' : '✓ Tamamla'}
+          </Button>
+          <Button
+            className="w-full"
+            variant="danger"
+            loading={cancelMut.isPending}
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  title: 'Mal kabulü iptal et',
+                  message:
+                    'Bu mal kabul iptal edilsin mi? Ön ihbar tekrar "beklenen" durumuna döner ve düzenlenebilir. (Üretilen palet/tutanaklar bu kabulde kalır.)',
+                  confirmText: 'İptal Et',
+                  danger: true,
+                })
+              )
+                cancelMut.mutate();
+            }}
+          >
+            Mal Kabulü İptal Et
+          </Button>
+        </div>
       )}
 
       {addOpen && (
