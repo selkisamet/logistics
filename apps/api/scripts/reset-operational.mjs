@@ -10,29 +10,43 @@ import { PrismaClient } from '@prisma/client';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-function loadDatabaseUrl() {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  for (const name of ['.env.reset', '.env']) {
-    const p = join(here, '..', name);
-    if (!existsSync(p)) continue;
-    for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) {
-      const m = line.match(/^\s*DATABASE_URL\s*=\s*"?([^"\r\n]+)"?\s*$/);
-      // placeholder'ı (HOST/PAROLA) atla
-      if (m && m[1] && !/HOST|PAROLA|KULLANICI|buraya/i.test(m[1])) return m[1];
-    }
+function readDbUrl(path) {
+  if (!existsSync(path)) return null; // dosya yok
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*DATABASE_URL\s*=\s*"?([^"\r\n]+)"?\s*$/);
+    if (m) return m[1] ?? '';
   }
-  return '';
+  return ''; // dosya var, anahtar yok
+}
+const isPlaceholder = (u) => !u || /HOST|PAROLA|KULLANICI|buraya/i.test(u);
+
+/** Hedef: apps/api/.env.reset (varsa BULUT için) — doldurulmamışsa uyar; yoksa .env (yerel). */
+function loadDatabaseUrl() {
+  if (process.env.DATABASE_URL) return { url: process.env.DATABASE_URL };
+  const resetPath = join(here, '..', '.env.reset');
+  if (existsSync(resetPath)) {
+    const u = readDbUrl(resetPath);
+    if (isPlaceholder(u)) {
+      return {
+        error:
+          'apps/api/.env.reset dosyasındaki DATABASE_URL doldurulmamış (hâlâ şablon).\n' +
+          'Render > servisin > Environment > DATABASE_URL değerini AYNEN kopyalayıp\n' +
+          '.env.reset içine  DATABASE_URL="..."  olarak yapıştırın, sonra tekrar deneyin.',
+      };
+    }
+    return { url: u };
+  }
+  const u = readDbUrl(join(here, '..', '.env'));
+  if (!u) return { error: 'DATABASE_URL bulunamadı (.env.reset veya .env).' };
+  return { url: u };
 }
 
-const url = loadDatabaseUrl();
-if (!url) {
-  console.error(
-    'HATA: DATABASE_URL bulunamadı.\n' +
-      'Bulutu sıfırlamak için apps/api/.env.reset dosyasına Supabase adresinizi koyun\n' +
-      '(apps/api/.env.reset.example dosyasını .env.reset olarak kopyalayıp doldurun).',
-  );
+const res = loadDatabaseUrl();
+if (res.error) {
+  console.error('HATA:', res.error);
   process.exit(1);
 }
+const url = res.url;
 if (!process.argv.includes('--yes')) {
   console.error('Bu script veri SİLER. Onay için --yes ile çalıştırın (ya da SIFIRLA.bat kullanın).');
   process.exit(1);
