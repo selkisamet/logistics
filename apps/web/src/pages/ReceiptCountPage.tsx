@@ -720,12 +720,6 @@ const SLIP_MODES: { key: SlipMode; label: string }[] = [
   { key: 'blank', label: 'Boş form (matbaa master)' },
 ];
 
-type SlipLayout = 'a5' | 'a4x2';
-const SLIP_LAYOUTS: { key: SlipLayout; label: string }[] = [
-  { key: 'a5', label: 'A5 tek' },
-  { key: 'a4x2', label: "A4'e 2 fiş (kes)" },
-];
-
 // Nüsha etiketi (matbu/chrome — matbaa master'ında görünür, "yalnız veri" baskısında gizli).
 // 3 nüshalı karbonlu koçan için matbaaya her nüsha ayrı ayrı bastırılır.
 type SlipCopy = 'none' | 'c1' | 'c2' | 'c3';
@@ -994,17 +988,16 @@ function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: s
  *  full=boş kağıda tam, data=matbu forma yalnız veri (dot-matrix), blank=matbaaya boş form master. */
 function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
   const [mode, setMode] = useState<SlipMode>('full');
-  const [layout, setLayout] = useState<SlipLayout>('a5');
   const [copy, setCopy] = useState<SlipCopy>('none');
   const copyBadge = SLIP_COPIES.find((c) => c.key === copy)?.badge ?? '';
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Baskı izole bir iframe'de yapılır (react-to-print) → sayfalama düzgün, kırpılma yok.
+  // Baskı izole bir iframe'de yapılır (react-to-print) → sayfalama düzgün, kırpılma yok. Sabit A5 yatay.
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Tesellum_${receipt.reference}`,
     pageStyle: `
-      @page { size: ${layout === 'a5' ? 'A5 landscape' : 'A4 portrait'}; margin: ${layout === 'a5' ? '5mm' : '4mm'}; }
+      @page { size: A5 landscape; margin: 5mm; }
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
       body * { visibility: visible !important; }
       .slip-doc { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
@@ -1017,20 +1010,6 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white p-4">
         <span className="font-semibold text-slate-900">Tesellüm Fişi</span>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            {SLIP_LAYOUTS.map((l) => (
-              <button
-                key={l.key}
-                onClick={() => setLayout(l.key)}
-                className={clsx(
-                  'rounded-md px-2.5 py-1 text-xs font-medium transition',
-                  layout === l.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
-                )}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
           <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
             {SLIP_MODES.map((m) => (
               <button
@@ -1080,40 +1059,16 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
           PDF'e basın; 3 dosyayı matbaaya verin (her nüsha ilgili renkli kağıda). Nüsha etiketi sağ üstte görünür.
         </div>
       )}
-      {layout === 'a4x2' && (
-        <div className="bg-sky-50 px-4 py-1.5 text-xs text-sky-800">
-          A4 sayfaya alt alta 2 fiş basılır; ortadaki kesik çizgiden keserek 2 adet A5 fiş elde edersin.
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto p-4">
         <div
           ref={printRef}
           className={clsx(
-            'slip-doc mx-auto w-[210mm] bg-white text-slate-900 shadow-lg',
-            layout === 'a5' && 'p-[6mm]',
-            layout === 'a4x2' && 'slip-a4',
+            'slip-doc mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
             mode === 'data' && 'slip-hide-chrome',
             mode === 'blank' && 'slip-hide-data',
           )}
         >
-          {layout === 'a5' ? (
-            <SlipForm receipt={receipt} copyBadge={copyBadge} />
-          ) : (
-            <>
-              <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-                <SlipForm receipt={receipt} copyBadge={copyBadge} />
-              </div>
-              <div className="slip-cut relative my-1 border-t border-dashed border-slate-400">
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-[8px] text-slate-400">
-                  ✂ kesme çizgisi
-                </span>
-              </div>
-              <div className="slip-copy flex h-[140mm] overflow-hidden p-[4mm]">
-                <SlipForm receipt={receipt} copyBadge={copyBadge} />
-              </div>
-            </>
-          )}
+          <SlipForm receipt={receipt} copyBadge={copyBadge} />
         </div>
       </div>
     </div>

@@ -106,9 +106,10 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     (dot-matrix/karbonlu koçan için; çerçeve+etiketler saydam); `blank`=matbaaya verilecek **boş form master**
     (veriler+QR gizli). Statik parçalar `.slip-chrome`, değişkenler `.slip-data`; `.slip-hide-chrome` /
     `.slip-hide-data` sınıfları (global, `@media print` dışı) ile — [index.css](apps/web/src/index.css).
-  - **2 yerleşim** (`pageStyle` @page'i buna göre): `a5`=tek fiş (A5 yatay); `a4x2`=**A4 dikeye alt alta 2 fiş**
-    (`.slip-a4`; iki `.slip-copy` h-140mm + ortada ✂ kesik çizgi → kesip 2 A5 elde et). Form gövdesi tek
-    `SlipForm` bileşeni; modalda tek `ref={printRef}`'li `.slip-doc`, içerik yerleşime göre 1 ya da 2 SlipForm.
+  - **Yerleşim: A5 yatay sabit** (`@page A5 landscape`). Yerleşim seçici (A5/A4-2'li) UI'dan **kaldırıldı**
+    (dot-matrix sürekli form akışında A4-2'li kesme gereksizdi). Form gövdesi tek `SlipForm` bileşeni; modalda
+    tek `ref={printRef}`'li `.slip-doc` içinde tek SlipForm. (`.slip-a4`/`.slip-copy`/`.slip-cut` CSS'i index.css'te
+    dormant duruyor — istenirse a4x2 geri eklenebilir.)
   - **Nüsha etiketi** (3 nüshalı karbonlu koçan; dot-matrix baskı): modalda **Nüsha** seçici
     (`SLIP_COPIES`: yok/1·Gönderici/2·Alıcı/3·Dosya) → başlık sağ üstte `copyBadge` rozeti basar. Rozet **chrome**
     (matbu) olduğundan `blank` master'da görünür, `data` (günlük) baskıda gizli. Matbaa master'ı: `blank` modda
