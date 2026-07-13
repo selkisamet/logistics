@@ -93,4 +93,9 @@ export class ReceiptsController {
   cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.receiptsService.cancel(id, user.id);
   }
+
+  @Post(':id/reopen')
+  reopen(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.receiptsService.reopen(id, user.id);
+  }
 }

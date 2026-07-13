@@ -11,7 +11,8 @@ import { Badge, Button, Card, Combobox, EmptyState, Field, Input, Spinner } from
 type QuickTarget = {
   receiptId: string;
   customerName: string;
-  inStock: number;
+  count: number; // palet ya da adet
+  hasPackages: boolean;
   plannedVehicle?: VehicleSummary | null;
 };
 
@@ -54,8 +55,13 @@ export function StockPage() {
           {data.items.map((r) => {
             const wait = daysSince(r.completedAt);
             const pkgs = r.packages ?? [];
+            const hasPkg = pkgs.length > 0;
             const inStock = pkgs.filter((p) => !p.dispatchedAt && !p.dispatchId).length;
             const total = pkgs.length;
+            // Paletsiz kabul: satır adetleri toplamı stok göstergesi
+            const itemQty = (r.lines ?? []).reduce((s, l) => s + (l.countedQty ?? 0), 0);
+            const canDispatch = hasPkg ? inStock > 0 : true;
+            const count = hasPkg ? inStock : itemQty;
             return (
               <Card key={r.id} className="space-y-2">
                 <Link to={`/mal-kabul/${r.id}`} className="block space-y-1">
@@ -82,24 +88,31 @@ export function StockPage() {
                     <Badge className="bg-slate-100 text-slate-500">🚚 Araç belirsiz</Badge>
                   )}
                   <span className="text-sm font-medium text-slate-700">
-                    {inStock}
-                    {total > inStock ? `/${total}` : ''} palet depoda
+                    {hasPkg ? (
+                      <>
+                        {inStock}
+                        {total > inStock ? `/${total}` : ''} palet depoda
+                      </>
+                    ) : (
+                      <>{itemQty} adet · paletsiz</>
+                    )}
                   </span>
                 </div>
 
-                {inStock > 0 && (
+                {canDispatch && (
                   <Button
                     className="w-full"
                     onClick={() =>
                       setQuick({
                         receiptId: r.id,
                         customerName: r.customer?.name ?? 'Müşteri',
-                        inStock,
+                        count,
+                        hasPackages: hasPkg,
                         plannedVehicle: r.plannedVehicle,
                       })
                     }
                   >
-                    🚚 Sevk Et ({inStock})
+                    🚚 Sevk Et{hasPkg ? ` (${inStock})` : ''}
                   </Button>
                 )}
               </Card>
@@ -131,7 +144,11 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ['stock'] });
       qc.invalidateQueries({ queryKey: ['dispatches'] });
-      toast(`🚚 ${target.inStock} palet sevk edildi · ${d.reference}`);
+      toast(
+        target.hasPackages
+          ? `🚚 ${target.count} palet sevk edildi · ${d.reference}`
+          : `🚚 Sevk edildi · ${d.reference}`,
+      );
       onClose();
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Sevk edilemedi'),
@@ -149,7 +166,8 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
         <div>
           <h3 className="font-semibold text-slate-900">Hızlı Sevk</h3>
           <p className="text-sm text-slate-500">
-            {target.customerName} · {target.inStock} palet
+            {target.customerName}
+            {target.hasPackages ? ` · ${target.count} palet` : ' · paletsiz'}
           </p>
         </div>
 
@@ -184,7 +202,7 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
             loading={mut.isPending}
             onClick={() => mut.mutate()}
           >
-            🚚 Sevk Et ({target.inStock})
+            🚚 Sevk Et{target.hasPackages ? ` (${target.count})` : ''}
           </Button>
         </div>
       </Card>

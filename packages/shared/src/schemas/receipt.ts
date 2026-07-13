@@ -108,6 +108,8 @@ export const receiptSchema = z.object({
   notes: z.string().nullable(),
   waybillNo: z.string().nullable().optional(),
   orderNo: z.string().nullable().optional(),
+  dispatchId: z.string().nullable().optional(),
+  dispatchedAt: z.string().nullable().optional(),
   // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
   principalName: z.string().nullable().optional(),
   loadAddress: z.string().nullable().optional(),

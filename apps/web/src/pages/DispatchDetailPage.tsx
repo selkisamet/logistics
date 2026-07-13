@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
@@ -220,6 +220,30 @@ export function DispatchDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* Paletsiz (kabul düzeyi) sevk edilen mal kabuller */}
+      {(dispatch.receipts ?? []).length > 0 && (
+        <Card className="space-y-2">
+          <h3 className="font-semibold text-slate-900">
+            Sevk Edilen Kabuller ({dispatch.receipts.length})
+          </h3>
+          <div className="divide-y divide-slate-100">
+            {dispatch.receipts.map((r) => (
+              <Link
+                key={r.id}
+                to={`/mal-kabul/${r.id}`}
+                className="flex items-center justify-between py-2"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{r.reference}</p>
+                  <p className="text-xs text-slate-500">{r.customerName ?? '—'}</p>
+                </div>
+                <span className="text-xs text-slate-500">{r.itemCount} adet</span>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Depodan ekle (palet) */}
       {editable && (

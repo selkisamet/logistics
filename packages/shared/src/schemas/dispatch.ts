@@ -81,6 +81,18 @@ export const dispatchSchema = z.object({
   dispatchedAt: z.string().nullable(),
   createdAt: z.string(),
   packages: z.array(dispatchPackageSchema),
+  // Paletsiz (kabul düzeyi) sevkler için bağlı mal kabuller
+  receipts: z
+    .array(
+      z.object({
+        id: z.string(),
+        reference: z.string(),
+        customerName: z.string().nullable(),
+        itemCount: z.number(),
+      }),
+    )
+    .optional()
+    .default([]),
 });
 export type Dispatch = z.infer<typeof dispatchSchema>;
 

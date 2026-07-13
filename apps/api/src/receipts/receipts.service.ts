@@ -96,17 +96,28 @@ export class ReceiptsService {
     const { page, pageSize, search } = query;
     const where: Prisma.ReceiptWhereInput = {
       status: ReceiptStatus.COMPLETED,
-      // Palet bazlı: en az bir paleti hâlâ depoda olan kabuller (kısmi sevk desteklenir)
-      packages: { some: { dispatchedAt: null, dispatchId: null } },
-      ...(search
-        ? {
-            OR: [
-              { reference: { contains: search, mode: 'insensitive' } },
-              { waybillNo: { contains: search, mode: 'insensitive' } },
-              { customer: { name: { contains: search, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
+      // AND: iki koşul birden — (1) depoda kalan, (2) arama. (OR'lar ayrı tutulur, çakışmaz.)
+      AND: [
+        {
+          // Depoda kalan: (a) sevk edilmemiş paleti olan, veya (b) hiç paleti olmayıp kabul
+          // düzeyinde sevk edilmemiş (QR opsiyonel — paletsiz mal kabul de depoda görünür).
+          OR: [
+            { packages: { some: { dispatchedAt: null, dispatchId: null } } },
+            { AND: [{ packages: { none: {} } }, { dispatchId: null }] },
+          ],
+        },
+        ...(search
+          ? [
+              {
+                OR: [
+                  { reference: { contains: search, mode: 'insensitive' as const } },
+                  { waybillNo: { contains: search, mode: 'insensitive' as const } },
+                  { customer: { name: { contains: search, mode: 'insensitive' as const } } },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -348,6 +359,36 @@ export class ReceiptsService {
     return serializeReceipt(updated);
   }
 
+  /** Tamamlanmış (sevk edilmemiş) mal kabulü tekrar düzenlemeye açar. */
+  async reopen(id: string, userId: string) {
+    const receipt = await this.getOrThrow(id);
+    if (receipt.status !== ReceiptStatus.COMPLETED) {
+      throw new BadRequestException('Yalnızca tamamlanmış mal kabul geri açılabilir');
+    }
+    const dispatched =
+      !!receipt.dispatchId || receipt.packages.some((p) => p.dispatchId || p.dispatchedAt);
+    if (dispatched) {
+      throw new BadRequestException('Sevk edilmiş mal kabul geri açılamaz');
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.receipt.update({
+        where: { id },
+        data: { status: ReceiptStatus.IN_PROGRESS, completedAt: null },
+        include: RECEIPT_INCLUDE,
+      });
+      // Bağlı ön ihbarı tekrar "mal kabulde" durumuna al
+      if (receipt.shipmentId) {
+        await tx.inboundShipment.update({
+          where: { id: receipt.shipmentId },
+          data: { status: ShipmentStatus.IN_RECEIVING },
+        });
+      }
+      return r;
+    });
+    await this.audit('receipt.reopened', 'Receipt', id, userId);
+    return serializeReceipt(updated);
+  }
+
   // ---- helpers ----
 
   private async getOrThrow(id: string): Promise<ReceiptWithRelations> {
@@ -408,6 +449,8 @@ function serializeReceipt(r: ReceiptWithRelations) {
     notes: r.notes,
     waybillNo: r.waybillNo,
     orderNo: r.orderNo,
+    dispatchId: r.dispatchId,
+    dispatchedAt: r.dispatchedAt,
     // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
     principalName: r.shipment?.principalName ?? null,
     loadAddress: r.shipment?.loadAddress ?? null,

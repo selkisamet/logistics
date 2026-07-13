@@ -29,6 +29,15 @@ const DISPATCH_INCLUDE = {
     },
     orderBy: { createdAt: 'asc' as const },
   },
+  // Paletsiz (kabul düzeyi) sevkler için bağlı kabuller
+  receipts: {
+    select: {
+      id: true,
+      reference: true,
+      customer: { select: { name: true } },
+      lines: { select: { countedQty: true } },
+    },
+  },
 } satisfies Prisma.DispatchInclude;
 
 type DispatchWithRelations = Prisma.DispatchGetPayload<{ include: typeof DISPATCH_INCLUDE }>;
@@ -114,8 +123,10 @@ export class DispatchService {
       throw new BadRequestException('Bu kabulün mal kabulü henüz tamamlanmadı');
     }
     const palletIds = receipt.packages.map((p) => p.id);
-    if (palletIds.length === 0) {
-      throw new BadRequestException('Bu kabulde depoda sevk edilecek palet yok');
+    const paletless = palletIds.length === 0;
+    // Paletsiz kabul: kabul düzeyinde sevk (QR opsiyonel). Zaten sevk edildiyse engelle.
+    if (paletless && receipt.dispatchId) {
+      throw new BadRequestException('Bu mal kabul zaten sevk edildi');
     }
 
     const vehicleId = input.vehicleId || receipt.shipment?.vehicleId || null;
@@ -140,10 +151,18 @@ export class DispatchService {
               dispatchedById: userId,
             },
           });
-          await tx.package.updateMany({
-            where: { id: { in: palletIds } },
-            data: { dispatchId: created.id, dispatchedAt: now },
-          });
+          if (paletless) {
+            // Kabul düzeyinde sevk: receipt'i sevkiyata bağla
+            await tx.receipt.update({
+              where: { id: receipt.id },
+              data: { dispatchId: created.id, dispatchedAt: now },
+            });
+          } else {
+            await tx.package.updateMany({
+              where: { id: { in: palletIds } },
+              data: { dispatchId: created.id, dispatchedAt: now },
+            });
+          }
           return tx.dispatch.findUniqueOrThrow({
             where: { id: created.id },
             include: DISPATCH_INCLUDE,
@@ -304,6 +323,12 @@ function serializeDispatch(d: DispatchWithRelations) {
       receiptReference: p.receipt.reference,
       waybillNo: p.receipt.waybillNo,
       plannedVehicle: p.receipt.shipment?.vehicle ?? null,
+    })),
+    receipts: d.receipts.map((r) => ({
+      id: r.id,
+      reference: r.reference,
+      customerName: r.customer?.name ?? null,
+      itemCount: r.lines.reduce((s, l) => s + l.countedQty, 0),
     })),
   };
 }

@@ -86,6 +86,17 @@ export function ReceiptCountPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İptal edilemedi'),
   });
 
+  const reopenMut = useMutation({
+    mutationFn: () => api.post<Receipt>(`/receipts/${id}/reopen`),
+    onSuccess: (r) => {
+      setReceipt(r);
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['asn'] });
+      toast('Mal kabul geri açıldı; düzenleyebilirsiniz.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Geri açılamadı'),
+  });
+
   const packageMut = useMutation({
     mutationFn: (body: { type: string; count: number }) =>
       api.post<Package[]>(`/receipts/${id}/packages`, body),
@@ -105,6 +116,10 @@ export function ReceiptCountPage() {
   if (!receipt) return <p className="text-slate-500">Kayıt bulunamadı.</p>;
 
   const editable = receipt.status === 'IN_PROGRESS';
+  const dispatched =
+    receipt.dispatchId != null ||
+    (receipt.packages ?? []).some((p) => p.dispatchId || p.dispatchedAt);
+  const canReopen = receipt.status === 'COMPLETED' && !dispatched;
 
   const setCount = (line: ReceiptLine, qty: number) => {
     upsertMut.mutate({
@@ -355,6 +370,27 @@ export function ReceiptCountPage() {
             Mal Kabulü İptal Et
           </Button>
         </div>
+      )}
+
+      {canReopen && (
+        <Button
+          className="w-full"
+          variant="secondary"
+          loading={reopenMut.isPending}
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                title: 'Mal kabulü geri aç',
+                message:
+                  'Bu tamamlanmış mal kabul tekrar düzenlenebilir duruma gelsin mi? (Sayım, belge ve palet ekleme yeniden açılır. Depodan geçici olarak kaldırılır.)',
+                confirmText: 'Geri Aç',
+              })
+            )
+              reopenMut.mutate();
+          }}
+        >
+          ↩ Geri Aç (Düzenle)
+        </Button>
       )}
 
       {addOpen && (
