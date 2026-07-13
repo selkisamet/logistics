@@ -1051,7 +1051,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-1 text-[9px]">
-      <span className="font-bold text-slate-700">{label}</span>
+      <span className="w-[118px] shrink-0 text-right font-bold text-slate-700">{label}</span>
       <span className="text-slate-400">:</span>
       <span className="slip-data flex-1 border-b border-dotted border-slate-400 font-semibold text-slate-900">
         {value || ' '}
