@@ -16,7 +16,8 @@ import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { formatDateTime } from '../lib/format';
-import { Button, Card, EmptyState, Spinner } from '../components/ui';
+import { useVehicles } from '../lib/lookups';
+import { Button, Card, Combobox, EmptyState, Field, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 
@@ -33,6 +34,7 @@ export function DispatchDetailPage() {
   const qc = useQueryClient();
   const [scanning, setScanning] = useState(false);
   const [scanMode, setScanMode] = useState<'single' | 'lot'>('single');
+  const [vehicleModal, setVehicleModal] = useState(false);
 
   const { data: dispatch, isLoading } = useQuery({
     queryKey: ['dispatches', id],
@@ -79,8 +81,23 @@ export function DispatchDetailPage() {
   });
   const cancelMut = useMutation({
     mutationFn: () => api.post<Dispatch>(`/dispatches/${id}/cancel`),
-    onSuccess: afterChange,
+    onSuccess: (d) => {
+      afterChange(d);
+      qc.invalidateQueries({ queryKey: ['dispatches'] });
+      toast('Sevkiyat geri alındı; yükler depoya döndü.');
+    },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İptal edilemedi'),
+  });
+  const vehicleMut = useMutation({
+    mutationFn: (vehicleId: string) =>
+      api.patch<Dispatch>(`/dispatches/${id}/vehicle`, { vehicleId }),
+    onSuccess: (d) => {
+      setDispatch(d);
+      qc.invalidateQueries({ queryKey: ['dispatches'] });
+      setVehicleModal(false);
+      toast('🚚 Araç güncellendi.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Araç değiştirilemedi'),
   });
 
   const editable = dispatch?.status === 'DRAFT';
@@ -143,6 +160,42 @@ export function DispatchDetailPage() {
           <p className="rounded-lg bg-slate-50 p-2 text-sm text-slate-600">{dispatch.notes}</p>
         )}
       </Card>
+
+      {/* Sevk edilmiş sevkiyat: yanlış plaka düzeltme / komple geri alma */}
+      {dispatch.status === 'DISPATCHED' && (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={() => setVehicleModal(true)}>
+            🚚 Aracı Değiştir
+          </Button>
+          <Button
+            variant="danger"
+            loading={cancelMut.isPending}
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  title: 'Sevkiyatı geri al',
+                  message:
+                    'Bu sevkiyat geri alınsın mı? Tüm paletler ve paletsiz kabuller depoya geri döner, sevkiyat İPTAL olur. Doğru araçla tekrar sevk edebilirsiniz.',
+                  confirmText: 'Geri Al',
+                  danger: true,
+                })
+              )
+                cancelMut.mutate();
+            }}
+          >
+            ↩ Sevkiyatı Geri Al
+          </Button>
+        </div>
+      )}
+
+      {vehicleModal && (
+        <ChangeVehicleModal
+          currentVehicleId={dispatch.vehicle?.id ?? null}
+          onClose={() => setVehicleModal(false)}
+          onSave={(vid) => vehicleMut.mutate(vid)}
+          saving={vehicleMut.isPending}
+        />
+      )}
 
       {editable && (
         <div className="space-y-2">
@@ -344,6 +397,66 @@ export function DispatchDetailPage() {
           onClose={() => setScanning(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** Sevk edilmiş sevkiyatta yanlış aracı/plakayı düzeltmek için araç seçme modalı. */
+function ChangeVehicleModal({
+  currentVehicleId,
+  onClose,
+  onSave,
+  saving,
+}: {
+  currentVehicleId: string | null;
+  onClose: () => void;
+  onSave: (vehicleId: string) => void;
+  saving: boolean;
+}) {
+  const { data: vehicles } = useVehicles();
+  const [vehicleId, setVehicleId] = useState(currentVehicleId ?? '');
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md space-y-3 rounded-b-none sm:rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <h3 className="font-semibold text-slate-900">Aracı Değiştir</h3>
+          <p className="text-sm text-slate-500">Yanlış plakayla sevk edildiyse doğru aracı seçin.</p>
+        </div>
+
+        <Field label="Araç / Plaka">
+          <Combobox
+            options={(vehicles ?? []).map((v) => ({
+              value: v.id,
+              label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
+            }))}
+            value={vehicleId}
+            onChange={setVehicleId}
+            placeholder="Araç ara / seç..."
+          />
+        </Field>
+
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            Vazgeç
+          </Button>
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={!vehicleId || vehicleId === currentVehicleId}
+            loading={saving}
+            onClick={() => onSave(vehicleId)}
+          >
+            Kaydet
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

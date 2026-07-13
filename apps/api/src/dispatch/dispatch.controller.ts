@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -13,11 +14,13 @@ import {
   addDispatchPackageSchema,
   bulkAddDispatchPackagesSchema,
   quickDispatchSchema,
+  changeDispatchVehicleSchema,
   dispatchListQuerySchema,
   type CreateDispatchInput,
   type AddDispatchPackageInput,
   type BulkAddDispatchPackagesInput,
   type QuickDispatchInput,
+  type ChangeDispatchVehicleInput,
   type DispatchListQuery,
   type AuthUser,
 } from '@lojistik/shared';
@@ -78,6 +81,15 @@ export class DispatchController {
   @Post(':id/complete')
   complete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.dispatchService.complete(id, user.id);
+  }
+
+  @Patch(':id/vehicle')
+  changeVehicle(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(changeDispatchVehicleSchema)) dto: ChangeDispatchVehicleInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.changeVehicle(id, dto.vehicleId, user.id);
   }
 
   @Post(':id/cancel')

@@ -261,6 +261,28 @@ export class DispatchService {
     return serializeDispatch(updated);
   }
 
+  /** Sevkiyatın aracını değiştir (yanlış plaka düzeltme). İptal edilmiş sevkiyatta yapılamaz. */
+  async changeVehicle(id: string, vehicleId: string, userId: string) {
+    const dispatch = await this.getOrThrow(id);
+    if (dispatch.status === DispatchStatus.CANCELLED) {
+      throw new BadRequestException('İptal edilmiş sevkiyatın aracı değiştirilemez');
+    }
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) throw new BadRequestException('Geçersiz araç seçimi');
+    const updated = await this.prisma.dispatch.update({
+      where: { id },
+      data: {
+        vehicleId: vehicle.id,
+        // Eski (elle) plaka/sürücü alanlarını da güncel araca göre eşle
+        vehiclePlate: vehicle.plate,
+        driverName: vehicle.driverName,
+      },
+      include: DISPATCH_INCLUDE,
+    });
+    await this.audit('dispatch.vehicleChanged', id, userId, { vehicleId: vehicle.id });
+    return serializeDispatch(updated);
+  }
+
   async cancel(id: string, userId: string) {
     const dispatch = await this.getOrThrow(id);
     if (dispatch.status === DispatchStatus.CANCELLED) return serializeDispatch(dispatch);

@@ -48,6 +48,12 @@ export const quickDispatchSchema = z.object({
 });
 export type QuickDispatchInput = z.infer<typeof quickDispatchSchema>;
 
+/** Sevkiyatın aracını/plakasını değiştir (yanlış plaka ile sevk edilirse düzeltme). */
+export const changeDispatchVehicleSchema = z.object({
+  vehicleId: z.string().min(1, 'Araç seçilmeli'),
+});
+export type ChangeDispatchVehicleInput = z.infer<typeof changeDispatchVehicleSchema>;
+
 /** Sevkiyat içindeki paletin özet görünümü. */
 export const dispatchPackageSchema = z.object({
   id: z.string(),
