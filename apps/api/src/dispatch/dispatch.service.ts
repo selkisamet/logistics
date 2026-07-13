@@ -271,6 +271,11 @@ export class DispatchService {
         where: { dispatchId: id },
         data: { dispatchId: null, dispatchedAt: null },
       });
+      // Paletsiz (kabul düzeyi) sevkleri de depoya geri al
+      await tx.receipt.updateMany({
+        where: { dispatchId: id },
+        data: { dispatchId: null, dispatchedAt: null },
+      });
       return tx.dispatch.update({
         where: { id },
         data: { status: DispatchStatus.CANCELLED },
