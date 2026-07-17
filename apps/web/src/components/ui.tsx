@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import { createPortal } from 'react-dom';
 import { formatPlate } from '../lib/plate';
 import {
   forwardRef,
@@ -533,7 +534,12 @@ export function Spinner() {
 }
 
 /** Odaklı form penceresi: masaüstünde ortada, mobilde alttan kayan sayfa.
- *  Ekleme/düzenleme formları listeyle aynı yüzeyde karışmasın diye burada açılır. */
+ *  Ekleme/düzenleme formları listeyle aynı yüzeyde karışmasın diye burada açılır.
+ *
+ *  `document.body`'ye PORTAL edilir: AppLayout içinde render edilirse sticky başlık
+ *  (`backdrop-blur` → kendi stacking context'i) overlay'in üstünde kalıp beyaz şerit
+ *  bırakıyor. Portal + z-[60] (çekmece z-50, sidebar z-30, başlık/tab bar z-20 üstü)
+ *  ile tüm arayüzün üzerine biner. */
 export function Modal({
   title,
   description,
@@ -561,9 +567,9 @@ export function Modal({
     };
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -589,7 +595,8 @@ export function Modal({
         </div>
         <div className="max-h-[75vh] overflow-y-auto p-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
