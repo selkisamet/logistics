@@ -730,8 +730,21 @@ const SLIP_COPIES: { key: SlipCopy; label: string; badge: string }[] = [
   { key: 'c3', label: '3· Dosya', badge: '3. NÜSHA · DOSYA' },
 ];
 
-/** Fişin görsel gövdesi — tek bir A5 form. A5-tek ve A4-2'li yerleşimde aynen kullanılır. */
-function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: string }) {
+/** Matbu formdaki SABİT mal satırı sayısı. Matbaa master'ı da günlük veri baskısı da bu
+ *  kapasiteye kilitli — geometri her modda aynı kalmazsa matbu forma hizalama bozulur. */
+const FORM_ROWS = 8;
+
+/** Fişin görsel gövdesi — tek bir A5 form (yatay).
+ *  `blank`=matbaa master: satır sayısı fişteki veriye göre DEĞİŞMEMELİ, hep FORM_ROWS. */
+function SlipForm({
+  receipt,
+  copyBadge = '',
+  blank = false,
+}: {
+  receipt: Receipt;
+  copyBadge?: string;
+  blank?: boolean;
+}) {
   const totalCounted = receipt.lines.reduce((s, l) => s + l.countedQty, 0);
   const packages = receipt.packages ?? [];
   const discrepancies = receipt.discrepancies ?? [];
@@ -745,9 +758,9 @@ function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: s
     .map(([t, n]) => `${n} ${PACKAGE_TYPE_LABELS[t as keyof typeof PACKAGE_TYPE_LABELS] ?? t}`)
     .join(' · ');
 
-  // Formu doldurmak için tabloyu en az 5 satıra tamamla
-  const minRows = 5;
-  const blanks = Math.max(0, minRows - receipt.lines.length);
+  // Master'da satırlar fişten bağımsız; günlük baskıda satırlar FORM_ROWS'a tamamlanır.
+  const lines = blank ? [] : receipt.lines;
+  const blanks = Math.max(0, FORM_ROWS - lines.length);
   const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
   const td = 'border border-sky-800 px-1 py-1 align-top';
 
@@ -850,7 +863,7 @@ function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: s
               </tr>
             </thead>
             <tbody>
-              {receipt.lines.map((l, i) => (
+              {lines.map((l, i) => (
                 <tr key={l.id}>
                   <td className={`${td} text-center`}>
                     <span className="slip-data">{i + 1}</span>
@@ -873,7 +886,7 @@ function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: s
               {Array.from({ length: blanks }).map((_, i) => (
                 <tr key={`b${i}`}>
                   <td className={`${td} text-center text-slate-300`}>
-                    <span className="slip-data">{receipt.lines.length + i + 1}</span>
+                    <span className="slip-data">{lines.length + i + 1}</span>
                   </td>
                   <td className={td}>&nbsp;</td>
                   <td className={td} />
@@ -901,17 +914,19 @@ function SlipForm({ receipt, copyBadge = '' }: { receipt: Receipt; copyBadge?: s
                   ) : null}
                 </td>
               </tr>
-              {showAmount && hasPrice && (
-                <tr>
-                  <td className={`${td} text-right`} colSpan={6}>
-                    <span className="slip-data text-[8px]">
-                      {vatIncluded
+              {/* Tutar/KDV satırı HER modda render edilir (içi boşken  ): koşullu olsaydı
+                  tablo yüksekliği değişir, matbu formla hizalama kayardı. */}
+              <tr>
+                <td className={`${td} text-right`} colSpan={6}>
+                  <span className="slip-data text-[8px]">
+                    {showAmount && hasPrice
+                      ? vatIncluded
                         ? `Genel Toplam: ${formatMoney(grand)} (KDV dahil)`
-                        : `Ara Toplam: ${formatMoney(net)} · KDV %20: ${formatMoney(vat)} · Genel Toplam: ${formatMoney(grand)}`}
-                    </span>
-                  </td>
-                </tr>
-              )}
+                        : `Ara Toplam: ${formatMoney(net)} · KDV %20: ${formatMoney(vat)} · Genel Toplam: ${formatMoney(grand)}`
+                      : ' '}
+                  </span>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1057,6 +1072,13 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
         <div className="bg-emerald-50 px-4 py-1.5 text-xs text-emerald-800">
           3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Gönderici → Alıcı → Dosya</b> seçip her birini ayrı
           PDF'e basın; 3 dosyayı matbaaya verin (her nüsha ilgili renkli kağıda). Nüsha etiketi sağ üstte görünür.
+          Master, açık fişten bağımsızdır: mal tablosu her zaman <b>{FORM_ROWS} satır</b>.
+        </div>
+      )}
+      {mode === 'data' && receipt.lines.length > FORM_ROWS && (
+        <div className="bg-red-50 px-4 py-1.5 text-xs text-red-700">
+          ⚠ Bu fişte {receipt.lines.length} kalem var; matbu form {FORM_ROWS} satırlık. Fazla satırlar basılı
+          kutuların dışına taşar — kalemleri birleştirin ya da sevkiyatı ikinci bir fişe bölün.
         </div>
       )}
       <div className="flex-1 overflow-y-auto p-4">
@@ -1068,7 +1090,7 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
             mode === 'blank' && 'slip-hide-data',
           )}
         >
-          <SlipForm receipt={receipt} copyBadge={copyBadge} />
+          <SlipForm receipt={receipt} copyBadge={copyBadge} blank={mode === 'blank'} />
         </div>
       </div>
     </div>

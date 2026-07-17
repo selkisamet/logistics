@@ -52,6 +52,11 @@ html.wb-camera-active #root {
   color: transparent !important;
   border-color: transparent !important;
 }
+/* color:transparent görselleri gizlemez → matbu logo/görseller data modunda da basılırdı.
+   (QR .slip-data içinde <svg>'dir, bu kuraldan etkilenmez.) */
+.slip-hide-chrome .slip-chrome img {
+  visibility: hidden !important;
+}
 .slip-hide-chrome .slip-data,
 .slip-hide-chrome .slip-data * {
   color: #000 !important;
