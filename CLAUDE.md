@@ -134,6 +134,11 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   soldan kayan çekmece (aynı sidebar), altta tab bar (5 ana bölüm) — native app hissi.
 - **İkonlar:** emoji DEĞİL, çizgi-ikon seti [icons.tsx](apps/web/src/components/icons.tsx) (`<Icon name=.../>`, currentColor).
 - **Card** ([ui.tsx](apps/web/src/components/ui.tsx)): `rounded-md` (6px), yumuşak gölge.
+- **Ekleme/düzenleme formu listeyle aynı yüzeyde AÇILMAZ** — `Modal` ([ui.tsx](apps/web/src/components/ui.tsx))
+  ile açılır (masaüstünde ortada, mobilde alttan kayan sayfa; Esc/×/arka plan tıklaması kapatır).
+  `+ Yeni` → `adding` state; satırdaki `Düzenle` → `editing: T | null` state (state listede/sayfada tutulur,
+  satır yalnızca `onEdit` alır). Form bileşenleri `onDone` + `onCancel` alır, kendi `Card`'ını sarmalamaz.
+  Uygulanan yerler: Araçlar, Müşteriler(+detay: firma/yetkili/lokasyon), Depolar, Kullanıcılar.
 - **Liste aralığı:** kart listelerinde `flex flex-col gap-4` kullan — `space-y-*` KULLANMA:
   kartlar `<Link>` (inline `<a>`) ile sarılı olduğundan üst-margin çalışmaz, kartlar yapışır. `gap` her zaman çalışır.
 - Plaka girişleri `PlateInput` ile maskelenir (34 GTY 70 / 34 L 3393 vb.).

@@ -532,6 +532,67 @@ export function Spinner() {
   );
 }
 
+/** Odaklı form penceresi: masaüstünde ortada, mobilde alttan kayan sayfa.
+ *  Ekleme/düzenleme formları listeyle aynı yüzeyde karışmasın diye burada açılır. */
+export function Modal({
+  title,
+  description,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  description?: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    // Arkadaki liste kaymasın
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className={clsx(
+          'w-full rounded-t-xl bg-white shadow-xl sm:rounded-xl',
+          wide ? 'max-w-2xl' : 'max-w-md',
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4">
+          <div>
+            <h3 className="font-semibold text-slate-900">{title}</h3>
+            {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+            className="-m-1 rounded p-1 text-xl leading-none text-slate-400 hover:text-slate-600"
+          >
+            ×
+          </button>
+        </div>
+        <div className="max-h-[75vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">

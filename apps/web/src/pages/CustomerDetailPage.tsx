@@ -14,7 +14,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
-import { Button, Card, EmptyState, Field, Input, Spinner } from '../components/ui';
+import { Button, Card, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
 import { CustomerForm } from './CustomersPage';
 import { useAuthStore } from '../stores/auth';
 
@@ -24,6 +24,10 @@ export function CustomerDetailPage() {
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'ADMIN' || role === 'SUPERVISOR';
   const [editing, setEditing] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
+  const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
+  const [addingLoc, setAddingLoc] = useState(false);
+  const [editingLoc, setEditingLoc] = useState<PartyItem | null>(null);
 
   const { data: customer, isLoading } = useQuery({
     queryKey: ['customers', id],
@@ -49,75 +53,146 @@ export function CustomerDetailPage() {
         ← Müşteriler
       </button>
 
-      {editing ? (
-        <CustomerForm initial={customer} onDone={() => setEditing(false)} />
-      ) : (
-        <Card className="space-y-1">
-          <div className="flex items-start justify-between">
-            <h2 className="text-xl font-bold text-slate-900">{customer.name}</h2>
-            {canEdit && (
-              <Button variant="secondary" onClick={() => setEditing(true)}>
-                Düzenle
-              </Button>
-            )}
-          </div>
-          <p className="text-sm text-slate-500">Kod: {customer.code}</p>
-          {(customer.taxOffice || customer.taxNumber) && (
-            <p className="text-sm text-slate-600">
-              Vergi: {customer.taxOffice ?? '—'}
-              {customer.taxNumber ? ` / ${customer.taxNumber}` : ''}
-            </p>
+      <Card className="space-y-1">
+        <div className="flex items-start justify-between">
+          <h2 className="text-xl font-bold text-slate-900">{customer.name}</h2>
+          {canEdit && (
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Düzenle
+            </Button>
           )}
-          {customer.phone && <p className="text-sm text-slate-600">Tel: {customer.phone}</p>}
-          {customer.email && <p className="text-sm text-slate-600">E-posta: {customer.email}</p>}
-          {customer.address && <p className="text-sm text-slate-600">Adres: {customer.address}</p>}
-        </Card>
+        </div>
+        <p className="text-sm text-slate-500">Kod: {customer.code}</p>
+        {(customer.taxOffice || customer.taxNumber) && (
+          <p className="text-sm text-slate-600">
+            Vergi: {customer.taxOffice ?? '—'}
+            {customer.taxNumber ? ` / ${customer.taxNumber}` : ''}
+          </p>
+        )}
+        {customer.phone && <p className="text-sm text-slate-600">Tel: {customer.phone}</p>}
+        {customer.email && <p className="text-sm text-slate-600">E-posta: {customer.email}</p>}
+        {customer.address && <p className="text-sm text-slate-600">Adres: {customer.address}</p>}
+      </Card>
+
+      {editing && (
+        <Modal
+          title="Müşteriyi Düzenle"
+          description={customer.name}
+          onClose={() => setEditing(false)}
+        >
+          <CustomerForm
+            initial={customer}
+            onDone={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
+        </Modal>
       )}
 
       <div>
-        <h3 className="mb-2 font-semibold text-slate-900">Yetkililer</h3>
-        <p className="mb-3 text-xs text-slate-500">
-          Bu firmadaki ilgili kişiler (ad soyad, görev, telefon, dahili, e-posta).
-        </p>
-        {canEdit && id && (
-          <Card className="mb-3">
-            <ContactForm customerId={id} />
-          </Card>
-        )}
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Yetkililer</h3>
+            <p className="text-xs text-slate-500">
+              Bu firmadaki ilgili kişiler (ad soyad, görev, telefon, dahili, e-posta).
+            </p>
+          </div>
+          {canEdit && id && (
+            <Button className="shrink-0" onClick={() => setAddingContact(true)}>
+              + Yeni
+            </Button>
+          )}
+        </div>
         {!contacts || contacts.length === 0 ? (
-          <EmptyState title="Henüz yetkili yok" hint="Yukarıdan ekleyebilirsiniz." />
+          <EmptyState title="Henüz yetkili yok" hint="“+ Yeni” ile ekleyebilirsiniz." />
         ) : (
           <div className="flex flex-col gap-4">
             {contacts.map((c) => (
-              <ContactRow key={c.id} customerId={id!} contact={c} canEdit={canEdit} />
+              <ContactRow
+                key={c.id}
+                customerId={id!}
+                contact={c}
+                canEdit={canEdit}
+                onEdit={() => setEditingContact(c)}
+              />
             ))}
           </div>
         )}
       </div>
 
       <div>
-        <h3 className="mb-2 font-semibold text-slate-900">Depolar / Lokasyonlar</h3>
-        <p className="mb-3 text-xs text-slate-500">
-          Bu müşterinin depo/adresleri. Ön ihbarda bu müşteri <b>gönderici</b> ise yükleme yeri,{' '}
-          <b>alıcı</b> ise boşaltma yeri olarak buradan seçilir.
-        </p>
-
-        {canEdit && id && (
-          <Card className="mb-3">
-            <PartyForm kind="locations" customerId={id} />
-          </Card>
-        )}
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Depolar / Lokasyonlar</h3>
+            <p className="text-xs text-slate-500">
+              Bu müşterinin depo/adresleri. Ön ihbarda bu müşteri <b>gönderici</b> ise yükleme yeri,{' '}
+              <b>alıcı</b> ise boşaltma yeri olarak buradan seçilir.
+            </p>
+          </div>
+          {canEdit && id && (
+            <Button className="shrink-0" onClick={() => setAddingLoc(true)}>
+              + Yeni
+            </Button>
+          )}
+        </div>
 
         {!locations || locations.length === 0 ? (
-          <EmptyState title="Henüz lokasyon yok" hint="Yukarıdan ekleyebilirsiniz." />
+          <EmptyState title="Henüz lokasyon yok" hint="“+ Yeni” ile ekleyebilirsiniz." />
         ) : (
           <div className="flex flex-col gap-4">
             {locations.map((loc) => (
-              <PartyRow key={loc.id} kind="locations" customerId={id!} item={loc} canEdit={canEdit} />
+              <PartyRow
+                key={loc.id}
+                kind="locations"
+                customerId={id!}
+                item={loc}
+                canEdit={canEdit}
+                onEdit={() => setEditingLoc(loc)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {addingContact && id && (
+        <Modal title="Yeni Yetkili" description={customer.name} onClose={() => setAddingContact(false)} wide>
+          <ContactForm
+            customerId={id}
+            onDone={() => setAddingContact(false)}
+            onCancel={() => setAddingContact(false)}
+          />
+        </Modal>
+      )}
+      {editingContact && id && (
+        <Modal title="Yetkiliyi Düzenle" description={editingContact.name} onClose={() => setEditingContact(null)} wide>
+          <ContactForm
+            customerId={id}
+            initial={editingContact}
+            onDone={() => setEditingContact(null)}
+            onCancel={() => setEditingContact(null)}
+          />
+        </Modal>
+      )}
+      {addingLoc && id && (
+        <Modal title="Yeni Lokasyon" description={customer.name} onClose={() => setAddingLoc(false)} wide>
+          <PartyForm
+            kind="locations"
+            customerId={id}
+            onDone={() => setAddingLoc(false)}
+            onCancel={() => setAddingLoc(false)}
+          />
+        </Modal>
+      )}
+      {editingLoc && id && (
+        <Modal title="Lokasyonu Düzenle" description={editingLoc.name} onClose={() => setEditingLoc(null)} wide>
+          <PartyForm
+            kind="locations"
+            customerId={id}
+            initial={editingLoc}
+            onDone={() => setEditingLoc(null)}
+            onCancel={() => setEditingLoc(null)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -151,11 +226,13 @@ function PartyForm({
   kind,
   initial,
   onDone,
+  onCancel,
 }: {
   customerId: string;
   kind: PartyKind;
   initial?: PartyItem;
-  onDone?: () => void;
+  onDone: () => void;
+  onCancel: () => void;
 }) {
   const qc = useQueryClient();
   const meta = PARTY_META[kind];
@@ -181,7 +258,7 @@ function PartyForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers', customerId, kind] });
       if (!editing) reset();
-      onDone?.();
+      onDone();
     },
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
@@ -200,51 +277,37 @@ function PartyForm({
         </Field>
       </div>
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-      <div className="flex gap-2">
-        <Button type="submit" loading={mutation.isPending}>
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
+          Vazgeç
+        </Button>
+        <Button type="submit" className="flex-1" loading={mutation.isPending}>
           {editing ? 'Kaydet' : meta.addBtn}
         </Button>
-        {editing && (
-          <Button type="button" variant="secondary" onClick={onDone}>
-            Vazgeç
-          </Button>
-        )}
       </div>
     </form>
   );
 }
 
-/** Depo/alıcı satırı — görüntüle + inline düzenle + sil. */
+/** Depo/alıcı satırı — görüntüle + düzenle (modal) + sil. */
 function PartyRow({
   customerId,
   kind,
   item,
   canEdit,
+  onEdit,
 }: {
   customerId: string;
   kind: PartyKind;
   item: PartyItem;
   canEdit: boolean;
+  onEdit: () => void;
 }) {
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
   const del = useMutation({
     mutationFn: () => api.delete(`/customers/${customerId}/${kind}/${item.id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, kind] }),
   });
-
-  if (editing) {
-    return (
-      <Card>
-        <PartyForm
-          customerId={customerId}
-          kind={kind}
-          initial={item}
-          onDone={() => setEditing(false)}
-        />
-      </Card>
-    );
-  }
 
   return (
     <Card className="flex items-center justify-between">
@@ -255,7 +318,7 @@ function PartyRow({
       </div>
       {canEdit && (
         <div className="flex shrink-0 gap-3">
-          <button onClick={() => setEditing(true)} className="text-sm font-medium text-brand">
+          <button onClick={onEdit} className="text-sm font-medium text-brand">
             Düzenle
           </button>
           <button
@@ -284,10 +347,12 @@ function ContactForm({
   customerId,
   initial,
   onDone,
+  onCancel,
 }: {
   customerId: string;
   initial?: CustomerContact;
-  onDone?: () => void;
+  onDone: () => void;
+  onCancel: () => void;
 }) {
   const qc = useQueryClient();
   const editing = !!initial;
@@ -318,7 +383,7 @@ function ContactForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers', customerId, 'contacts'] });
       if (!editing) reset();
-      onDone?.();
+      onDone();
     },
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
@@ -345,44 +410,35 @@ function ContactForm({
         </Field>
       </div>
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-      <div className="flex gap-2">
-        <Button type="submit" loading={mutation.isPending}>
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
+          Vazgeç
+        </Button>
+        <Button type="submit" className="flex-1" loading={mutation.isPending}>
           {editing ? 'Kaydet' : '+ Yetkili Ekle'}
         </Button>
-        {editing && (
-          <Button type="button" variant="secondary" onClick={onDone}>
-            Vazgeç
-          </Button>
-        )}
       </div>
     </form>
   );
 }
 
-/** Yetkili satırı — görüntüle + inline düzenle + sil. */
+/** Yetkili satırı — görüntüle + düzenle (modal) + sil. */
 function ContactRow({
   customerId,
   contact,
   canEdit,
+  onEdit,
 }: {
   customerId: string;
   contact: CustomerContact;
   canEdit: boolean;
+  onEdit: () => void;
 }) {
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
   const del = useMutation({
     mutationFn: () => api.delete(`/customers/${customerId}/contacts/${contact.id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers', customerId, 'contacts'] }),
   });
-
-  if (editing) {
-    return (
-      <Card>
-        <ContactForm customerId={customerId} initial={contact} onDone={() => setEditing(false)} />
-      </Card>
-    );
-  }
 
   const meta = [
     contact.phone && `Tel: ${contact.phone}`,
@@ -403,7 +459,7 @@ function ContactRow({
       </div>
       {canEdit && (
         <div className="flex shrink-0 gap-3">
-          <button onClick={() => setEditing(true)} className="text-sm font-medium text-brand">
+          <button onClick={onEdit} className="text-sm font-medium text-brand">
             Düzenle
           </button>
           <button

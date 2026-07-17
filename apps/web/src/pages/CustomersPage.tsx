@@ -10,12 +10,12 @@ import {
   type Paginated,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { Button, Card, EmptyState, Field, Input, Spinner } from '../components/ui';
+import { Button, Card, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
 import { useAuthStore } from '../stores/auth';
 
 export function CustomersPage() {
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const [adding, setAdding] = useState(false);
   const canEdit = useCanEdit();
 
   const { data, isLoading } = useQuery({
@@ -30,14 +30,8 @@ export function CustomersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-slate-900">Müşteriler</h2>
-        {canEdit && (
-          <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'secondary' : 'primary'}>
-            {showForm ? 'Kapat' : '+ Yeni'}
-          </Button>
-        )}
+        {canEdit && <Button onClick={() => setAdding(true)}>+ Yeni</Button>}
       </div>
-
-      {showForm && <CustomerForm onDone={() => setShowForm(false)} />}
 
       <Input
         placeholder="Ara: ad veya kod..."
@@ -67,11 +61,25 @@ export function CustomersPage() {
           ))}
         </div>
       )}
+
+      {adding && (
+        <Modal title="Yeni Müşteri" onClose={() => setAdding(false)}>
+          <CustomerForm onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+        </Modal>
+      )}
     </div>
   );
 }
 
-export function CustomerForm({ initial, onDone }: { initial?: Customer; onDone: () => void }) {
+export function CustomerForm({
+  initial,
+  onDone,
+  onCancel,
+}: {
+  initial?: Customer;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const qc = useQueryClient();
   const editing = !!initial;
   const [serverError, setServerError] = useState<string | null>(null);
@@ -110,49 +118,43 @@ export function CustomerForm({ initial, onDone }: { initial?: Customer; onDone: 
   });
 
   return (
-    <Card>
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
-        <Field label="Ad *" error={errors.name?.message}>
-          <Input {...register('name')} placeholder="Örn. Arkem Kimya" />
+    <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
+      <Field label="Ad *" error={errors.name?.message}>
+        <Input {...register('name')} placeholder="Örn. Arkem Kimya" />
+      </Field>
+      {!editing && (
+        <p className="text-xs text-slate-400">Müşteri kodu otomatik atanır (MST0001, MST0002…).</p>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Vergi Dairesi" error={errors.taxOffice?.message}>
+          <Input {...register('taxOffice')} placeholder="Örn. Sarıyer" />
         </Field>
-        {!editing && (
-          <p className="text-xs text-slate-400">
-            Müşteri kodu otomatik atanır (MST0001, MST0002…).
-          </p>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Vergi Dairesi" error={errors.taxOffice?.message}>
-            <Input {...register('taxOffice')} placeholder="Örn. Sarıyer" />
-          </Field>
-          <Field label="Vergi No" error={errors.taxNumber?.message}>
-            <Input {...register('taxNumber')} placeholder="10 haneli" />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Telefon" error={errors.phone?.message}>
-            <Input {...register('phone')} />
-          </Field>
-          <Field label="E-posta" error={errors.email?.message}>
-            <Input type="email" {...register('email')} />
-          </Field>
-        </div>
-        <Field label="Adres" error={errors.address?.message}>
-          <Input {...register('address')} />
+        <Field label="Vergi No" error={errors.taxNumber?.message}>
+          <Input {...register('taxNumber')} placeholder="10 haneli" />
         </Field>
-        <p className="text-xs text-slate-400">Yetkili kişileri müşteri detayından ekleyebilirsiniz.</p>
-        {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-        <div className="flex gap-2">
-          <Button type="submit" className="flex-1" loading={isSubmitting || mutation.isPending}>
-            {editing ? 'Güncelle' : 'Kaydet'}
-          </Button>
-          {editing && (
-            <Button type="button" variant="secondary" onClick={onDone}>
-              Vazgeç
-            </Button>
-          )}
-        </div>
-      </form>
-    </Card>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Telefon" error={errors.phone?.message}>
+          <Input {...register('phone')} />
+        </Field>
+        <Field label="E-posta" error={errors.email?.message}>
+          <Input type="email" {...register('email')} />
+        </Field>
+      </div>
+      <Field label="Adres" error={errors.address?.message}>
+        <Input {...register('address')} />
+      </Field>
+      <p className="text-xs text-slate-400">Yetkili kişileri müşteri detayından ekleyebilirsiniz.</p>
+      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
+          Vazgeç
+        </Button>
+        <Button type="submit" className="flex-1" loading={isSubmitting || mutation.isPending}>
+          {editing ? 'Güncelle' : 'Kaydet'}
+        </Button>
+      </div>
+    </form>
   );
 }
 

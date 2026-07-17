@@ -10,10 +10,21 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
-import { Badge, Button, Card, EmptyState, Field, Input, PlateInput, Spinner } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PlateInput,
+  Spinner,
+} from '../components/ui';
 
 export function VehiclesPage() {
-  const [showForm, setShowForm] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ['vehicles'],
     queryFn: () => api.get<Vehicle[]>('/vehicles'),
@@ -23,12 +34,8 @@ export function VehiclesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-slate-900">Araçlar</h2>
-        <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'secondary' : 'primary'}>
-          {showForm ? 'Kapat' : '+ Yeni'}
-        </Button>
+        <Button onClick={() => setAdding(true)}>+ Yeni</Button>
       </div>
-
-      {showForm && <VehicleForm onDone={() => setShowForm(false)} />}
 
       {isLoading ? (
         <Spinner />
@@ -37,45 +44,63 @@ export function VehiclesPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {vehicles.map((v) => (
-            <VehicleRow key={v.id} vehicle={v} />
+            <VehicleRow key={v.id} vehicle={v} onEdit={() => setEditing(v)} />
           ))}
         </div>
+      )}
+
+      {adding && (
+        <Modal title="Yeni Araç" onClose={() => setAdding(false)}>
+          <VehicleForm onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+        </Modal>
+      )}
+      {editing && (
+        <Modal title="Aracı Düzenle" description={editing.plate} onClose={() => setEditing(null)}>
+          <VehicleForm
+            vehicle={editing}
+            onDone={() => setEditing(null)}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
       )}
     </div>
   );
 }
 
-function VehicleRow({ vehicle }: { vehicle: Vehicle }) {
-  const [open, setOpen] = useState(false);
-
+function VehicleRow({ vehicle, onEdit }: { vehicle: Vehicle; onEdit: () => void }) {
   return (
-    <Card className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-semibold text-slate-900">
-            {vehicle.plate}
-            {!vehicle.isActive && <span className="ml-2 text-xs text-red-500">(pasif)</span>}
-          </p>
-          <p className="text-xs text-slate-500">
-            {vehicle.type}
-            {vehicle.driverName ? ` · ${vehicle.driverName}` : ''}
-            {vehicle.driverPhone ? ` · ${vehicle.driverPhone}` : ''}
-            {vehicle.trailerPlate ? ` · Dorse: ${vehicle.trailerPlate}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge>{vehicle.type}</Badge>
-          <button onClick={() => setOpen((v) => !v)} className="text-sm font-medium text-brand">
-            {open ? 'Kapat' : 'Düzenle'}
-          </button>
-        </div>
+    <Card className="flex items-center justify-between">
+      <div>
+        <p className="font-semibold text-slate-900">
+          {vehicle.plate}
+          {!vehicle.isActive && <span className="ml-2 text-xs text-red-500">(pasif)</span>}
+        </p>
+        <p className="text-xs text-slate-500">
+          {vehicle.type}
+          {vehicle.driverName ? ` · ${vehicle.driverName}` : ''}
+          {vehicle.driverPhone ? ` · ${vehicle.driverPhone}` : ''}
+          {vehicle.trailerPlate ? ` · Dorse: ${vehicle.trailerPlate}` : ''}
+        </p>
       </div>
-      {open && <VehicleForm vehicle={vehicle} onDone={() => setOpen(false)} />}
+      <div className="flex items-center gap-2">
+        <Badge>{vehicle.type}</Badge>
+        <button onClick={onEdit} className="text-sm font-medium text-brand">
+          Düzenle
+        </button>
+      </div>
     </Card>
   );
 }
 
-function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => void }) {
+function VehicleForm({
+  vehicle,
+  onDone,
+  onCancel,
+}: {
+  vehicle?: Vehicle;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const qc = useQueryClient();
   const editing = !!vehicle;
   const [serverError, setServerError] = useState<string | null>(null);
@@ -109,8 +134,7 @@ function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => voi
   });
 
   return (
-    <div className={editing ? 'border-t border-slate-100 pt-2' : ''}>
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
+    <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <Field label="Plaka *" error={errors.plate?.message}>
             <Controller
@@ -147,11 +171,15 @@ function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => voi
             )}
           />
         </Field>
-        {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-        <Button type="submit" className="w-full" loading={mutation.isPending}>
+      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
+          Vazgeç
+        </Button>
+        <Button type="submit" className="flex-1" loading={mutation.isPending}>
           {editing ? 'Güncelle' : 'Kaydet'}
         </Button>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
