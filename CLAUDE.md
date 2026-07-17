@@ -142,6 +142,10 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Liste aralığı:** kart listelerinde `flex flex-col gap-4` kullan — `space-y-*` KULLANMA:
   kartlar `<Link>` (inline `<a>`) ile sarılı olduğundan üst-margin çalışmaz, kartlar yapışır. `gap` her zaman çalışır.
 - Plaka girişleri `PlateInput` ile maskelenir (34 GTY 70 / 34 L 3393 vb.).
+- **Telefon girişleri `PhoneInput`** ile maskelenir: `0XXX XXX XX XX` (4-3-2-2, baştaki 0 zorunlu —
+  0'sız yazılırsa/yapıştırılırsa eklenir, +90/0090 ülke kodu temizlenir; [lib/phone.ts](apps/web/src/lib/phone.ts)).
+  react-hook-form'da `Controller` ile bağlanır (register ile değil). Uygulandığı yerler: müşteri, yetkili,
+  lokasyon, araç şoförü.
 
 ## Veritabanı / Prisma kuralları
 

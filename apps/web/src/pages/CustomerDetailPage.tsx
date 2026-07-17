@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   createCustomerLocationSchema,
@@ -14,7 +14,16 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
-import { Button, Card, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PhoneInput,
+  Spinner,
+} from '../components/ui';
 import { CustomerForm } from './CustomersPage';
 import { useAuthStore } from '../stores/auth';
 
@@ -242,6 +251,7 @@ function PartyForm({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CreateCustomerLocationInput>({
     resolver: zodResolver(createCustomerLocationSchema),
@@ -273,7 +283,13 @@ function PartyForm({
           <Input placeholder={meta.addrPh} {...register('address')} />
         </Field>
         <Field label="Telefon" error={errors.phone?.message}>
-          <Input placeholder="0212 000 00 00" {...register('phone')} />
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => (
+              <PhoneInput value={field.value ?? ''} onChange={field.onChange} placeholder="0216 394 48 33" />
+            )}
+          />
         </Field>
       </div>
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
@@ -361,6 +377,7 @@ function ContactForm({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CreateCustomerContactInput>({
     resolver: zodResolver(createCustomerContactSchema),
@@ -400,7 +417,11 @@ function ContactForm({
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Field label="Telefon" error={errors.phone?.message}>
-          <Input {...register('phone')} />
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => <PhoneInput value={field.value ?? ''} onChange={field.onChange} />}
+          />
         </Field>
         <Field label="Dahili" error={errors.extension?.message}>
           <Input placeholder="101" {...register('extension')} />

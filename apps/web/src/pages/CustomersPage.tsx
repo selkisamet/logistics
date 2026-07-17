@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -10,7 +10,7 @@ import {
   type Paginated,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { Button, Card, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
+import { Button, Card, EmptyState, Field, Input, Modal, PhoneInput, Spinner } from '../components/ui';
 import { useAuthStore } from '../stores/auth';
 
 export function CustomersPage() {
@@ -87,6 +87,7 @@ export function CustomerForm({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<CreateCustomerInput>({
     resolver: zodResolver(createCustomerSchema),
@@ -135,7 +136,11 @@ export function CustomerForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Telefon" error={errors.phone?.message}>
-          <Input {...register('phone')} />
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => <PhoneInput value={field.value ?? ''} onChange={field.onChange} />}
+          />
         </Field>
         <Field label="E-posta" error={errors.email?.message}>
           <Input type="email" {...register('email')} />

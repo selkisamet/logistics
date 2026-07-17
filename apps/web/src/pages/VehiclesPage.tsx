@@ -18,6 +18,7 @@ import {
   Field,
   Input,
   Modal,
+  PhoneInput,
   PlateInput,
   Spinner,
 } from '../components/ui';
@@ -159,7 +160,13 @@ function VehicleForm({
             <Input {...register('driverName')} />
           </Field>
           <Field label="Telefon" error={errors.driverPhone?.message}>
-            <Input {...register('driverPhone')} />
+            <Controller
+              name="driverPhone"
+              control={control}
+              render={({ field }) => (
+                <PhoneInput value={field.value ?? ''} onChange={field.onChange} />
+              )}
+            />
           </Field>
         </div>
         <Field label="Dorse Plakası (tır)" error={errors.trailerPlate?.message}>

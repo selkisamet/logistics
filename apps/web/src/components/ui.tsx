@@ -1,6 +1,7 @@
 import { clsx } from 'clsx';
 import { createPortal } from 'react-dom';
 import { formatPlate } from '../lib/plate';
+import { formatPhone } from '../lib/phone';
 import {
   forwardRef,
   useEffect,
@@ -478,6 +479,28 @@ export function PlateInput({
       autoCapitalize="characters"
       autoCorrect="off"
       spellCheck={false}
+    />
+  );
+}
+
+/** Telefon girişi — "0XXX XXX XX XX" maskesi (bkz. lib/phone.ts). */
+export function PhoneInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <Input
+      type="tel"
+      inputMode="tel"
+      autoComplete="tel"
+      value={value}
+      onChange={(e) => onChange(formatPhone(e.target.value))}
+      placeholder={placeholder ?? '0539 953 10 89'}
     />
   );
 }
