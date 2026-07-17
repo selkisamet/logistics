@@ -844,11 +844,13 @@ function SlipForm({
             value={`${receipt.customer?.name ?? ''}${
               receipt.customer?.code ? ` (${receipt.customer.code})` : ''
             }`}
+            lines={2}
           />
           <FieldLine label="V. DAİRESİ" value={receipt.customer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.customer?.taxNumber || ''} />
-          <FieldLine label="ADRESİ" value={receipt.customer?.address || ''} lines={2} />
           <FieldLine label="TEL" value={receipt.customer?.phone || ''} />
+          {/* ADRESİ en sonda: uzunsa alttaki boşluğa sarar, hiçbir alanı itmez */}
+          <FieldLine label="ADRESİ" value={receipt.customer?.address || ''} auto />
         </div>
         <div className="flex-1">
           <table className="w-full border-collapse text-[9px]">
@@ -936,11 +938,12 @@ function SlipForm({
       <div className="flex flex-1">
         <div className="w-[42%] border-r-2 border-sky-800 p-2">
           <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Delivery</p>
-          <FieldLine label="ADI, ÜNVANI" value={receipt.recipientCustomer?.name ?? ''} />
+          <FieldLine label="ADI, ÜNVANI" value={receipt.recipientCustomer?.name ?? ''} lines={2} />
           <FieldLine label="V. DAİRESİ" value={receipt.recipientCustomer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.recipientCustomer?.taxNumber || ''} />
-          <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} lines={2} />
           <FieldLine label="TEL" value={receipt.recipientCustomer?.phone || ''} />
+          {/* ADRESİ en sonda: uzunsa alttaki boşluğa sarar, hiçbir alanı itmez */}
+          <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} auto />
         </div>
         <div className="flex flex-1 flex-col">
           <div className="flex border-b-2 border-sky-800 text-[9px] font-semibold text-sky-800">
@@ -1112,16 +1115,30 @@ function MetaLine({ label, value }: { label: string; value: string }) {
 
 /** Alıcı/Gönderen bloğundaki "ETİKET : değer" satırı.
  *  Yükseklik SABİT (`lines` kadar satır) — matbu formda geometri veriye bağlı OLMAMALI:
- *  uzun bir adres sarsaydı alttaki alanı (TEL) aşağı iter, basılı kutularla hizalama kayardı.
- *  Sığmayan metin kırpılır (tam bilgi kayıtta ve QR'ın açtığı sayfada zaten var). */
-function FieldLine({ label, value, lines = 1 }: { label: string; value: string; lines?: number }) {
+ *  bir alan sarsaydı altındakileri aşağı iter, basılı kutularla hizalama kayardı.
+ *  `auto`: yalnızca bloğun EN SON alanı için — altında itilecek bir şey olmadığından
+ *  serbestçe sarabilir (uzun adres kırpılmasın diye). */
+function FieldLine({
+  label,
+  value,
+  lines = 1,
+  auto = false,
+}: {
+  label: string;
+  value: string;
+  lines?: number;
+  auto?: boolean;
+}) {
   return (
     <div className="mb-1 flex gap-1 text-[9px] leading-[1.3]">
       <span className="w-[66px] shrink-0 font-semibold text-slate-600">{label}</span>
       <span className="text-slate-400">:</span>
       <span
-        style={{ height: `${lines * 1.3}em` }}
-        className="slip-data flex-1 overflow-hidden border-b border-dotted border-slate-400 text-slate-900"
+        style={auto ? undefined : { height: `${lines * 1.3}em` }}
+        className={clsx(
+          'slip-data flex-1 border-b border-dotted border-slate-400 text-slate-900',
+          !auto && 'overflow-hidden',
+        )}
       >
         {value || ' '}
       </span>
