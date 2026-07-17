@@ -10,15 +10,14 @@ export const COMPANY = {
   /** Kısa marka adı — fiş başında logonun yanında görünür. */
   shortName: 'ENDER NAKLİYAT',
   slogan: 'Depo & Lojistik Hizmetleri',
-  /** E-posta alan adından çıkarıldı; yanlışsa boşalt. */
-  website: 'www.endernakliyat.com',
+  website: 'www.enderlojistik.com',
   /** Şubeler — fişin alt iletişim şeridinde yan yana görünür. */
   branches: [
     {
       name: 'Tuzla',
       address: 'Anadolu Mah. Adak Sok. B1 No:1A Depo No: 14/15 Tuzla/İstanbul',
       phone: '0216 394 48 33',
-      email: 'sevkiyat@endernakliyat.com',
+      email: 'sevkiyat@endernakliyat.com.tr',
     },
     {
       name: 'Çorlu',
