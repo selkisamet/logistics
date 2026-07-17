@@ -847,7 +847,7 @@ function SlipForm({
           />
           <FieldLine label="V. DAİRESİ" value={receipt.customer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.customer?.taxNumber || ''} />
-          <FieldLine label="ADRESİ" value={receipt.customer?.address || ''} />
+          <FieldLine label="ADRESİ" value={receipt.customer?.address || ''} lines={2} />
           <FieldLine label="TEL" value={receipt.customer?.phone || ''} />
         </div>
         <div className="flex-1">
@@ -939,7 +939,7 @@ function SlipForm({
           <FieldLine label="ADI, ÜNVANI" value={receipt.recipientCustomer?.name ?? ''} />
           <FieldLine label="V. DAİRESİ" value={receipt.recipientCustomer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.recipientCustomer?.taxNumber || ''} />
-          <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} />
+          <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} lines={2} />
           <FieldLine label="TEL" value={receipt.recipientCustomer?.phone || ''} />
         </div>
         <div className="flex flex-1 flex-col">
@@ -1097,26 +1097,32 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
   );
 }
 
-/** Başlıktaki "ETİKET : değer" satırı (noktalı doldurma çizgili). */
+/** Başlıktaki "ETİKET : değer" satırı (noktalı doldurma çizgili). Tek satır sabit (bkz. FieldLine). */
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline gap-1 text-[9px]">
+    <div className="flex gap-1 text-[9px] leading-[1.3]">
       <span className="w-[118px] shrink-0 text-right font-bold text-slate-700">{label}</span>
       <span className="text-slate-400">:</span>
-      <span className="slip-data flex-1 border-b border-dotted border-slate-400 font-semibold text-slate-900">
+      <span className="slip-data h-[1.3em] flex-1 overflow-hidden whitespace-nowrap border-b border-dotted border-slate-400 font-semibold text-slate-900">
         {value || ' '}
       </span>
     </div>
   );
 }
 
-/** Alıcı/Gönderen bloğundaki "ETİKET : değer" satırı. */
-function FieldLine({ label, value }: { label: string; value: string }) {
+/** Alıcı/Gönderen bloğundaki "ETİKET : değer" satırı.
+ *  Yükseklik SABİT (`lines` kadar satır) — matbu formda geometri veriye bağlı OLMAMALI:
+ *  uzun bir adres sarsaydı alttaki alanı (TEL) aşağı iter, basılı kutularla hizalama kayardı.
+ *  Sığmayan metin kırpılır (tam bilgi kayıtta ve QR'ın açtığı sayfada zaten var). */
+function FieldLine({ label, value, lines = 1 }: { label: string; value: string; lines?: number }) {
   return (
-    <div className="mb-1 flex items-baseline gap-1 text-[9px]">
+    <div className="mb-1 flex gap-1 text-[9px] leading-[1.3]">
       <span className="w-[66px] shrink-0 font-semibold text-slate-600">{label}</span>
       <span className="text-slate-400">:</span>
-      <span className="slip-data flex-1 border-b border-dotted border-slate-400 text-slate-900">
+      <span
+        style={{ height: `${lines * 1.3}em` }}
+        className="slip-data flex-1 overflow-hidden border-b border-dotted border-slate-400 text-slate-900"
+      >
         {value || ' '}
       </span>
     </div>
