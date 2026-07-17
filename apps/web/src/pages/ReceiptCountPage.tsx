@@ -732,7 +732,7 @@ const SLIP_COPIES: { key: SlipCopy; label: string; badge: string }[] = [
 
 /** Matbu formdaki SABİT mal satırı sayısı. Matbaa master'ı da günlük veri baskısı da bu
  *  kapasiteye kilitli — geometri her modda aynı kalmazsa matbu forma hizalama bozulur. */
-const FORM_ROWS = 8;
+const FORM_ROWS = 5;
 
 /** Fişin görsel gövdesi — tek bir A5 form (yatay).
  *  `blank`=matbaa master: satır sayısı fişteki veriye göre DEĞİŞMEMELİ, hep FORM_ROWS. */
