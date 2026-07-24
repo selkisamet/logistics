@@ -722,11 +722,12 @@ const SLIP_MODES: { key: SlipMode; label: string }[] = [
 
 // Nüsha etiketi (matbu/chrome — matbaa master'ında görünür, "yalnız veri" baskısında gizli).
 // 3 nüshalı karbonlu koçan için matbaaya her nüsha ayrı ayrı bastırılır.
+// Yol: asıl (beyaz) alıcıya, orta (pembe) taşıyıcıda, dip (sarı) bizde (dosya) kalır.
 type SlipCopy = 'none' | 'c1' | 'c2' | 'c3';
 const SLIP_COPIES: { key: SlipCopy; label: string; badge: string }[] = [
   { key: 'none', label: 'Nüsha yok', badge: '' },
-  { key: 'c1', label: '1· Gönderici', badge: '1. NÜSHA · GÖNDERİCİ' },
-  { key: 'c2', label: '2· Alıcı', badge: '2. NÜSHA · ALICI' },
+  { key: 'c1', label: '1· Alıcı', badge: '1. NÜSHA · ALICI' },
+  { key: 'c2', label: '2· Taşıyıcı', badge: '2. NÜSHA · TAŞIYICI' },
   { key: 'c3', label: '3· Dosya', badge: '3. NÜSHA · DOSYA' },
 ];
 
@@ -1073,9 +1074,10 @@ function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () 
       )}
       {mode === 'blank' && (
         <div className="bg-emerald-50 px-4 py-1.5 text-xs text-emerald-800">
-          3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Gönderici → Alıcı → Dosya</b> seçip her birini ayrı
-          PDF'e basın; 3 dosyayı matbaaya verin (her nüsha ilgili renkli kağıda). Nüsha etiketi sağ üstte görünür.
-          Master, açık fişten bağımsızdır: mal tablosu her zaman <b>{FORM_ROWS} satır</b>.
+          3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Alıcı → Taşıyıcı → Dosya</b> seçip her birini ayrı
+          PDF'e basın; 3 dosyayı matbaaya verin (asıl/beyaz=Alıcı, orta/pembe=Taşıyıcı, dip/sarı=Dosya·bizde).
+          Nüsha etiketi sağ üstte görünür. Master, açık fişten bağımsızdır: mal tablosu her zaman{' '}
+          <b>{FORM_ROWS} satır</b>.
         </div>
       )}
       {mode === 'data' && receipt.lines.length > FORM_ROWS && (

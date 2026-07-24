@@ -111,7 +111,8 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     tek `ref={printRef}`'li `.slip-doc` içinde tek SlipForm. (`.slip-a4`/`.slip-copy`/`.slip-cut` CSS'i index.css'te
     dormant duruyor — istenirse a4x2 geri eklenebilir.)
   - **Nüsha etiketi** (3 nüshalı karbonlu koçan; dot-matrix baskı): modalda **Nüsha** seçici
-    (`SLIP_COPIES`: yok/1·Gönderici/2·Alıcı/3·Dosya) → başlık sağ üstte `copyBadge` rozeti basar. Rozet **chrome**
+    (`SLIP_COPIES`: yok/1·Alıcı/2·Taşıyıcı/3·Dosya; asıl=alıcıya, orta=taşıyıcıda, dip=bizde) →
+    başlık sağ üstte `copyBadge` rozeti basar. Rozet **chrome**
     (matbu) olduğundan `blank` master'da görünür, `data` (günlük) baskıda gizli. Matbaa master'ı: `blank` modda
     nüshayı sırayla seçip 3 ayrı PDF çıkar → matbaaya ver (her nüsha ayrı renkli kağıda).
   - **QR = fişi açan link** (`${origin}/mal-kabul/${receipt.id}`; okutunca mal kabul kaydı açılır — data). **Marka:**
