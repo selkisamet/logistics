@@ -5,7 +5,6 @@ import { clsx } from 'clsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { QRCodeSVG } from 'qrcode.react';
-import { useReactToPrint } from 'react-to-print';
 import {
   upsertReceiptLineSchema,
   PACKAGE_TYPE_LABELS,
@@ -29,6 +28,8 @@ import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../compone
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { WaybillCamera } from '../components/WaybillCamera';
+import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
+import { MetaLine, FieldLine } from '../components/print/FormLines';
 
 export function ReceiptCountPage() {
   const { id } = useParams<{ id: string }>();
@@ -713,18 +714,10 @@ function LabelsPrintModal({
   );
 }
 
-type SlipMode = 'full' | 'data' | 'blank';
-const SLIP_MODES: { key: SlipMode; label: string }[] = [
-  { key: 'full', label: 'Boş kağıda tam' },
-  { key: 'data', label: 'Matbu forma (yalnız veri)' },
-  { key: 'blank', label: 'Boş form (matbaa master)' },
-];
-
 // Nüsha etiketi (matbu/chrome — matbaa master'ında görünür, "yalnız veri" baskısında gizli).
-// 3 nüshalı karbonlu koçan için matbaaya her nüsha ayrı ayrı bastırılır.
+// 3 nüshalı karbonsuz koçan için matbaaya her nüsha ayrı ayrı bastırılır.
 // Yol: asıl (beyaz) alıcıya, orta (pembe) taşıyıcıda, dip (sarı) bizde (dosya) kalır.
-type SlipCopy = 'none' | 'c1' | 'c2' | 'c3';
-const SLIP_COPIES: { key: SlipCopy; label: string; badge: string }[] = [
+const SLIP_COPIES: CopyOption[] = [
   { key: 'none', label: 'Nüsha yok', badge: '' },
   { key: 'c1', label: '1· Alıcı', badge: '1. NÜSHA · ALICI' },
   { key: 'c2', label: '2· Taşıyıcı', badge: '2. NÜSHA · TAŞIYICI' },
@@ -1006,145 +999,33 @@ function SlipForm({
 /** Ambar Tesellüm Fişi: A5 YATAY resmi form. 3 baskı modu (aynı yerleşim → hizalama otomatik):
  *  full=boş kağıda tam, data=matbu forma yalnız veri (dot-matrix), blank=matbaaya boş form master. */
 function ReceiptSlipModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
-  const [mode, setMode] = useState<SlipMode>('full');
-  const [copy, setCopy] = useState<SlipCopy>('none');
-  const copyBadge = SLIP_COPIES.find((c) => c.key === copy)?.badge ?? '';
-  const printRef = useRef<HTMLDivElement>(null);
-
-  // Baskı izole bir iframe'de yapılır (react-to-print) → sayfalama düzgün, kırpılma yok. Sabit A5 yatay.
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Tesellum_${receipt.reference}`,
-    pageStyle: `
-      @page { size: A5 landscape; margin: 5mm; }
-      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-      body * { visibility: visible !important; }
-      .slip-doc { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
-    `,
-  });
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
-      {/* Araç çubuğu — yazdırmada gizli */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white p-4">
-        <span className="font-semibold text-slate-900">Tesellüm Fişi</span>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            {SLIP_MODES.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => setMode(m.key)}
-                className={clsx(
-                  'rounded-md px-2.5 py-1 text-xs font-medium transition',
-                  mode === m.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-            <span className="pl-1 pr-0.5 text-[10px] font-semibold uppercase text-slate-400">Nüsha</span>
-            {SLIP_COPIES.map((c) => (
-              <button
-                key={c.key}
-                onClick={() => setCopy(c.key)}
-                className={clsx(
-                  'rounded-md px-2 py-1 text-xs font-medium transition',
-                  copy === c.key ? 'bg-white text-brand shadow-sm' : 'text-slate-500',
-                )}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <Button variant="secondary" onClick={onClose}>
-            Kapat
-          </Button>
-          <Button onClick={() => handlePrint()}>🖨️ Yazdır</Button>
-        </div>
-      </div>
-
-      {mode !== 'full' && (
-        <div className="bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
-          {mode === 'data'
-            ? 'Yalnız veriler basılır — matbu (önceden basılı) forma yerleştirmek için. Çizgi/etiketler basılmaz.'
-            : 'Yalnız boş form basılır — matbaaya bu master ile bastırın. Veriler görünmez.'}
-        </div>
-      )}
-      {mode === 'blank' && (
-        <div className="bg-emerald-50 px-4 py-1.5 text-xs text-emerald-800">
-          3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Alıcı → Taşıyıcı → Dosya</b> seçip her birini ayrı
-          PDF'e basın; 3 dosyayı matbaaya verin (asıl/beyaz=Alıcı, orta/pembe=Taşıyıcı, dip/sarı=Dosya·bizde).
-          Nüsha etiketi sağ üstte görünür. Master, açık fişten bağımsızdır: mal tablosu her zaman{' '}
-          <b>{FORM_ROWS} satır</b>.
-        </div>
-      )}
-      {mode === 'data' && receipt.lines.length > FORM_ROWS && (
-        <div className="bg-red-50 px-4 py-1.5 text-xs text-red-700">
-          ⚠ Bu fişte {receipt.lines.length} kalem var; matbu form {FORM_ROWS} satırlık. Fazla satırlar basılı
-          kutuların dışına taşar — kalemleri birleştirin ya da sevkiyatı ikinci bir fişe bölün.
-        </div>
-      )}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div
-          ref={printRef}
-          className={clsx(
-            'slip-doc mx-auto w-[210mm] bg-white p-[6mm] text-slate-900 shadow-lg',
-            mode === 'data' && 'slip-hide-chrome',
-            mode === 'blank' && 'slip-hide-data',
-          )}
-        >
-          <SlipForm receipt={receipt} copyBadge={copyBadge} blank={mode === 'blank'} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Başlıktaki "ETİKET : değer" satırı (noktalı doldurma çizgili). Tek satır sabit (bkz. FieldLine). */
-function MetaLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex gap-1 text-[9px] leading-[1.3]">
-      <span className="w-[118px] shrink-0 text-right font-bold text-slate-700">{label}</span>
-      <span className="text-slate-400">:</span>
-      <span className="slip-data h-[1.3em] flex-1 overflow-hidden whitespace-nowrap border-b border-dotted border-slate-400 font-semibold text-slate-900">
-        {value || ' '}
-      </span>
-    </div>
-  );
-}
-
-/** Alıcı/Gönderen bloğundaki "ETİKET : değer" satırı.
- *  Yükseklik SABİT (`lines` kadar satır) — matbu formda geometri veriye bağlı OLMAMALI:
- *  bir alan sarsaydı altındakileri aşağı iter, basılı kutularla hizalama kayardı.
- *  `auto`: yalnızca bloğun EN SON alanı için — altında itilecek bir şey olmadığından
- *  serbestçe sarabilir (uzun adres kırpılmasın diye). */
-function FieldLine({
-  label,
-  value,
-  lines = 1,
-  auto = false,
-}: {
-  label: string;
-  value: string;
-  lines?: number;
-  auto?: boolean;
-}) {
-  return (
-    <div className="mb-1 flex gap-1 text-[9px] leading-[1.3]">
-      <span className="w-[66px] shrink-0 font-semibold text-slate-600">{label}</span>
-      <span className="text-slate-400">:</span>
-      <span
-        style={auto ? undefined : { height: `${lines * 1.3}em` }}
-        className={clsx(
-          'slip-data flex-1 border-b border-dotted border-slate-400 text-slate-900',
-          !auto && 'overflow-hidden',
-        )}
-      >
-        {value || ' '}
-      </span>
-    </div>
+    <PrintableDocModal
+      title="Tesellüm Fişi"
+      documentTitle={`Tesellum_${receipt.reference}`}
+      pageSize="A5 landscape"
+      copies={SLIP_COPIES}
+      onClose={onClose}
+      blankHint={
+        <>
+          3 nüshalı koçan için: <b>Nüsha</b>'yı sırayla <b>Alıcı → Taşıyıcı → Dosya</b> seçip her
+          birini ayrı PDF'e basın; 3 dosyayı matbaaya verin (asıl/beyaz=Alıcı, orta/pembe=Taşıyıcı,
+          dip/sarı=Dosya·bizde). Nüsha etiketi sağ üstte görünür. Master, açık fişten bağımsızdır:
+          mal tablosu her zaman <b>{FORM_ROWS} satır</b>.
+        </>
+      }
+      overflowWarning={
+        receipt.lines.length > FORM_ROWS ? (
+          <>
+            ⚠ Bu fişte {receipt.lines.length} kalem var; matbu form {FORM_ROWS} satırlık. Fazla
+            satırlar basılı kutuların dışına taşar — kalemleri birleştirin ya da sevkiyatı ikinci bir
+            fişe bölün.
+          </>
+        ) : null
+      }
+    >
+      {({ copyBadge, blank }) => <SlipForm receipt={receipt} copyBadge={copyBadge} blank={blank} />}
+    </PrintableDocModal>
   );
 }
 

@@ -102,14 +102,22 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   `window.print()`+`position:absolute` hilesi kaldırıldı — o yaklaşım fixed-modal'ı her sayfada tekrarlıyordu).
   `@page`/ölçü `useReactToPrint({ pageStyle })` ile verilir; kök `.slip-doc`. **QR etiketleri hâlâ eski
   `window.print()`+`.qr-print`/`.print-sheet` ile** (değişmedi) — [index.css](apps/web/src/index.css).
+  - **Baskı kabuğu ORTAK:** [PrintableDocModal](apps/web/src/components/print/PrintableDocModal.tsx)
+    (mod/nüsha seçici + `useReactToPrint` + `pageStyle`; render-prop ile gövde alır) ve
+    [FormLines](apps/web/src/components/print/FormLines.tsx) (`MetaLine`/`FieldLine`). Tesellüm fişi ve
+    **Taşıma İrsaliyesi** bunları paylaşır — `pageStyle`'daki `body * { visibility: visible !important }`
+    (index.css'teki QR `@media print` kuralının iframe'e sızmasını iptal eder) tek yerde durur.
   - **3 baskı modu** (aynı DOM → hizalama otomatik): `full`=boş kağıda tam; `data`=matbu forma **yalnız veri**
-    (dot-matrix/karbonlu koçan için; çerçeve+etiketler saydam); `blank`=matbaaya verilecek **boş form master**
+    (dot-matrix/karbonsuz koçan için; çerçeve+etiketler saydam); `blank`=matbaaya verilecek **boş form master**
     (veriler+QR gizli). Statik parçalar `.slip-chrome`, değişkenler `.slip-data`; `.slip-hide-chrome` /
     `.slip-hide-data` sınıfları (global, `@media print` dışı) ile — [index.css](apps/web/src/index.css).
+    `color:transparent` görseli gizlemez → `.slip-hide-chrome .slip-chrome img { visibility:hidden }` ayrıca var.
   - **Yerleşim: A5 yatay sabit** (`@page A5 landscape`). Yerleşim seçici (A5/A4-2'li) UI'dan **kaldırıldı**
-    (dot-matrix sürekli form akışında A4-2'li kesme gereksizdi). Form gövdesi tek `SlipForm` bileşeni; modalda
-    tek `ref={printRef}`'li `.slip-doc` içinde tek SlipForm. (`.slip-a4`/`.slip-copy`/`.slip-cut` CSS'i index.css'te
-    dormant duruyor — istenirse a4x2 geri eklenebilir.)
+    (dot-matrix sürekli form akışında A4-2'li kesme gereksizdi). Form gövdesi tek `SlipForm` bileşeni.
+    (`.slip-a4`/`.slip-copy`/`.slip-cut` CSS'i index.css'ten de kaldırıldı — a4x2 istenirse sıfırdan yazılmalı.)
+  - **`FORM_ROWS = 5`** — matbu formun SABİT mal satırı sayısı. Master (`blank`) fişten bağımsız; koşullu
+    render YASAK (tutar/KDV satırı her modda basılır, içi boşken `&nbsp;`) — geometri veriye bağlı olursa
+    matbu forma hizalama kayar. `FieldLine` sabit yükseklik (`lines`), yalnız **son alan** `auto` (ADRESİ).
   - **Nüsha etiketi** (3 nüshalı karbonlu koçan; dot-matrix baskı): modalda **Nüsha** seçici
     (`SLIP_COPIES`: yok/1·Alıcı/2·Taşıyıcı/3·Dosya; asıl=alıcıya, orta=taşıyıcıda, dip=bizde) →
     başlık sağ üstte `copyBadge` rozeti basar. Rozet **chrome**
@@ -127,6 +135,32 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   Plaka ELLE YAZILMAZ, kayıtlı araç listeden seçilir (planlanan ön-seçili). Tek adımda sevk eder.
 - Sevkiyat detayında yeşil/turuncu araç eşleştirmesi YALNIZCA taslakta "Depodan Palet Ekle"
   listesinde (yüklenmiş/sevk edilmiş paletlerde gösterilmez — yanıltıcıydı).
+- **Sevk edilmiş sevkiyatta düzeltme:** "🚚 Aracı Değiştir" (`PATCH /dispatches/:id/vehicle`; yanlış plaka)
+  ve "↩ Sevkiyatı Geri Al" (`cancel`; paletler **ve** paletsiz kabuller depoya döner, durak ataması düşer).
+
+### Çok duraklı sevkiyat + Taşıma İrsaliyesi (VUK 240/A)
+
+Bir sefer (Dispatch) = bir araç = **bir taşıma irsaliyesi**. Sefer içinde farklı göndericilerin yükü
+farklı alıcılara/noktalara gidebilir.
+
+- **`DispatchStop`** = sıralı teslimat noktası (`seq`). Alıcı opsiyonel kayıtlı `Customer` +
+  `CustomerLocation`; ad/adres/telefon **snapshot**'lanır (ASN `validateRecipients` deseni) ki kayıt
+  sonradan değişse belge sabit kalsın. `deliveredAt` ile durak teslim işaretlenir.
+- **Yük → durak ataması:** `Package.stopId` (paletli), `Receipt.stopId` (paletsiz). Sevkiyat detayında
+  her paletin yanında durak seçici. `PATCH /dispatches/:id/stops/:stopId/assign`
+  (**`stopId='yok'` → atamayı kaldırır**).
+- **`POST /:id/stops/suggest`** — kritik UX: sevkiyattaki kabullerin ön ihbar alıcılarından
+  (`shipment.recipientCustomer` + `recipients`) durakları otomatik türetir ve **yalnızca atanmamış**
+  yükleri bağlar (elle yapılan atamayı ezmez). Durakları ada göre yeniden kullanır.
+- **Belge:** [WaybillForm.tsx](apps/web/src/components/print/WaybillForm.tsx) — **A4 DİKEY**,
+  `WAYBILL_ROWS = 12`. Satır = **durak × kabul**; sütunlar `SIRA·GÖNDEREN·ALICI·NEREDEN·NEREYE·CİNSİ·MİKTAR`
+  (VUK 209 zorunlu içeriği). Durağa atanmamış yükler sonda **"ATANMAMIŞ"** grubunda + ekranda uyarı.
+- **Nüsha etiketleri tesellüm fişinden FARKLI** (VUK): ①GÖNDERİCİ (eşyayı taşıttıran) ②ARAÇTA (sürücü)
+  ③DOSYA (bizde saklanır).
+- **Seri/sıra no'yu ANLAŞMALI MATBAA basar** — uygulama üretmez. Operatör eldeki matbu formun numarasını
+  girer (`waybillSerial`/`waybillNo`, `@@unique` ile mükerrer engellenir); `PATCH /dispatches/:id/waybill`
+  ayrıca `waybillDate` + `freightAmount`/`freightVatIncluded` (taşıma ücreti VUK'ta zorunlu alan).
+- `COMPANY.taxOffice`/`taxNumber` **irsaliyede zorunlu** — boşsa belgede uyarı çıkar.
 
 ## Tasarım sistemi (UI)
 
@@ -161,8 +195,11 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Modeller:** User, Customer(+taxOffice,taxNumber), CustomerContact, CustomerLocation, CustomerRecipient(dormant),
   Warehouse(+isDefault), Location,
   InboundShipment(+vehicleId,recipientCustomerId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,
-  Receipt(+waybillNo, orderNo, dispatchId), ReceiptLine, Package(+dispatchId,
-  dispatchedAt), Discrepancy, Attachment, Dispatch(+vehicleId, packages), Vehicle(type=String), AuditEvent.
+  Receipt(+waybillNo, orderNo, dispatchId, **stopId**), ReceiptLine, Package(+dispatchId,
+  dispatchedAt, **stopId**), Discrepancy, Attachment,
+  Dispatch(+vehicleId, packages, **stops, waybillSerial/waybillNo/waybillDate, freightAmount, freightVatIncluded**),
+  **DispatchStop**(dispatchId, seq, customerId?, customerLocationId?, name/address/phone snapshot, deliveredAt),
+  Vehicle(type=String), AuditEvent.
 
 ## Doğrulama (değişiklik sonrası)
 

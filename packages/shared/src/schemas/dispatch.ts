@@ -54,15 +54,85 @@ export const changeDispatchVehicleSchema = z.object({
 });
 export type ChangeDispatchVehicleInput = z.infer<typeof changeDispatchVehicleSchema>;
 
+// ---- Çok duraklı teslimat (rota) ----
+
+/** Durak ekle/düzenle. customerLocationId verilirse ad/adres/telefon kayıttan snapshot'lanır. */
+export const createDispatchStopSchema = z
+  .object({
+    customerId: z.string().optional(), // alıcı = kayıtlı müşteri (opsiyonel)
+    customerLocationId: z.string().optional(), // müşterinin boşaltma lokasyonu
+    name: z.string().optional(), // lokasyon seçilmediyse serbest metin (zorunlu)
+    address: z.string().optional(),
+    phone: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((v) => !!v.customerLocationId || !!v.name?.trim(), {
+    message: 'Durak adı gerekli (ya da kayıtlı bir lokasyon seçin)',
+    path: ['name'],
+  });
+export type CreateDispatchStopInput = z.infer<typeof createDispatchStopSchema>;
+export const updateDispatchStopSchema = createDispatchStopSchema;
+export type UpdateDispatchStopInput = CreateDispatchStopInput;
+
+/** Durakları yeniden sırala — verilen id sırası seq olur. */
+export const reorderStopsSchema = z.object({
+  stopIds: z.array(z.string()).min(1, 'En az bir durak gerekli'),
+});
+export type ReorderStopsInput = z.infer<typeof reorderStopsSchema>;
+
+/** Palet/kabulleri bir durağa ata. stopId null gönderilirse atama kaldırılır. */
+export const assignToStopSchema = z
+  .object({
+    packageIds: z.array(z.string()).optional(),
+    receiptIds: z.array(z.string()).optional(),
+  })
+  .refine((v) => (v.packageIds?.length ?? 0) + (v.receiptIds?.length ?? 0) > 0, {
+    message: 'En az bir palet ya da kabul seçilmeli',
+  });
+export type AssignToStopInput = z.infer<typeof assignToStopSchema>;
+
+/** Taşıma irsaliyesi bilgileri: matbu belgenin seri/sıra no'su + taşıma ücreti. */
+export const updateWaybillSchema = z.object({
+  waybillSerial: z.string().optional(), // matbu seri (ör. "A")
+  waybillNo: z.string().optional(), // matbu sıra no (ör. "012345")
+  waybillDate: z.string().optional(), // ISO tarih
+  freightAmount: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().nonnegative().optional(),
+  ),
+  freightVatIncluded: z.boolean().optional(),
+});
+export type UpdateWaybillInput = z.infer<typeof updateWaybillSchema>;
+
+export const dispatchStopSchema = z.object({
+  id: z.string(),
+  seq: z.number().int(),
+  customerId: z.string().nullable().optional(),
+  customerLocationId: z.string().nullable().optional(),
+  name: z.string(),
+  address: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  deliveredAt: z.string().nullable().optional(),
+  packageCount: z.number().int().default(0),
+  receiptCount: z.number().int().default(0),
+});
+export type DispatchStop = z.infer<typeof dispatchStopSchema>;
+
 /** Sevkiyat içindeki paletin özet görünümü. */
 export const dispatchPackageSchema = z.object({
   id: z.string(),
   code: z.string(),
   type: z.string(),
-  customerName: z.string().nullable(),
+  customerName: z.string().nullable(), // GÖNDERİCİ (malın sahibi)
   receiptReference: z.string(),
+  receiptId: z.string().optional(),
   waybillNo: z.string().nullable(),
   plannedVehicle: vehicleSummarySchema.nullable().optional(), // ön ihbarda planlanan araç
+  // Taşıma irsaliyesi için: nereden (depo) / kime (ön ihbardaki alıcı) + durak ataması
+  warehouseName: z.string().nullable().optional(),
+  recipientName: z.string().nullable().optional(),
+  stopId: z.string().nullable().optional(),
 });
 export type DispatchPackage = z.infer<typeof dispatchPackageSchema>;
 
@@ -95,10 +165,21 @@ export const dispatchSchema = z.object({
         reference: z.string(),
         customerName: z.string().nullable(),
         itemCount: z.number(),
+        warehouseName: z.string().nullable().optional(),
+        recipientName: z.string().nullable().optional(),
+        stopId: z.string().nullable().optional(),
       }),
     )
     .optional()
     .default([]),
+  // Çok duraklı teslimat (rota sırasına göre)
+  stops: z.array(dispatchStopSchema).optional().default([]),
+  // Taşıma irsaliyesi (matbu belge bilgileri + taşıma ücreti)
+  waybillSerial: z.string().nullable().optional(),
+  waybillNo: z.string().nullable().optional(),
+  waybillDate: z.string().nullable().optional(),
+  freightAmount: z.number().nullable().optional(),
+  freightVatIncluded: z.boolean().optional().default(false),
 });
 export type Dispatch = z.infer<typeof dispatchSchema>;
 

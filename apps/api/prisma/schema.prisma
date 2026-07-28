@@ -92,6 +92,7 @@ model Customer {
   sourceLocations    CustomerLocation[]
   recipients         CustomerRecipient[]
   contacts           CustomerContact[]
+  dispatchStops      DispatchStop[]      @relation("StopCustomer")
 }
 
 // Müşteri yetkili kişileri (çoklu) — ad, görev, telefon, e-posta, dahili
@@ -121,6 +122,7 @@ model CustomerLocation {
 
   shipmentSources            ShipmentSource[]
   shipmentRecipientLocations ShipmentRecipient[]
+  dispatchStops              DispatchStop[]
 
   @@index([customerId])
 }
@@ -279,12 +281,16 @@ model Receipt {
   dispatchedAt DateTime? // sevk edildiğinde dolar; null ise hâlâ depoda
   dispatchId  String?
   dispatch    Dispatch?     @relation(fields: [dispatchId], references: [id])
+  // Çok duraklı sevkiyatta bu kabul hangi durakta inecek (paletsiz kabuller için)
+  stopId      String?
+  stop        DispatchStop? @relation(fields: [stopId], references: [id])
 
   lines         ReceiptLine[]
   packages      Package[]
   discrepancies Discrepancy[]
 
   @@index([dispatchId])
+  @@index([stopId])
 }
 
 // Sevkiyat (çıkış) — depodaki kabulleri araca yükleyip çıkış
@@ -304,10 +310,46 @@ model Dispatch {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  receipts Receipt[] // (eski lot bazlı bağ; kullanılmıyor)
-  packages Package[] // palet bazlı: sevkiyattaki paletler
+  // Taşıma İrsaliyesi (VUK 240/A) — matbu belgenin seri/sıra no'su ELLE girilir
+  // (yasal numarayı anlaşmalı matbaa basar; uygulamanın SVK-... referansı yerine geçmez).
+  waybillSerial      String? // matbu seri (ör. "A")
+  waybillNo          String? // matbu sıra no (ör. "012345")
+  waybillDate        DateTime? // düzenleme tarihi
+  freightAmount      Decimal?  @db.Decimal(12, 2) // taşıma ücreti (elle girilir)
+  freightVatIncluded Boolean   @default(false) // girilen ücret KDV dahil mi
 
+  receipts Receipt[] // paletsiz (kabul düzeyi) sevkler
+  packages Package[] // palet bazlı: sevkiyattaki paletler
+  stops    DispatchStop[] // çok duraklı teslimat noktaları (rota sırası)
+
+  @@unique([waybillSerial, waybillNo]) // aynı yasal belge iki kez girilmesin
   @@index([vehicleId])
+}
+
+// Sevkiyattaki teslimat noktası (durak). Bir seferde birden çok müşteriye /
+// bir müşterinin birden çok noktasına teslim yapılabilir.
+model DispatchStop {
+  id         String   @id @default(cuid())
+  dispatchId String
+  dispatch   Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  seq        Int // rota sırası (1, 2, 3...)
+  // Alıcı = kayıtlı müşteri (opsiyonel; serbest metin de olabilir)
+  customerId         String?
+  customer           Customer?         @relation("StopCustomer", fields: [customerId], references: [id])
+  customerLocationId String?
+  customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  // Snapshot (ShipmentSource/ShipmentRecipient deseni): kayıt sonradan değişse de belge sabit kalır
+  name        String
+  address     String?
+  phone       String?
+  note        String?
+  deliveredAt DateTime? // durak teslim edildiğinde dolar
+  createdAt   DateTime  @default(now())
+
+  packages Package[]
+  receipts Receipt[]
+
+  @@index([dispatchId])
 }
 
 model ReceiptLine {
@@ -344,8 +386,12 @@ model Package {
   dispatchId   String?
   dispatch     Dispatch? @relation(fields: [dispatchId], references: [id])
   dispatchedAt DateTime?
+  // Çok duraklı sevkiyatta bu palet hangi durakta inecek
+  stopId String?
+  stop   DispatchStop? @relation(fields: [stopId], references: [id])
 
   @@index([dispatchId])
+  @@index([stopId])
 }
 
 // Fark / tutanak (eksik / fazla / hasar)

@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import {
   PACKAGE_TYPE_LABELS,
   type Dispatch,
+  type DispatchStop,
   type Paginated,
   type Receipt,
   type Package,
@@ -15,11 +16,12 @@ import {
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { formatDateTime } from '../lib/format';
-import { useVehicles } from '../lib/lookups';
-import { Button, Card, Combobox, EmptyState, Field, Spinner } from '../components/ui';
+import { formatDate, formatDateTime } from '../lib/format';
+import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
+import { Button, Card, Combobox, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { WaybillModal } from '../components/print/WaybillForm';
 
 type StockPallet = {
   pkg: Package;
@@ -35,6 +37,10 @@ export function DispatchDetailPage() {
   const [scanning, setScanning] = useState(false);
   const [scanMode, setScanMode] = useState<'single' | 'lot'>('single');
   const [vehicleModal, setVehicleModal] = useState(false);
+  const [addingStop, setAddingStop] = useState(false);
+  const [editingStop, setEditingStop] = useState<DispatchStop | null>(null);
+  const [waybillModal, setWaybillModal] = useState(false);
+  const [waybillEdit, setWaybillEdit] = useState(false);
 
   const { data: dispatch, isLoading } = useQuery({
     queryKey: ['dispatches', id],
@@ -98,6 +104,38 @@ export function DispatchDetailPage() {
       toast('🚚 Araç güncellendi.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Araç değiştirilemedi'),
+  });
+
+  // ---- Duraklar ----
+  const stopErr = (err: unknown, fallback: string) =>
+    toast.error(err instanceof ApiError ? err.message : fallback);
+
+  const suggestMut = useMutation({
+    mutationFn: () => api.post<Dispatch>(`/dispatches/${id}/stops/suggest`),
+    onSuccess: (d) => {
+      setDispatch(d);
+      toast(`📍 ${d.stops.length} durak hazırlandı.`);
+    },
+    onError: (e) => stopErr(e, 'Duraklar oluşturulamadı'),
+  });
+  const removeStopMut = useMutation({
+    mutationFn: (stopId: string) => api.delete<Dispatch>(`/dispatches/${id}/stops/${stopId}`),
+    onSuccess: setDispatch,
+    onError: (e) => stopErr(e, 'Durak silinemedi'),
+  });
+  const deliverMut = useMutation({
+    mutationFn: ({ stopId, delivered }: { stopId: string; delivered: boolean }) =>
+      delivered
+        ? api.post<Dispatch>(`/dispatches/${id}/stops/${stopId}/deliver`)
+        : api.delete<Dispatch>(`/dispatches/${id}/stops/${stopId}/deliver`),
+    onSuccess: setDispatch,
+    onError: (e) => stopErr(e, 'Teslim durumu değiştirilemedi'),
+  });
+  const assignMut = useMutation({
+    mutationFn: ({ stopId, packageIds }: { stopId: string; packageIds: string[] }) =>
+      api.patch<Dispatch>(`/dispatches/${id}/stops/${stopId}/assign`, { packageIds }),
+    onSuccess: setDispatch,
+    onError: (e) => stopErr(e, 'Durak ataması yapılamadı'),
   });
 
   const editable = dispatch?.status === 'DRAFT';
@@ -196,6 +234,38 @@ export function DispatchDetailPage() {
           saving={vehicleMut.isPending}
         />
       )}
+      {addingStop && (
+        <StopModal
+          dispatchId={id!}
+          onClose={() => setAddingStop(false)}
+          onSaved={(d) => {
+            setDispatch(d);
+            setAddingStop(false);
+          }}
+        />
+      )}
+      {editingStop && (
+        <StopModal
+          dispatchId={id!}
+          stop={editingStop}
+          onClose={() => setEditingStop(null)}
+          onSaved={(d) => {
+            setDispatch(d);
+            setEditingStop(null);
+          }}
+        />
+      )}
+      {waybillEdit && (
+        <WaybillInfoModal
+          dispatch={dispatch}
+          onClose={() => setWaybillEdit(false)}
+          onSaved={(d) => {
+            setDispatch(d);
+            setWaybillEdit(false);
+          }}
+        />
+      )}
+      {waybillModal && <WaybillModal dispatch={dispatch} onClose={() => setWaybillModal(false)} />}
 
       {editable && (
         <div className="space-y-2">
@@ -244,6 +314,127 @@ export function DispatchDetailPage() {
         </div>
       )}
 
+      {/* Taşıma İrsaliyesi — matbu belge bilgileri + ücret */}
+      <Card className="space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Taşıma İrsaliyesi</h3>
+            <p className="text-xs text-slate-500">
+              Matbu belgenin seri/sıra numarası ve taşıma ücreti (yasal zorunlu alanlar).
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" onClick={() => setWaybillEdit(true)}>
+              Bilgileri Gir
+            </Button>
+            <Button onClick={() => setWaybillModal(true)}>🖨️ İrsaliye</Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-slate-100 pt-2 text-sm">
+          <span className="text-slate-500">
+            Seri/Sıra:{' '}
+            <b className="text-slate-800">
+              {[dispatch.waybillSerial, dispatch.waybillNo].filter(Boolean).join(' - ') || '—'}
+            </b>
+          </span>
+          <span className="text-slate-500">
+            Tarih: <b className="text-slate-800">{formatDate(dispatch.waybillDate) || '—'}</b>
+          </span>
+          <span className="text-slate-500">
+            Ücret:{' '}
+            <b className="text-slate-800">
+              {dispatch.freightAmount != null
+                ? `${dispatch.freightAmount} ₺ (${dispatch.freightVatIncluded ? 'KDV dahil' : 'KDV hariç'})`
+                : '—'}
+            </b>
+          </span>
+        </div>
+      </Card>
+
+      {/* Duraklar — çok noktalı teslimat */}
+      <Card className="space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Duraklar ({dispatch.stops.length})</h3>
+            <p className="text-xs text-slate-500">
+              Teslimat noktaları sırayla. Her palet/kabul bir durağa atanır; irsaliye bu bilgiden
+              üretilir.
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              variant="secondary"
+              loading={suggestMut.isPending}
+              onClick={() => suggestMut.mutate()}
+            >
+              Kabullerden Öner
+            </Button>
+            <Button onClick={() => setAddingStop(true)}>+ Yeni</Button>
+          </div>
+        </div>
+        {dispatch.stops.length === 0 ? (
+          <p className="text-xs text-slate-400">
+            Henüz durak yok. "Kabullerden Öner" ile ön ihbardaki alıcılardan otomatik oluşturabilirsiniz.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {dispatch.stops.map((s) => (
+              <div key={s.id} className="flex items-start justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                      {s.seq}
+                    </span>
+                    {s.name}
+                    {s.deliveredAt && (
+                      <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        ✓ Teslim
+                      </span>
+                    )}
+                  </p>
+                  {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
+                  <p className="text-xs text-slate-400">
+                    {s.packageCount} palet · {s.receiptCount} kabul
+                    {s.phone ? ` · ${s.phone}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-3">
+                  <button
+                    onClick={() =>
+                      deliverMut.mutate({ stopId: s.id, delivered: !s.deliveredAt })
+                    }
+                    className="text-xs font-medium text-brand"
+                  >
+                    {s.deliveredAt ? 'Geri al' : 'Teslim'}
+                  </button>
+                  <button
+                    onClick={() => setEditingStop(s)}
+                    className="text-xs font-medium text-slate-500"
+                  >
+                    Düzenle
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (
+                        await confirmDialog({
+                          message: `"${s.name}" durağı silinsin mi? Yükler sevkiyatta kalır, ataması düşer.`,
+                          confirmText: 'Sil',
+                          danger: true,
+                        })
+                      )
+                        removeStopMut.mutate(s.id);
+                    }}
+                    className="text-xs font-medium text-red-600"
+                  >
+                    Sil
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* Yüklenen paletler */}
       <Card className="space-y-2">
         <h3 className="font-semibold text-slate-900">Yüklenen Paletler ({dispatch.packages.length})</h3>
@@ -252,18 +443,39 @@ export function DispatchDetailPage() {
         ) : (
           <div className="divide-y divide-slate-100">
             {dispatch.packages.map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-2">
-                <div>
+              <div key={p.id} className="flex items-center justify-between gap-2 py-2">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900">{p.code}</p>
                   <p className="text-xs text-slate-500">
                     {PACKAGE_TYPE_LABELS[p.type as PackageType] ?? p.type} · {p.customerName}
+                    {p.recipientName ? ` → ${p.recipientName}` : ''}
                     {p.waybillNo ? ` · İrs: ${p.waybillNo}` : ''}
                   </p>
                 </div>
+                {/* Durak ataması — hangi palet nerede inecek */}
+                {dispatch.stops.length > 0 && (
+                  <select
+                    value={p.stopId ?? ''}
+                    onChange={(e) =>
+                      assignMut.mutate({
+                        stopId: e.target.value || 'yok',
+                        packageIds: [p.id],
+                      })
+                    }
+                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                  >
+                    <option value="">Durak yok</option>
+                    {dispatch.stops.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.seq}. {s.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {editable && (
                   <button
                     onClick={() => removeMut.mutate(p.id)}
-                    className="text-xs font-medium text-red-600"
+                    className="shrink-0 text-xs font-medium text-red-600"
                   >
                     Çıkar
                   </button>
@@ -402,6 +614,201 @@ export function DispatchDetailPage() {
 }
 
 /** Sevk edilmiş sevkiyatta yanlış aracı/plakayı düzeltmek için araç seçme modalı. */
+/** Durak ekle/düzenle. Kayıtlı müşteri + lokasyon seçilebilir ya da serbest metin girilir. */
+function StopModal({
+  dispatchId,
+  stop,
+  onClose,
+  onSaved,
+}: {
+  dispatchId: string;
+  stop?: DispatchStop;
+  onClose: () => void;
+  onSaved: (d: Dispatch) => void;
+}) {
+  const [customerId, setCustomerId] = useState(stop?.customerId ?? '');
+  const [locationId, setLocationId] = useState(stop?.customerLocationId ?? '');
+  const [name, setName] = useState(stop?.name ?? '');
+  const [address, setAddress] = useState(stop?.address ?? '');
+  const [phone, setPhone] = useState(stop?.phone ?? '');
+  const { data: customers } = useCustomers();
+  const { data: locations } = useCustomerLocations(customerId || undefined);
+
+  const mut = useMutation({
+    mutationFn: () => {
+      const body = {
+        customerId: customerId || undefined,
+        customerLocationId: locationId || undefined,
+        name: name.trim() || undefined,
+        address: address.trim() || undefined,
+        phone: phone.trim() || undefined,
+      };
+      return stop
+        ? api.patch<Dispatch>(`/dispatches/${dispatchId}/stops/${stop.id}`, body)
+        : api.post<Dispatch>(`/dispatches/${dispatchId}/stops`, body);
+    },
+    onSuccess: onSaved,
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Durak kaydedilemedi'),
+  });
+
+  return (
+    <Modal title={stop ? 'Durağı Düzenle' : 'Yeni Durak'} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Alıcı (Müşteri)">
+          <Combobox
+            options={(customers ?? []).map((c) => ({ value: c.id, label: c.name }))}
+            value={customerId}
+            onChange={(v) => {
+              setCustomerId(v);
+              setLocationId('');
+            }}
+            nullable
+            nullableLabel="Kayıtlı müşteri yok (serbest)"
+            placeholder="Müşteri ara / seç..."
+          />
+        </Field>
+        {customerId && (
+          <Field label="Boşaltma Yeri">
+            <Combobox
+              options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
+              value={locationId}
+              onChange={setLocationId}
+              nullable
+              nullableLabel="Lokasyon seçilmedi"
+              placeholder="Lokasyon ara / seç..."
+            />
+          </Field>
+        )}
+        {!locationId && (
+          <>
+            <Field label="Durak Adı *">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Örn. Polymix Gebze Deposu"
+              />
+            </Field>
+            <Field label="Adres">
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+            </Field>
+            <Field label="Telefon">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+          </>
+        )}
+        {locationId && (
+          <p className="text-xs text-slate-500">
+            Ad, adres ve telefon seçilen lokasyondan alınır (belgeye o an ki hâliyle yazılır).
+          </p>
+        )}
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            Vazgeç
+          </Button>
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={!locationId && !name.trim()}
+            loading={mut.isPending}
+            onClick={() => mut.mutate()}
+          >
+            Kaydet
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Matbu taşıma irsaliyesinin seri/sıra no'su + taşıma ücreti. */
+function WaybillInfoModal({
+  dispatch,
+  onClose,
+  onSaved,
+}: {
+  dispatch: Dispatch;
+  onClose: () => void;
+  onSaved: (d: Dispatch) => void;
+}) {
+  const [serial, setSerial] = useState(dispatch.waybillSerial ?? '');
+  const [no, setNo] = useState(dispatch.waybillNo ?? '');
+  const [date, setDate] = useState(dispatch.waybillDate?.slice(0, 10) ?? '');
+  const [amount, setAmount] = useState(
+    dispatch.freightAmount != null ? String(dispatch.freightAmount) : '',
+  );
+  const [vatIncluded, setVatIncluded] = useState(!!dispatch.freightVatIncluded);
+
+  const mut = useMutation({
+    mutationFn: () =>
+      api.patch<Dispatch>(`/dispatches/${dispatch.id}/waybill`, {
+        waybillSerial: serial,
+        waybillNo: no,
+        waybillDate: date || undefined,
+        freightAmount: amount,
+        freightVatIncluded: vatIncluded,
+      }),
+    onSuccess: (d) => {
+      toast('İrsaliye bilgileri kaydedildi.');
+      onSaved(d);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
+  });
+
+  return (
+    <Modal
+      title="Taşıma İrsaliyesi Bilgileri"
+      description="Elinizdeki matbu formun üzerindeki numarayı girin"
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Seri">
+            <Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="A" />
+          </Field>
+          <div className="col-span-2">
+            <Field label="Sıra No">
+              <Input value={no} onChange={(e) => setNo(e.target.value)} placeholder="012345" />
+            </Field>
+          </div>
+        </div>
+        <Field label="Düzenleme Tarihi">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
+        <Field label="Taşıma Ücreti (₺)">
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={vatIncluded}
+            onChange={(e) => setVatIncluded(e.target.checked)}
+          />
+          Girilen ücret KDV dahil
+        </label>
+        <p className="text-xs text-slate-400">
+          Seri/sıra numarasını anlaşmalı matbaa basar; buradaki değer yalnızca kâğıt belgeyle dijital
+          kaydı eşleştirir.
+        </p>
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            Vazgeç
+          </Button>
+          <Button type="button" className="flex-1" loading={mut.isPending} onClick={() => mut.mutate()}>
+            Kaydet
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function ChangeVehicleModal({
   currentVehicleId,
   onClose,

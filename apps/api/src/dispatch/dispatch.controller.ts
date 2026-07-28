@@ -15,12 +15,22 @@ import {
   bulkAddDispatchPackagesSchema,
   quickDispatchSchema,
   changeDispatchVehicleSchema,
+  createDispatchStopSchema,
+  updateDispatchStopSchema,
+  reorderStopsSchema,
+  assignToStopSchema,
+  updateWaybillSchema,
   dispatchListQuerySchema,
   type CreateDispatchInput,
   type AddDispatchPackageInput,
   type BulkAddDispatchPackagesInput,
   type QuickDispatchInput,
   type ChangeDispatchVehicleInput,
+  type CreateDispatchStopInput,
+  type UpdateDispatchStopInput,
+  type ReorderStopsInput,
+  type AssignToStopInput,
+  type UpdateWaybillInput,
   type DispatchListQuery,
   type AuthUser,
 } from '@lojistik/shared';
@@ -90,6 +100,90 @@ export class DispatchController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.dispatchService.changeVehicle(id, dto.vehicleId, user.id);
+  }
+
+  // ---- Duraklar (çok noktalı teslimat) ----
+  // DİKKAT: 'reorder' ve 'suggest' rotaları ':stopId'den ÖNCE tanımlı olmalı.
+
+  @Post(':id/stops')
+  addStop(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(createDispatchStopSchema)) dto: CreateDispatchStopInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.addStop(id, dto, user.id);
+  }
+
+  @Post(':id/stops/suggest')
+  suggestStops(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.dispatchService.suggestStops(id, user.id);
+  }
+
+  @Patch(':id/stops/reorder')
+  reorderStops(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(reorderStopsSchema)) dto: ReorderStopsInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.reorderStops(id, dto.stopIds, user.id);
+  }
+
+  @Patch(':id/stops/:stopId')
+  updateStop(
+    @Param('id') id: string,
+    @Param('stopId') stopId: string,
+    @Body(new ZodValidationPipe(updateDispatchStopSchema)) dto: UpdateDispatchStopInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.updateStop(id, stopId, dto, user.id);
+  }
+
+  @Delete(':id/stops/:stopId')
+  removeStop(
+    @Param('id') id: string,
+    @Param('stopId') stopId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.removeStop(id, stopId, user.id);
+  }
+
+  /** Palet/kabulleri durağa ata. stopId 'yok' ise atama kaldırılır. */
+  @Patch(':id/stops/:stopId/assign')
+  assignToStop(
+    @Param('id') id: string,
+    @Param('stopId') stopId: string,
+    @Body(new ZodValidationPipe(assignToStopSchema)) dto: AssignToStopInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.assignToStop(id, stopId === 'yok' ? null : stopId, dto, user.id);
+  }
+
+  @Post(':id/stops/:stopId/deliver')
+  markDelivered(
+    @Param('id') id: string,
+    @Param('stopId') stopId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.setStopDelivered(id, stopId, true, user.id);
+  }
+
+  @Delete(':id/stops/:stopId/deliver')
+  unmarkDelivered(
+    @Param('id') id: string,
+    @Param('stopId') stopId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.setStopDelivered(id, stopId, false, user.id);
+  }
+
+  /** Taşıma irsaliyesi: matbu belgenin seri/sıra no'su + taşıma ücreti. */
+  @Patch(':id/waybill')
+  updateWaybill(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateWaybillSchema)) dto: UpdateWaybillInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.updateWaybill(id, dto, user.id);
   }
 
   @Post(':id/cancel')
