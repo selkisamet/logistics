@@ -21,7 +21,7 @@ import { MetaLine, FieldLine } from './FormLines';
 
 /** Matbu formdaki SABİT satır sayısı — tesellüm fişindeki FORM_ROWS ile aynı mantık:
  *  geometri veriye göre değişirse matbu forma hizalama bozulur. */
-export const WAYBILL_ROWS = 12;
+export const WAYBILL_ROWS = 8;
 
 const WAYBILL_COPIES: CopyOption[] = [
   { key: 'none', label: 'Nüsha yok', badge: '' },

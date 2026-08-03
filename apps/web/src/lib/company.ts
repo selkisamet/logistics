@@ -11,9 +11,9 @@ export const COMPANY = {
   shortName: 'ENDER NAKLİYAT',
   slogan: 'Depo & Lojistik Hizmetleri',
   website: 'www.enderlojistik.com',
-  /** Vergi dairesi / VKN — TAŞIMA İRSALİYESİNDE ZORUNLU (VUK 240/A). Boşsa fişte gizlenir. */
-  taxOffice: '',
-  taxNumber: '',
+  /** Vergi dairesi / VKN — TAŞIMA İRSALİYESİNDE ZORUNLU (VUK 240/A). Boşsa belgede uyarı çıkar. */
+  taxOffice: 'Tuzla',
+  taxNumber: '', // TODO: vergi numarası girilmeli (irsaliyede yasal zorunlu)
   /** Şubeler — fişin alt iletişim şeridinde yan yana görünür. */
   branches: [
     {

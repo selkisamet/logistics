@@ -153,7 +153,7 @@ farklı alıcılara/noktalara gidebilir.
   (`shipment.recipientCustomer` + `recipients`) durakları otomatik türetir ve **yalnızca atanmamış**
   yükleri bağlar (elle yapılan atamayı ezmez). Durakları ada göre yeniden kullanır.
 - **Belge:** [WaybillForm.tsx](apps/web/src/components/print/WaybillForm.tsx) — **A4 DİKEY**,
-  `WAYBILL_ROWS = 12`. Satır = **durak × kabul**; sütunlar `SIRA·GÖNDEREN·ALICI·NEREDEN·NEREYE·CİNSİ·MİKTAR`
+  `WAYBILL_ROWS = 8`. Satır = **durak × kabul**; sütunlar `SIRA·GÖNDEREN·ALICI·NEREDEN·NEREYE·CİNSİ·MİKTAR`
   (VUK 209 zorunlu içeriği). Durağa atanmamış yükler sonda **"ATANMAMIŞ"** grubunda + ekranda uyarı.
 - **Nüsha etiketleri tesellüm fişinden FARKLI** (VUK): ①GÖNDERİCİ (eşyayı taşıttıran) ②ARAÇTA (sürücü)
   ③DOSYA (bizde saklanır).
