@@ -13,7 +13,7 @@ export const COMPANY = {
   website: 'www.enderlojistik.com',
   /** Vergi dairesi / VKN — TAŞIMA İRSALİYESİNDE ZORUNLU (VUK 240/A). Boşsa belgede uyarı çıkar. */
   taxOffice: 'Tuzla',
-  taxNumber: '', // TODO: vergi numarası girilmeli (irsaliyede yasal zorunlu)
+  taxNumber: '3340492415',
   /** Şubeler — fişin alt iletişim şeridinde yan yana görünür. */
   branches: [
     {
