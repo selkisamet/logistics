@@ -23,6 +23,13 @@ import { MetaLine, FieldLine } from './FormLines';
  *  geometri veriye göre değişirse matbu forma hizalama bozulur. */
 export const WAYBILL_ROWS = 8;
 
+/** Taşıma ücreti özet satırları (tablo içinde basılır, sütun çizgileri kesilmesin diye). */
+const FREIGHT_ROWS: { label: string; value: (net: number, vat: number, grand: number) => number }[] = [
+  { label: 'ARA TOPLAM', value: (net) => net },
+  { label: `KDV %${Math.round(VAT_RATE * 100)}`, value: (_n, vat) => vat },
+  { label: 'GENEL TOPLAM', value: (_n, _v, grand) => grand },
+];
+
 const WAYBILL_COPIES: CopyOption[] = [
   { key: 'none', label: 'Nüsha yok', badge: '' },
   { key: 'c1', label: '1· Gönderici', badge: '1. NÜSHA · GÖNDERİCİ' },
@@ -179,6 +186,9 @@ function WaybillDoc({
   // Başlık hücresi alt çizgisini korur (başlığı gövdeden ayırır).
   const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
   const td = 'border-x border-sky-800 px-1 py-1 align-top text-[9px]';
+  // Mal satırları SABİT yükseklikte; kalan alanı sondaki dolgu satırı yutar
+  // (aksi halde h-full tüm satırlara dağılır ve satırlar aşırı açılır).
+  const tdRow = `${td} h-[6mm]`;
 
   const plate = dispatch.vehicle?.plate ?? dispatch.vehiclePlate ?? '';
   const trailer = dispatch.vehicle?.trailerPlate ?? '';
@@ -291,42 +301,42 @@ function WaybillDoc({
           <tbody>
             {rows.map((l) => (
               <tr key={l.key}>
-                <td className={`${td} text-center`}>
+                <td className={`${tdRow} text-center`}>
                   <span className="slip-data">{l.receiptRef}</span>
                 </td>
-                <td className={`${td} text-center font-semibold`}>
+                <td className={`${tdRow} text-center font-semibold`}>
                   <span className="slip-data">{l.qty}</span>
                 </td>
-                <td className={td}>
+                <td className={tdRow}>
                   <span className="slip-data">{l.unit}</span>
                 </td>
-                <td className={td} />
-                <td className={td}>
+                <td className={tdRow} />
+                <td className={tdRow}>
                   <span className="slip-data">{l.kind}</span>
                 </td>
-                <td className={td}>
+                <td className={tdRow}>
                   <span className="slip-data">{l.sender}</span>
                 </td>
-                <td className={td}>
+                <td className={tdRow}>
                   <span className="slip-data">{l.recipient}</span>
                 </td>
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
               </tr>
             ))}
             {Array.from({ length: blanks }).map((_, i) => (
               <tr key={`b${i}`}>
-                <td className={td}>&nbsp;</td>
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
+                <td className={tdRow}>&nbsp;</td>
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
+                <td className={tdRow} />
               </tr>
             ))}
             {/* Toplam adet — matbu formdaki gibi tablo sonunda */}
@@ -335,43 +345,67 @@ function WaybillDoc({
               <td className={`${td} text-center font-bold`}>
                 <span className="slip-data">{totalQty || ' '}</span>
               </td>
-              <td className={td} colSpan={8} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+            </tr>
+            {/* Taşıma ücreti (VUK zorunlu) — tablo içinde, sütun çizgileri kesilmesin */}
+            {FREIGHT_ROWS.map((f) => (
+              <tr key={f.label}>
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={`${td} whitespace-nowrap text-right text-[8px] font-bold`} colSpan={2}>
+                  {f.label}
+                </td>
+                <td className={`${td} text-right`}>
+                  <span className="slip-data">{gross ? formatMoney(f.value(net, vat, grand)) : ' '}</span>
+                </td>
+              </tr>
+            ))}
+            {/* Dolgu satırı: sütun çizgilerini sayfanın altına kadar indirir (matbu form görünümü) */}
+            <tr className="h-full">
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
+              <td className={td} />
             </tr>
           </tbody>
         </table>
       </div>
 
-      {/* Taşıma ücreti (VUK zorunlu) + beyan/imza */}
-      <div className="flex border-t-2 border-sky-800">
-        <div className="flex-1 border-r-2 border-sky-800 p-2">
-          <p className="text-[9px] text-slate-700">
-            Yukarıda cinsi ve miktarı yazılı mallar, belirtilen adreslere taşınmak üzere teslim
-            alınmıştır. İşbu irsaliyenin bir nüshası eşyayı taşıttırana, bir nüshası araçta bulunur,
-            bir nüshası saklanır.
-          </p>
-          {dispatch.notes && (
-            <p className="slip-data mt-1 text-[8px] text-slate-500">Not: {dispatch.notes}</p>
-          )}
-          {/* İmza alanları — klasik ambar irsaliyesindeki üçlü düzen */}
-          <div className="mt-6 flex gap-2 text-center text-[9px] font-semibold text-slate-600">
-            <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Eden</span>
-            <span className="flex-1 border-t border-slate-400 pt-0.5">
-              Nakliyeci Adı, Soyadı / İmza
-            </span>
-            <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Alan</span>
-          </div>
-        </div>
-        <div className="w-[38%] p-2">
-          <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Taşıma Ücreti</p>
-          <div className="space-y-0.5">
-            <MetaLine label="ARA TOPLAM" value={gross ? formatMoney(net) : ''} labelWidth={86} />
-            <MetaLine
-              label={`KDV %${Math.round(VAT_RATE * 100)}`}
-              value={gross ? formatMoney(vat) : ''}
-              labelWidth={86}
-            />
-            <MetaLine label="GENEL TOPLAM" value={gross ? formatMoney(grand) : ''} labelWidth={86} />
-          </div>
+      {/* Beyan + imza — tablonun altında (sütun çizgileri buraya kadar iner) */}
+      <div className="border-t-2 border-sky-800 p-2">
+        <p className="text-[8px] text-slate-700">
+          Yukarıda cinsi ve miktarı yazılı mallar, belirtilen adreslere taşınmak üzere teslim
+          alınmıştır. İşbu irsaliyenin bir nüshası eşyayı taşıttırana, bir nüshası araçta bulunur, bir
+          nüshası saklanır.
+        </p>
+        {dispatch.notes && (
+          <p className="slip-data mt-0.5 text-[8px] text-slate-500">Not: {dispatch.notes}</p>
+        )}
+        {/* İmza alanları — klasik ambar irsaliyesindeki üçlü düzen */}
+        <div className="mt-5 flex gap-4 text-center text-[9px] font-semibold text-slate-600">
+          <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Eden</span>
+          <span className="flex-1 border-t border-slate-400 pt-0.5">
+            Nakliyeci Adı, Soyadı / İmza
+          </span>
+          <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Alan</span>
         </div>
       </div>
 
