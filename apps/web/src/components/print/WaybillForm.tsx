@@ -168,8 +168,10 @@ function WaybillDoc({
   const vat = vatIncluded ? gross - net : gross * VAT_RATE;
   const grand = vatIncluded ? gross : gross + vat;
 
+  // Satır (yatay) çizgi YOK, yalnız sütun (dikey) çizgileri — `border-x`.
+  // Başlık hücresi alt çizgisini korur (başlığı gövdeden ayırır).
   const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
-  const td = 'border border-sky-800 px-1 py-1 align-top text-[9px]';
+  const td = 'border-x border-sky-800 px-1 py-1 align-top text-[9px]';
 
   const plate = dispatch.vehicle?.plate ?? dispatch.vehiclePlate ?? '';
   const trailer = dispatch.vehicle?.trailerPlate ?? '';
@@ -255,9 +257,10 @@ function WaybillDoc({
         </div>
       </div>
 
-      {/* Taşınan mallar — kim gönderdi / kime / nereden nereye / cinsi / miktarı */}
+      {/* Taşınan mallar — kim gönderdi / kime / nereden nereye / cinsi / miktarı.
+          Tablo alanı doldurur: sütun çizgileri aşağıya kadar iner (matbu form görünümü). */}
       <div className="flex-1">
-        <table className="w-full border-collapse">
+        <table className="h-full w-full border-collapse">
           <thead>
             <tr>
               <th className={`${th} w-[6%]`}>SIRA</th>
