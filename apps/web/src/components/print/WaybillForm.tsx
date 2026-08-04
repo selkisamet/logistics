@@ -362,41 +362,39 @@ function WaybillDoc({
                 <td className={td} />
               </tr>
             ))}
-            {/* Toplam adet — matbu formdaki gibi tablo sonunda */}
-            <tr className={rowH}>
-              <td className={`${td} text-right text-[8px] font-bold`}>TOPLAM</td>
-              <td className={`${td} text-center font-bold`}>
-                <span className="slip-data">{totalQty || ' '}</span>
-              </td>
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-            </tr>
-            {/* Taşıma ücreti (VUK zorunlu) — tablo içinde. colSpan YOK: çizgi katmanı sabit
-                noktalarda çizdiği için birleşik hücrenin ortasından çizgi geçerdi. */}
-            {FREIGHT_ROWS.map((f) => (
-              <tr key={f.label} className={rowH}>
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={td} />
-                <td className={`${td} text-right text-[8px] font-bold`}>{f.label}</td>
-                <td className={`${td} text-right`}>
-                  <span className="slip-data">{gross ? formatMoney(f.value(net, vat, grand)) : ' '}</span>
-                </td>
-              </tr>
-            ))}
           </tbody>
         </table>
+
+        {/* Toplamlar sütun alanının EN DİBİNDE: solda TOPLAM adet, sağda taşıma ücreti.
+            Çizgi katmanıyla aynı COLS genişliklerini kullanır → sütunlarla birebir hizalı. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end pb-1">
+          {COLS.map((c, i) => (
+            <div key={c.label} style={{ width: `${c.w}%` }} className="px-1">
+              {i === 0 && <span className="text-[8px] font-bold text-slate-700">TOPLAM</span>}
+              {i === 1 && (
+                <span className="slip-data block text-center text-[9px] font-bold">
+                  {totalQty || ' '}
+                </span>
+              )}
+              {i === 8 && (
+                <div className="space-y-0.5 text-right text-[8px] font-bold text-slate-700">
+                  {FREIGHT_ROWS.map((f) => (
+                    <div key={f.label}>{f.label}</div>
+                  ))}
+                </div>
+              )}
+              {i === 9 && (
+                <div className="space-y-0.5 text-right text-[9px]">
+                  {FREIGHT_ROWS.map((f) => (
+                    <div key={f.label} className="slip-data">
+                      {gross ? formatMoney(f.value(net, vat, grand)) : ' '}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Beyan + imza — tablonun altında (sütun çizgileri buraya kadar iner) */}
