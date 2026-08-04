@@ -282,7 +282,11 @@ function WaybillDoc({
       {/* Taşınan mallar — klasik parsiyel ambar irsaliyesi sütun düzeni.
           KİLO / FATURA NO / TUTAR / İZAHAT matbu formda ELLE doldurulur (uygulamada karşılığı yok).
           Tablo alanı doldurur: sütun çizgileri aşağıya kadar iner (matbu form görünümü). */}
-      <div className="flex-1">
+      {/* Kapsayıcı `flex` olmalı: blok kapsayıcıda tablonun `height:100%`'i çözülmez
+          (flex öğesinin hesaplanan yüksekliği `auto` kalır) ve tablo içeriği kadar
+          kısa kalır → sütun çizgileri yarıda biter. Flex'te `align-items:stretch`
+          tabloyu alana yayar. */}
+      <div className="flex flex-1">
         <table className="h-full w-full table-fixed border-collapse">
           <thead>
             <tr>
@@ -372,9 +376,10 @@ function WaybillDoc({
                 </td>
               </tr>
             ))}
-            {/* Dolgu satırı: sütun çizgilerini sayfanın altına kadar indirir (matbu form görünümü) */}
+            {/* Dolgu satırı: sütun çizgilerini sayfanın altına kadar indirir (matbu form görünümü).
+                `h-full` kalan alanı yutar; `min-h` esnetme çalışmazsa güvence sağlar. */}
             <tr className="h-full">
-              <td className={td} />
+              <td className={`${td} min-h-[95mm]`} style={{ height: '95mm' }} />
               <td className={td} />
               <td className={td} />
               <td className={td} />
