@@ -186,9 +186,9 @@ function WaybillDoc({
   // Başlık hücresi alt çizgisini korur (başlığı gövdeden ayırır).
   const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
   const td = 'border-x border-sky-800 px-1 py-1 align-top text-[9px]';
-  // Mal satırları SABİT yükseklikte; kalan alanı sondaki dolgu satırı yutar
-  // (aksi halde h-full tüm satırlara dağılır ve satırlar aşırı açılır).
-  const tdRow = `${td} h-[6mm]`;
+  // Mal satırları SABİT yükseklikte (yükseklik TR düzeyinde): kalan alanı yalnız
+  // sondaki dolgu satırı yutsun; aksi halde boş satırlar da esneyip toplam bloğunu ortaya iter.
+  const rowH = 'h-[6mm]';
 
   const plate = dispatch.vehicle?.plate ?? dispatch.vehiclePlate ?? '';
   const trailer = dispatch.vehicle?.trailerPlate ?? '';
@@ -304,47 +304,47 @@ function WaybillDoc({
           </thead>
           <tbody>
             {rows.map((l) => (
-              <tr key={l.key}>
-                <td className={`${tdRow} text-center`}>
+              <tr key={l.key} className={rowH}>
+                <td className={`${td} text-center`}>
                   <span className="slip-data">{l.receiptRef}</span>
                 </td>
-                <td className={`${tdRow} text-center font-semibold`}>
+                <td className={`${td} text-center font-semibold`}>
                   <span className="slip-data">{l.qty}</span>
                 </td>
-                <td className={tdRow}>
+                <td className={td}>
                   <span className="slip-data">{l.unit}</span>
                 </td>
-                <td className={tdRow} />
-                <td className={tdRow}>
+                <td className={td} />
+                <td className={td}>
                   <span className="slip-data">{l.kind}</span>
                 </td>
-                <td className={tdRow}>
+                <td className={td}>
                   <span className="slip-data">{l.sender}</span>
                 </td>
-                <td className={tdRow}>
+                <td className={td}>
                   <span className="slip-data">{l.recipient}</span>
                 </td>
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
               </tr>
             ))}
             {Array.from({ length: blanks }).map((_, i) => (
-              <tr key={`b${i}`}>
-                <td className={tdRow}>&nbsp;</td>
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
-                <td className={tdRow} />
+              <tr key={`b${i}`} className={rowH}>
+                <td className={td}>&nbsp;</td>
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
               </tr>
             ))}
             {/* Toplam adet — matbu formdaki gibi tablo sonunda */}
-            <tr>
+            <tr className={rowH}>
               <td className={`${td} text-right text-[8px] font-bold`}>TOPLAM</td>
               <td className={`${td} text-center font-bold`}>
                 <span className="slip-data">{totalQty || ' '}</span>
@@ -360,7 +360,7 @@ function WaybillDoc({
             </tr>
             {/* Taşıma ücreti (VUK zorunlu) — tablo içinde, sütun çizgileri kesilmesin */}
             {FREIGHT_ROWS.map((f) => (
-              <tr key={f.label}>
+              <tr key={f.label} className={rowH}>
                 <td className={td} />
                 <td className={td} />
                 <td className={td} />
@@ -379,7 +379,7 @@ function WaybillDoc({
             {/* Dolgu satırı: sütun çizgilerini sayfanın altına kadar indirir (matbu form görünümü).
                 `h-full` kalan alanı yutar; `min-h` esnetme çalışmazsa güvence sağlar. */}
             <tr className="h-full">
-              <td className={`${td} min-h-[95mm]`} style={{ height: '95mm' }} />
+              <td className={td} />
               <td className={td} />
               <td className={td} />
               <td className={td} />
