@@ -23,11 +23,27 @@ import { MetaLine, FieldLine } from './FormLines';
  *  geometri veriye göre değişirse matbu forma hizalama bozulur. */
 export const WAYBILL_ROWS = 8;
 
+/** Sütunlar TEK kaynaktan: hem tablo başlığı hem de arkadaki çizgi katmanı bunu kullanır
+ *  (genişlikler ayrışırsa çizgiler hücrelerle hizasını kaybeder). Toplam = %100. */
+const COLS: { label: string; w: number }[] = [
+  { label: 'TESELLÜM MAKBUZ NO', w: 11 },
+  { label: 'ADET', w: 5 },
+  { label: 'NEVİ', w: 7 },
+  { label: 'KİLO', w: 7 },
+  { label: 'MALIN CİNSİ', w: 13 },
+  { label: 'GÖNDERENİN ADI SOYADI', w: 17 },
+  { label: 'ALICININ ADI SOYADI', w: 17 },
+  { label: 'FATURA NO', w: 7 },
+  { label: 'TUTARI U/A', w: 8 },
+  { label: 'TUTARI P/O', w: 8 },
+];
+
 /** Taşıma ücreti özet satırları (tablo içinde basılır, sütun çizgileri kesilmesin diye). */
 const FREIGHT_ROWS: { label: string; value: (net: number, vat: number, grand: number) => number }[] = [
-  { label: 'ARA TOPLAM', value: (net) => net },
+  // Etiketler dar sütuna sığacak şekilde kısa (matbu formlardaki gibi)
+  { label: 'ARA TOP.', value: (net) => net },
   { label: `KDV %${Math.round(VAT_RATE * 100)}`, value: (_n, vat) => vat },
-  { label: 'GENEL TOPLAM', value: (_n, _v, grand) => grand },
+  { label: 'GEN. TOP.', value: (_n, _v, grand) => grand },
 ];
 
 const WAYBILL_COPIES: CopyOption[] = [
@@ -182,10 +198,10 @@ function WaybillDoc({
   const vat = vatIncluded ? gross - net : gross * VAT_RATE;
   const grand = vatIncluded ? gross : gross + vat;
 
-  // Satır (yatay) çizgi YOK, yalnız sütun (dikey) çizgileri — `border-x`.
-  // Başlık hücresi alt çizgisini korur (başlığı gövdeden ayırır).
-  const th = 'border border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
-  const td = 'border-x border-sky-800 px-1 py-1 align-top text-[9px]';
+  // Dikey çizgiler arkadaki katmandan gelir → hücrelerde kenarlık YOK (çift çizgi olmasın).
+  // Başlık yalnız alt çizgisini korur (başlığı gövdeden ayırır).
+  const th = 'border-b border-sky-800 px-1 py-0.5 text-[8px] font-bold uppercase text-sky-800';
+  const td = 'px-1 py-1 align-top text-[9px]';
   // Mal satırları SABİT yükseklikte (yükseklik TR düzeyinde): kalan alanı yalnız
   // sondaki dolgu satırı yutsun; aksi halde boş satırlar da esneyip toplam bloğunu ortaya iter.
   const rowH = 'h-[6mm]';
@@ -282,24 +298,27 @@ function WaybillDoc({
       {/* Taşınan mallar — klasik parsiyel ambar irsaliyesi sütun düzeni.
           KİLO / FATURA NO / TUTAR / İZAHAT matbu formda ELLE doldurulur (uygulamada karşılığı yok).
           Tablo alanı doldurur: sütun çizgileri aşağıya kadar iner (matbu form görünümü). */}
-      {/* Kapsayıcı `flex` olmalı: blok kapsayıcıda tablonun `height:100%`'i çözülmez
-          (flex öğesinin hesaplanan yüksekliği `auto` kalır) ve tablo içeriği kadar
-          kısa kalır → sütun çizgileri yarıda biter. Flex'te `align-items:stretch`
-          tabloyu alana yayar. */}
-      <div className="flex flex-1">
-        <table className="h-full w-full table-fixed border-collapse">
+      {/* Sütun çizgileri tablodan BAĞIMSIZ bir katmanda: tarayıcının tablo yüksekliği
+          dağıtımına güvenmek yerine (satırlar esniyor / tablo kısa kalıyor) çizgiler
+          alanın tamamını kaplayan mutlak konumlu katmandan gelir → her zaman aşağı iner. */}
+      <div className="relative flex-1">
+        <div aria-hidden className="pointer-events-none absolute inset-0 flex">
+          {COLS.map((c, i) => (
+            <div
+              key={c.label}
+              style={{ width: `${c.w}%` }}
+              className={i < COLS.length - 1 ? 'border-r border-sky-800' : ''}
+            />
+          ))}
+        </div>
+        <table className="relative w-full table-fixed border-collapse">
           <thead>
             <tr>
-              <th className={`${th} w-[11%]`}>TESELLÜM MAKBUZ NO</th>
-              <th className={`${th} w-[5%]`}>ADET</th>
-              <th className={`${th} w-[7%]`}>NEVİ</th>
-              <th className={`${th} w-[7%]`}>KİLO</th>
-              <th className={`${th} w-[14%]`}>MALIN CİNSİ</th>
-              <th className={`${th} w-[17%]`}>GÖNDERENİN ADI SOYADI</th>
-              <th className={`${th} w-[17%]`}>ALICININ ADI SOYADI</th>
-              <th className={`${th} w-[7%]`}>FATURA NO</th>
-              <th className={`${th} w-[8%]`}>TUTARI U/A</th>
-              <th className={`${th} w-[8%]`}>TUTARI P/O</th>
+              {COLS.map((c) => (
+                <th key={c.label} className={th} style={{ width: `${c.w}%` }}>
+                  {c.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -358,7 +377,8 @@ function WaybillDoc({
               <td className={td} />
               <td className={td} />
             </tr>
-            {/* Taşıma ücreti (VUK zorunlu) — tablo içinde, sütun çizgileri kesilmesin */}
+            {/* Taşıma ücreti (VUK zorunlu) — tablo içinde. colSpan YOK: çizgi katmanı sabit
+                noktalarda çizdiği için birleşik hücrenin ortasından çizgi geçerdi. */}
             {FREIGHT_ROWS.map((f) => (
               <tr key={f.label} className={rowH}>
                 <td className={td} />
@@ -368,28 +388,13 @@ function WaybillDoc({
                 <td className={td} />
                 <td className={td} />
                 <td className={td} />
-                <td className={`${td} whitespace-nowrap text-right text-[8px] font-bold`} colSpan={2}>
-                  {f.label}
-                </td>
+                <td className={td} />
+                <td className={`${td} text-right text-[8px] font-bold`}>{f.label}</td>
                 <td className={`${td} text-right`}>
                   <span className="slip-data">{gross ? formatMoney(f.value(net, vat, grand)) : ' '}</span>
                 </td>
               </tr>
             ))}
-            {/* Dolgu satırı: sütun çizgilerini sayfanın altına kadar indirir (matbu form görünümü).
-                `h-full` kalan alanı yutar; `min-h` esnetme çalışmazsa güvence sağlar. */}
-            <tr className="h-full">
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-              <td className={td} />
-            </tr>
           </tbody>
         </table>
       </div>
