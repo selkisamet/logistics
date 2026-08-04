@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { VAT_RATE, type Dispatch } from '@lojistik/shared';
+import { PACKAGE_TYPE_LABELS, VAT_RATE, type Dispatch, type PackageType } from '@lojistik/shared';
 import { COMPANY } from '../../lib/company';
 import { formatDate, formatMoney } from '../../lib/format';
 import { PrintableDocModal, type CopyOption } from './PrintableDocModal';
@@ -30,15 +30,16 @@ const WAYBILL_COPIES: CopyOption[] = [
   { key: 'c3', label: '3· Dosya', badge: '3. NÜSHA · DOSYA' },
 ];
 
-/** Belgedeki bir satır: durak × kabul (bir kabulün bir durakta inen kısmı). */
+/** Belgedeki bir satır: durak × kabul (bir kabulün bir durakta inen kısmı).
+ *  Sütun düzeni klasik parsiyel ambar irsaliyesi yapısındadır. */
 type WaybillLine = {
   key: string;
-  sender: string; // kim gönderdi
-  recipient: string; // kime gönderildi
-  from: string; // nereden
-  to: string; // nereye
-  kind: string; // malın cinsi
-  qty: string; // miktarı
+  receiptRef: string; // TESELLÜM MAKBUZ NO — fişle eşleşme
+  qty: string; // ADET
+  unit: string; // NEVİ (palet/koli/IBC...)
+  kind: string; // MALIN CİNSİ
+  sender: string; // GÖNDERENİN ADI SOYADI
+  recipient: string; // ALICININ ADI SOYADI
 };
 
 /** Sevkiyattaki yükleri duraklara göre satırlara böler. Durağı olmayanlar sonda listelenir. */
@@ -46,47 +47,52 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
   const lines: WaybillLine[] = [];
   const stops = [...(d.stops ?? [])].sort((a, b) => a.seq - b.seq);
   // stopId -> durak; null anahtarı "atanmamış" grubudur
-  const groups: { stopId: string | null; name: string; address: string | null }[] = [
-    ...stops.map((s) => ({ stopId: s.id, name: s.name, address: s.address ?? null })),
-    { stopId: null, name: 'ATANMAMIŞ', address: null },
+  const groups: { stopId: string | null; name: string }[] = [
+    ...stops.map((s) => ({ stopId: s.id, name: s.name })),
+    { stopId: null, name: 'ATANMAMIŞ' },
   ];
 
   for (const g of groups) {
     // Bu duraktaki paletleri kabule göre grupla (aynı kabulden çok palet → tek satır)
     const pkgs = d.packages.filter((p) => (p.stopId ?? null) === g.stopId);
-    const byReceipt = new Map<string, { sender: string; from: string; count: number; ref: string }>();
+    const byReceipt = new Map<
+      string,
+      { sender: string; ref: string; kind: string; count: number; types: Set<string> }
+    >();
     for (const p of pkgs) {
       const key = p.receiptId ?? p.receiptReference;
       const cur = byReceipt.get(key) ?? {
         sender: p.customerName ?? '',
-        from: p.warehouseName ?? '',
-        count: 0,
         ref: p.receiptReference,
+        kind: p.goodsKind ?? '',
+        count: 0,
+        types: new Set<string>(),
       };
       cur.count += 1;
+      cur.types.add(PACKAGE_TYPE_LABELS[p.type as PackageType] ?? p.type);
       byReceipt.set(key, cur);
     }
     for (const [key, r] of byReceipt) {
       lines.push({
         key: `${g.stopId ?? 'x'}-p-${key}`,
+        receiptRef: r.ref,
+        qty: String(r.count),
+        unit: r.types.size === 1 ? [...r.types][0] : 'Muhtelif',
+        kind: r.kind,
         sender: r.sender,
         recipient: g.name,
-        from: r.from,
-        to: g.address || g.name,
-        kind: 'Palet',
-        qty: String(r.count),
       });
     }
-    // Paletsiz (kabul düzeyi) sevkler
+    // Paletsiz (kabul düzeyi) sevkler — adet satır toplamından gelir
     for (const rc of (d.receipts ?? []).filter((r) => (r.stopId ?? null) === g.stopId)) {
       lines.push({
         key: `${g.stopId ?? 'x'}-r-${rc.id}`,
+        receiptRef: rc.reference,
+        qty: String(rc.itemCount),
+        unit: 'Adet',
+        kind: rc.goodsKind ?? '',
         sender: rc.customerName ?? '',
         recipient: g.name,
-        from: rc.warehouseName ?? '',
-        to: g.address || g.name,
-        kind: 'Muhtelif',
-        qty: String(rc.itemCount),
       });
     }
   }
@@ -156,6 +162,7 @@ function WaybillDoc({
   // Master (blank) modda satırlar veriden bağımsız — hep WAYBILL_ROWS boş satır
   const rows = blank ? [] : lines;
   const blanks = Math.max(0, WAYBILL_ROWS - rows.length);
+  const totalQty = rows.reduce((s, l) => s + (Number(l.qty) || 0), 0);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const docUrl = origin ? `${origin}/sevkiyat/${dispatch.id}` : dispatch.reference;
@@ -177,6 +184,9 @@ function WaybillDoc({
   const trailer = dispatch.vehicle?.trailerPlate ?? '';
   const driver = dispatch.vehicle?.driverName ?? dispatch.driverName ?? '';
   const serial = [dispatch.waybillSerial, dispatch.waybillNo].filter(Boolean).join(' - ');
+  // ÇIKIŞ YERİ = yükün alındığı depo (tüm kabuller aynı depodan gelir; ilkini kullan)
+  const departure =
+    dispatch.packages[0]?.warehouseName ?? dispatch.receipts?.[0]?.warehouseName ?? '';
 
   return (
     <div className="slip-chrome flex min-h-[277mm] flex-1 flex-col border-2 border-sky-800">
@@ -225,12 +235,14 @@ function WaybillDoc({
           <div className="mt-1 space-y-0.5">
             <MetaLine label="SERİ / SIRA NO" value={serial} />
             <MetaLine
-              label="DÜZENLEME TARİHİ"
+              label="TARİH"
               value={formatDate(dispatch.waybillDate ?? dispatch.dispatchedAt ?? dispatch.createdAt)}
             />
+            <MetaLine label="ÇIKIŞ YERİ" value={departure} />
+            <MetaLine label="GİDECEĞİ YER" value={dispatch.destination} />
+            <MetaLine label="PLAKA NO" value={trailer ? `${plate} / ${trailer}` : plate} />
+            <MetaLine label="SÜRÜCÜNÜN ADI SOYADI" value={driver} />
             <MetaLine label="SEVKİYAT REF." value={dispatch.reference} />
-            <MetaLine label="PLAKA" value={trailer ? `${plate} / ${trailer}` : plate} />
-            <MetaLine label="SÜRÜCÜ" value={driver} />
           </div>
         </div>
       </div>
@@ -257,26 +269,40 @@ function WaybillDoc({
         </div>
       </div>
 
-      {/* Taşınan mallar — kim gönderdi / kime / nereden nereye / cinsi / miktarı.
+      {/* Taşınan mallar — klasik parsiyel ambar irsaliyesi sütun düzeni.
+          KİLO / FATURA NO / TUTAR / İZAHAT matbu formda ELLE doldurulur (uygulamada karşılığı yok).
           Tablo alanı doldurur: sütun çizgileri aşağıya kadar iner (matbu form görünümü). */}
       <div className="flex-1">
-        <table className="h-full w-full border-collapse">
+        <table className="h-full w-full table-fixed border-collapse">
           <thead>
             <tr>
-              <th className={`${th} w-[6%]`}>SIRA</th>
-              <th className={th}>GÖNDEREN</th>
-              <th className={th}>ALICI</th>
-              <th className={th}>NEREDEN</th>
-              <th className={th}>NEREYE</th>
-              <th className={`${th} w-[12%]`}>CİNSİ</th>
-              <th className={`${th} w-[9%] text-right`}>MİKTAR</th>
+              <th className={`${th} w-[11%]`}>TESELLÜM MAKBUZ NO</th>
+              <th className={`${th} w-[5%]`}>ADET</th>
+              <th className={`${th} w-[7%]`}>NEVİ</th>
+              <th className={`${th} w-[7%]`}>KİLO</th>
+              <th className={`${th} w-[14%]`}>MALIN CİNSİ</th>
+              <th className={`${th} w-[17%]`}>GÖNDERENİN ADI SOYADI</th>
+              <th className={`${th} w-[17%]`}>ALICININ ADI SOYADI</th>
+              <th className={`${th} w-[7%]`}>FATURA NO</th>
+              <th className={`${th} w-[8%]`}>TUTARI U/A</th>
+              <th className={`${th} w-[8%]`}>TUTARI P/O</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((l, i) => (
+            {rows.map((l) => (
               <tr key={l.key}>
                 <td className={`${td} text-center`}>
-                  <span className="slip-data">{i + 1}</span>
+                  <span className="slip-data">{l.receiptRef}</span>
+                </td>
+                <td className={`${td} text-center font-semibold`}>
+                  <span className="slip-data">{l.qty}</span>
+                </td>
+                <td className={td}>
+                  <span className="slip-data">{l.unit}</span>
+                </td>
+                <td className={td} />
+                <td className={td}>
+                  <span className="slip-data">{l.kind}</span>
                 </td>
                 <td className={td}>
                   <span className="slip-data">{l.sender}</span>
@@ -284,33 +310,33 @@ function WaybillDoc({
                 <td className={td}>
                   <span className="slip-data">{l.recipient}</span>
                 </td>
-                <td className={td}>
-                  <span className="slip-data">{l.from}</span>
-                </td>
-                <td className={td}>
-                  <span className="slip-data">{l.to}</span>
-                </td>
-                <td className={td}>
-                  <span className="slip-data">{l.kind}</span>
-                </td>
-                <td className={`${td} text-right font-semibold`}>
-                  <span className="slip-data">{l.qty}</span>
-                </td>
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
               </tr>
             ))}
             {Array.from({ length: blanks }).map((_, i) => (
               <tr key={`b${i}`}>
-                <td className={`${td} text-center text-slate-300`}>
-                  <span className="slip-data">{rows.length + i + 1}</span>
-                </td>
                 <td className={td}>&nbsp;</td>
                 <td className={td} />
                 <td className={td} />
                 <td className={td} />
                 <td className={td} />
                 <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
+                <td className={td} />
               </tr>
             ))}
+            {/* Toplam adet — matbu formdaki gibi tablo sonunda */}
+            <tr>
+              <td className={`${td} text-right text-[8px] font-bold`}>TOPLAM</td>
+              <td className={`${td} text-center font-bold`}>
+                <span className="slip-data">{totalQty || ' '}</span>
+              </td>
+              <td className={td} colSpan={8} />
+            </tr>
           </tbody>
         </table>
       </div>
@@ -326,7 +352,14 @@ function WaybillDoc({
           {dispatch.notes && (
             <p className="slip-data mt-1 text-[8px] text-slate-500">Not: {dispatch.notes}</p>
           )}
-          <p className="mt-3 text-[9px] font-semibold text-slate-600">Teslim Eden / Kaşe - İmza</p>
+          {/* İmza alanları — klasik ambar irsaliyesindeki üçlü düzen */}
+          <div className="mt-6 flex gap-2 text-center text-[9px] font-semibold text-slate-600">
+            <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Eden</span>
+            <span className="flex-1 border-t border-slate-400 pt-0.5">
+              Nakliyeci Adı, Soyadı / İmza
+            </span>
+            <span className="flex-1 border-t border-slate-400 pt-0.5">Teslim Alan</span>
+          </div>
         </div>
         <div className="w-[38%] p-2">
           <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Taşıma Ücreti</p>

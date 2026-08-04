@@ -132,6 +132,7 @@ export const dispatchPackageSchema = z.object({
   // Taşıma irsaliyesi için: nereden (depo) / kime (ön ihbardaki alıcı) + durak ataması
   warehouseName: z.string().nullable().optional(),
   recipientName: z.string().nullable().optional(),
+  goodsKind: z.string().nullable().optional(), // MALIN CİNSİ
   stopId: z.string().nullable().optional(),
 });
 export type DispatchPackage = z.infer<typeof dispatchPackageSchema>;
@@ -167,6 +168,7 @@ export const dispatchSchema = z.object({
         itemCount: z.number(),
         warehouseName: z.string().nullable().optional(),
         recipientName: z.string().nullable().optional(),
+        goodsKind: z.string().nullable().optional(),
         stopId: z.string().nullable().optional(),
       }),
     )

@@ -23,6 +23,7 @@ const RECEIPT_FOR_WAYBILL = {
   waybillNo: true,
   customer: { select: { name: true } },
   warehouse: { select: { name: true } },
+  lines: { select: { description: true } }, // MALIN CİNSİ sütunu
   shipment: {
     select: {
       vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
@@ -47,7 +48,7 @@ const DISPATCH_INCLUDE = {
       customer: { select: { name: true } },
       warehouse: { select: { name: true } },
       shipment: { select: { recipientCustomer: { select: { name: true } } } },
-      lines: { select: { countedQty: true } },
+      lines: { select: { countedQty: true, description: true } },
     },
   },
   // Çok duraklı teslimat — rota sırasına göre
@@ -648,6 +649,7 @@ function serializeDispatch(d: DispatchWithRelations) {
       plannedVehicle: p.receipt.shipment?.vehicle ?? null,
       warehouseName: p.receipt.warehouse?.name ?? null, // NEREDEN
       recipientName: recipientNameOf(p.receipt.shipment), // KİME (ön ihbardaki alıcı)
+      goodsKind: goodsKindOf(p.receipt.lines), // MALIN CİNSİ
       stopId: p.stopId,
     })),
     receipts: d.receipts.map((r) => ({
@@ -657,6 +659,7 @@ function serializeDispatch(d: DispatchWithRelations) {
       itemCount: r.lines.reduce((s, l) => s + l.countedQty, 0),
       warehouseName: r.warehouse?.name ?? null,
       recipientName: r.shipment?.recipientCustomer?.name ?? null,
+      goodsKind: goodsKindOf(r.lines),
       stopId: r.stopId,
     })),
     stops: d.stops.map((s) => ({
@@ -673,6 +676,13 @@ function serializeDispatch(d: DispatchWithRelations) {
       receiptCount: s._count.receipts,
     })),
   };
+}
+
+/** İrsaliyedeki "MALIN CİNSİ": tek kalemse açıklaması, çok kalemse "Muhtelif". */
+function goodsKindOf(lines: { description: string }[]): string {
+  if (lines.length === 0) return '';
+  if (lines.length === 1) return lines[0].description;
+  return 'Muhtelif';
 }
 
 /** Ön ihbardaki alıcı adı: kayıtlı alıcı müşteri, yoksa ilk boşaltma noktasının etiketi. */
