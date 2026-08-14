@@ -98,11 +98,22 @@ export class ReceiptsService {
       // AND: iki koşul birden — (1) depoda kalan, (2) arama. (OR'lar ayrı tutulur, çakışmaz.)
       AND: [
         {
-          // Depoda kalan: (a) sevk edilmemiş paleti olan, veya (b) hiç paleti olmayıp kabul
-          // düzeyinde sevk edilmemiş (QR opsiyonel — paletsiz mal kabul de depoda görünür).
+          // Depoda kalan (tek-granülerlik kuralı):
+          //  (a) KAP bazlı  — sevk edilmemiş paleti olan
+          //  (b) KALEM bazlı — hiç paleti olmayıp sevk edilmemiş miktarı kalan kalemi olan
+          //     (kısmi sevkte kabul depoda kalmaya devam eder; Prisma alan-referansı ile)
           OR: [
             { packages: { some: { dispatchedAt: null, dispatchId: null } } },
-            { AND: [{ packages: { none: {} } }, { dispatchId: null }] },
+            {
+              AND: [
+                { packages: { none: {} } },
+                {
+                  lines: {
+                    some: { dispatchedQty: { lt: this.prisma.receiptLine.fields.countedQty } },
+                  },
+                },
+              ],
+            },
           ],
         },
         ...(search
@@ -364,8 +375,11 @@ export class ReceiptsService {
     if (receipt.status !== ReceiptStatus.COMPLETED) {
       throw new BadRequestException('Yalnızca tamamlanmış mal kabul geri açılabilir');
     }
+    // Sevk defterinde satırı varsa geri açılamaz — aksi halde countedQty düşürülüp
+    // dispatchedQty sayacı bozulabilir (kalan negatife düşer).
+    const loaded = await this.prisma.dispatchItem.count({ where: { receiptId: id } });
     const dispatched =
-      !!receipt.dispatchId || receipt.packages.some((p) => p.dispatchId || p.dispatchedAt);
+      loaded > 0 || !!receipt.dispatchId || receipt.packages.some((p) => p.dispatchId || p.dispatchedAt);
     if (dispatched) {
       throw new BadRequestException('Sevk edilmiş mal kabul geri açılamaz');
     }
@@ -472,6 +486,9 @@ function serializeReceipt(r: ReceiptWithRelations) {
       unit: l.unit,
       barcode: l.barcode,
       unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+      // Kalem bazlı sevk: ne kadarı araca yüklendi, depoda ne kaldı
+      dispatchedQty: l.dispatchedQty,
+      remainingQty: Math.max(0, l.countedQty - l.dispatchedQty),
     })),
     packages: r.packages.map((p) => ({
       id: p.id,

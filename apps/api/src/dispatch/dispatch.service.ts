@@ -35,11 +35,20 @@ const RECEIPT_FOR_WAYBILL = {
 
 const DISPATCH_INCLUDE = {
   vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
+  // items = "araçta ne var" sorusunun TEK kaynağı (kap ve kalem satırları birlikte)
+  items: {
+    include: {
+      receipt: { select: RECEIPT_FOR_WAYBILL },
+      package: { select: { id: true, code: true, type: true } },
+      receiptLine: { select: { id: true, sku: true, unit: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
   packages: {
     include: { receipt: { select: RECEIPT_FOR_WAYBILL } },
     orderBy: { createdAt: 'asc' as const },
   },
-  // Paletsiz (kabul düzeyi) sevkler için bağlı kabuller
+  // DORMANT: kabul düzeyi sevkler (yeni kayıt yazılmaz; eski kayıtlar için okunur)
   receipts: {
     select: {
       id: true,
@@ -54,11 +63,26 @@ const DISPATCH_INCLUDE = {
   // Çok duraklı teslimat — rota sırasına göre
   stops: {
     orderBy: { seq: 'asc' as const },
-    include: { _count: { select: { packages: true, receipts: true } } },
+    include: { _count: { select: { items: true } } },
   },
 } satisfies Prisma.DispatchInclude;
 
 type DispatchWithRelations = Prisma.DispatchGetPayload<{ include: typeof DISPATCH_INCLUDE }>;
+
+/** Yükleme girişi: ya bir palet (kap) ya da bir kabul kalemi + miktar. */
+export type LoadEntry = {
+  packageId?: string;
+  receiptLineId?: string;
+  qty?: number;
+  stopId?: string | null;
+};
+
+/** MALIN CİNSİ: tek kalemse açıklaması, çok kalemse "Muhtelif". */
+function describeLines(lines: { description: string }[]): string {
+  if (lines.length === 0) return '';
+  if (lines.length === 1) return lines[0].description;
+  return 'Muhtelif';
+}
 
 @Injectable()
 export class DispatchService {
@@ -134,6 +158,7 @@ export class DispatchService {
         customer: { select: { name: true } },
         shipment: { select: { vehicleId: true } },
         packages: { where: { dispatchedAt: null, dispatchId: null }, select: { id: true } },
+        lines: { select: { id: true, countedQty: true, dispatchedQty: true } },
       },
     });
     if (!receipt) throw new NotFoundException('Mal kabul kaydı bulunamadı');
@@ -142,9 +167,12 @@ export class DispatchService {
     }
     const palletIds = receipt.packages.map((p) => p.id);
     const paletless = palletIds.length === 0;
-    // Paletsiz kabul: kabul düzeyinde sevk (QR opsiyonel). Zaten sevk edildiyse engelle.
-    if (paletless && receipt.dispatchId) {
-      throw new BadRequestException('Bu mal kabul zaten sevk edildi');
+    // Paletsiz kabul: kalan miktarların tamamı yüklenir (kısmi sevk sonrası kalan da sevk edilebilir)
+    const openLines = paletless
+      ? receipt.lines.filter((l) => l.countedQty - l.dispatchedQty > 0)
+      : [];
+    if (paletless && openLines.length === 0) {
+      throw new BadRequestException('Bu mal kabulde depoda kalan yük yok');
     }
 
     const vehicleId = input.vehicleId || receipt.shipment?.vehicleId || null;
@@ -169,18 +197,11 @@ export class DispatchService {
               dispatchedById: userId,
             },
           });
-          if (paletless) {
-            // Kabul düzeyinde sevk: receipt'i sevkiyata bağla
-            await tx.receipt.update({
-              where: { id: receipt.id },
-              data: { dispatchId: created.id, dispatchedAt: now },
-            });
-          } else {
-            await tx.package.updateMany({
-              where: { id: { in: palletIds } },
-              data: { dispatchId: created.id, dispatchedAt: now },
-            });
-          }
+          // Tek huni: paletsizse kalan kalemler, paletliyse depodaki paletler
+          const entries: LoadEntry[] = paletless
+            ? openLines.map((l) => ({ receiptLineId: l.id, qty: l.countedQty - l.dispatchedQty }))
+            : palletIds.map((pid) => ({ packageId: pid }));
+          await this.loadItems(created.id, entries, tx, { dispatchedAt: now });
           return tx.dispatch.findUniqueOrThrow({
             where: { id: created.id },
             include: DISPATCH_INCLUDE,
@@ -207,15 +228,13 @@ export class DispatchService {
     const dispatch = await this.getOrThrow(id);
     this.ensureDraft(dispatch);
 
-    const pkg = input.packageId
-      ? await this.prisma.package.findUnique({
-          where: { id: input.packageId },
-          include: { receipt: { select: { status: true } } },
-        })
-      : await this.prisma.package.findUnique({
-          where: { code: input.packageCode!.trim() },
-          include: { receipt: { select: { status: true } } },
-        });
+    const where = input.packageId
+      ? { id: input.packageId }
+      : { code: input.packageCode!.trim() };
+    const pkg = await this.prisma.package.findUnique({
+      where,
+      include: { receipt: { select: { status: true } } },
+    });
 
     if (!pkg) throw new NotFoundException('Palet (QR) bulunamadı');
     if (pkg.receipt.status !== ReceiptStatus.COMPLETED) {
@@ -226,14 +245,20 @@ export class DispatchService {
       throw new BadRequestException('Bu palet başka bir sevkiyatta');
     }
 
-    if (input.wholeReceipt) {
-      // Okutulan paletin ait olduğu girişteki tüm depodaki paletleri ekle
-      await this.prisma.package.updateMany({
-        where: { receiptId: pkg.receiptId, dispatchedAt: null, dispatchId: null },
-        data: { dispatchId: id },
-      });
-    } else if (pkg.dispatchId !== id) {
-      await this.prisma.package.update({ where: { id: pkg.id }, data: { dispatchId: id } });
+    // "Girişin tümü" ise o kabuldeki depodaki tüm paletler, değilse tek palet
+    const targets = input.wholeReceipt
+      ? await this.prisma.package.findMany({
+          where: { receiptId: pkg.receiptId, dispatchedAt: null, dispatchId: null },
+          select: { id: true },
+        })
+      : pkg.dispatchId === id
+        ? []
+        : [{ id: pkg.id }];
+
+    if (targets.length) {
+      await this.prisma.$transaction((tx) =>
+        this.loadItems(id, targets.map((t) => ({ packageId: t.id })), tx),
+      );
     }
     return this.findOne(id);
   }
@@ -242,32 +267,64 @@ export class DispatchService {
   async addPackages(id: string, packageIds: string[]) {
     const dispatch = await this.getOrThrow(id);
     this.ensureDraft(dispatch);
-    await this.prisma.package.updateMany({
+    const usable = await this.prisma.package.findMany({
       where: { id: { in: packageIds }, dispatchedAt: null, dispatchId: null },
-      data: { dispatchId: id },
+      select: { id: true },
     });
+    if (usable.length) {
+      await this.prisma.$transaction((tx) =>
+        this.loadItems(id, usable.map((p) => ({ packageId: p.id })), tx),
+      );
+    }
     return this.findOne(id);
   }
 
+  /** Yükü sevkiyattan çıkar (palet ya da kalem). Defter satırı silinir, sayaç/ayna geri alınır. */
+  async removeItem(id: string, itemId: string) {
+    const dispatch = await this.getOrThrow(id);
+    this.ensureDraft(dispatch);
+    const item = await this.prisma.dispatchItem.findUnique({ where: { id: itemId } });
+    if (!item || item.dispatchId !== id) throw new NotFoundException('Yük satırı bulunamadı');
+    await this.prisma.$transaction((tx) => this.unloadItems([item], tx));
+    return this.findOne(id);
+  }
+
+  /** Geriye uyum: palet id'si ile çıkarma (eski UI yolu). */
   async removePackage(id: string, packageId: string) {
     const dispatch = await this.getOrThrow(id);
     this.ensureDraft(dispatch);
-    await this.prisma.package.updateMany({
-      where: { id: packageId, dispatchId: id },
-      data: { dispatchId: null },
-    });
+    const item = await this.prisma.dispatchItem.findFirst({ where: { dispatchId: id, packageId } });
+    if (item) {
+      await this.prisma.$transaction((tx) => this.unloadItems([item], tx));
+    } else {
+      // Defterde yoksa (teorik) yalnız aynayı temizle
+      await this.prisma.package.updateMany({
+        where: { id: packageId, dispatchId: id },
+        data: { dispatchId: null, stopId: null },
+      });
+    }
+    return this.findOne(id);
+  }
+
+  /** Kalem/palet seçerek yükle — kalem bazlı sevkin ana girişi. */
+  async addItems(id: string, entries: LoadEntry[], userId: string) {
+    const dispatch = await this.getOrThrow(id);
+    this.ensureDraft(dispatch);
+    const created = await this.prisma.$transaction((tx) => this.loadItems(id, entries, tx));
+    await this.audit('dispatch.itemsAdded', id, userId, { count: created });
     return this.findOne(id);
   }
 
   async complete(id: string, userId: string) {
     const dispatch = await this.getOrThrow(id);
     this.ensureDraft(dispatch);
-    if (dispatch.packages.length === 0) {
-      throw new BadRequestException('Sevkiyata en az bir palet ekleyin');
+    if (dispatch.items.length === 0) {
+      throw new BadRequestException('Sevkiyata en az bir yük ekleyin');
     }
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Ayna: paletlerin sevk zamanı
       await tx.package.updateMany({ where: { dispatchId: id }, data: { dispatchedAt: now } });
       return tx.dispatch.update({
         where: { id },
@@ -275,7 +332,7 @@ export class DispatchService {
         include: DISPATCH_INCLUDE,
       });
     });
-    await this.audit('dispatch.completed', id, userId, { palletCount: updated.packages.length });
+    await this.audit('dispatch.completed', id, userId, { itemCount: updated.items.length });
     return serializeDispatch(updated);
   }
 
@@ -305,13 +362,21 @@ export class DispatchService {
     const dispatch = await this.getOrThrow(id);
     if (dispatch.status === DispatchStatus.CANCELLED) return serializeDispatch(dispatch);
 
+    // Silinen defter satırlarının anlık görüntüsü audit'e yazılır (iptal edilen sevkiyatın
+    // içeriği kaybolmasın; stok sorguları böylece status filtresi taşımak zorunda kalmaz).
+    const snapshot = dispatch.items.map((i) => ({
+      receiptId: i.receiptId,
+      receiptLineId: i.receiptLineId,
+      packageId: i.packageId,
+      qty: i.qty,
+      unit: i.unit,
+      description: i.description,
+    }));
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      // Paletleri depoya geri al (durak ataması da düşer)
-      await tx.package.updateMany({
-        where: { dispatchId: id },
-        data: { dispatchId: null, dispatchedAt: null, stopId: null },
-      });
-      // Paletsiz (kabul düzeyi) sevkleri de depoya geri al
+      // Defteri boşalt: sayaçlar düşer, paletler depoya döner
+      await this.unloadItems(dispatch.items, tx);
+      // DORMANT kabul-düzeyi bağı (eski kayıtlar) da temizlensin
       await tx.receipt.updateMany({
         where: { dispatchId: id },
         data: { dispatchId: null, dispatchedAt: null, stopId: null },
@@ -322,7 +387,7 @@ export class DispatchService {
         include: DISPATCH_INCLUDE,
       });
     });
-    await this.audit('dispatch.cancelled', id, userId);
+    await this.audit('dispatch.cancelled', id, userId, { items: snapshot });
     return serializeDispatch(updated);
   }
 
@@ -551,6 +616,127 @@ export class DispatchService {
     }
   }
 
+  // ---- Yük defteri (tek yazma hunisi) ----
+
+  /**
+   * Sevkiyata yük ekler — TÜM yükleme yolları buradan geçer (palet QR, toplu, kalem, hızlı sevk).
+   * Defter (DispatchItem) ve ayna (Package.dispatchId) HER ZAMAN aynı transaction'da yazılır.
+   *
+   * Tek-granülerlik kuralı: bir kabulün paleti varsa KAP bazlı, yoksa KALEM bazlı sevk edilir.
+   * Karışık kullanım çift sayıma yol açacağı için reddedilir.
+   */
+  private async loadItems(
+    dispatchId: string,
+    entries: LoadEntry[],
+    tx: Prisma.TransactionClient,
+    opts: { dispatchedAt?: Date } = {},
+  ): Promise<number> {
+    let count = 0;
+    for (const e of entries) {
+      if (e.packageId) {
+        const pkg = await tx.package.findUnique({
+          where: { id: e.packageId },
+          include: {
+            receipt: { select: { id: true, status: true, lines: { select: { description: true } } } },
+          },
+        });
+        if (!pkg) throw new NotFoundException('Palet bulunamadı');
+        if (pkg.receipt.status !== ReceiptStatus.COMPLETED) {
+          throw new BadRequestException('Bu paletin mal kabulü henüz tamamlanmadı');
+        }
+        if (pkg.dispatchId && pkg.dispatchId !== dispatchId) {
+          throw new BadRequestException('Bu palet başka bir sevkiyatta');
+        }
+        const already = await tx.dispatchItem.findUnique({ where: { packageId: pkg.id } });
+        if (already) continue; // idempotent
+        await tx.dispatchItem.create({
+          data: {
+            dispatchId,
+            stopId: e.stopId ?? pkg.stopId ?? null,
+            receiptId: pkg.receiptId,
+            packageId: pkg.id,
+            qty: 1,
+            unit: pkg.type,
+            description: describeLines(pkg.receipt.lines),
+          },
+        });
+        // Ayna
+        await tx.package.update({
+          where: { id: pkg.id },
+          data: { dispatchId, ...(opts.dispatchedAt ? { dispatchedAt: opts.dispatchedAt } : {}) },
+        });
+        count++;
+        continue;
+      }
+
+      // --- Kalem satırı ---
+      const line = await tx.receiptLine.findUnique({
+        where: { id: e.receiptLineId! },
+        include: { receipt: { select: { id: true, status: true, _count: { select: { packages: true } } } } },
+      });
+      if (!line) throw new NotFoundException('Kabul kalemi bulunamadı');
+      if (line.receipt.status !== ReceiptStatus.COMPLETED) {
+        throw new BadRequestException('Bu kalemin mal kabulü henüz tamamlanmadı');
+      }
+      if (line.receipt._count.packages > 0) {
+        throw new BadRequestException(
+          'Bu mal kabul palet (QR) bazlı takip ediliyor — kalem yerine palet seçin',
+        );
+      }
+      const qty = Math.trunc(e.qty ?? 0);
+      const remaining = line.countedQty - line.dispatchedQty;
+      if (qty <= 0) throw new BadRequestException('Miktar 0’dan büyük olmalı');
+      if (qty > remaining) {
+        throw new BadRequestException(
+          `"${line.description}" için depoda ${remaining} ${line.unit} kaldı (${qty} istendi)`,
+        );
+      }
+      // İyimser kilit: iki operatör aynı kalemi aynı anda yüklerse ikincisi hata alır
+      const locked = await tx.receiptLine.updateMany({
+        where: { id: line.id, dispatchedQty: line.dispatchedQty },
+        data: { dispatchedQty: { increment: qty } },
+      });
+      if (locked.count === 0) {
+        throw new BadRequestException('Bu kalem az önce değişti, listeyi yenileyip tekrar deneyin');
+      }
+      await tx.dispatchItem.create({
+        data: {
+          dispatchId,
+          stopId: e.stopId ?? null,
+          receiptId: line.receiptId,
+          receiptLineId: line.id,
+          qty,
+          unit: line.unit,
+          description: line.description,
+        },
+      });
+      count++;
+    }
+    return count;
+  }
+
+  /** Yükü sevkiyattan çıkarır: defter satırı silinir, sayaç düşülür, ayna temizlenir. */
+  private async unloadItems(
+    items: { id: string; receiptLineId: string | null; packageId: string | null; qty: number }[],
+    tx: Prisma.TransactionClient,
+  ) {
+    for (const it of items) {
+      if (it.receiptLineId) {
+        await tx.receiptLine.update({
+          where: { id: it.receiptLineId },
+          data: { dispatchedQty: { decrement: it.qty } },
+        });
+      }
+      if (it.packageId) {
+        await tx.package.update({
+          where: { id: it.packageId },
+          data: { dispatchId: null, dispatchedAt: null, stopId: null },
+        });
+      }
+      await tx.dispatchItem.delete({ where: { id: it.id } });
+    }
+  }
+
   // ---- helpers ----
 
   private async getStopOrThrow(dispatchId: string, stopId: string) {
@@ -662,6 +848,25 @@ function serializeDispatch(d: DispatchWithRelations) {
       goodsKind: goodsKindOf(r.lines),
       stopId: r.stopId,
     })),
+    // Sevkiyattaki yükün TEK kaynağı — belgeler ve UI bunu kullanır
+    items: d.items.map((i) => ({
+      id: i.id,
+      kind: i.packageId ? ('PACKAGE' as const) : ('LINE' as const),
+      qty: i.qty,
+      unit: i.unit,
+      description: i.description, // MALIN CİNSİ (snapshot)
+      stopId: i.stopId,
+      receiptId: i.receiptId,
+      receiptReference: i.receipt.reference,
+      receiptLineId: i.receiptLineId,
+      packageId: i.packageId,
+      packageCode: i.package?.code ?? null,
+      customerName: i.receipt.customer?.name ?? null, // GÖNDERİCİ
+      warehouseName: i.receipt.warehouse?.name ?? null, // NEREDEN
+      recipientName: recipientNameOf(i.receipt.shipment), // ön ihbardaki alıcı
+      waybillNo: i.receipt.waybillNo, // müşterinin SEVK İRSALİYE no'su
+      plannedVehicle: i.receipt.shipment?.vehicle ?? null,
+    })),
     stops: d.stops.map((s) => ({
       id: s.id,
       seq: s.seq,
@@ -672,8 +877,12 @@ function serializeDispatch(d: DispatchWithRelations) {
       phone: s.phone,
       note: s.note,
       deliveredAt: s.deliveredAt,
-      packageCount: s._count.packages,
-      receiptCount: s._count.receipts,
+      // Durak kartındaki sayılar artık defterden
+      packageCount: d.items.filter((i) => i.stopId === s.id && i.packageId).length,
+      receiptCount: new Set(
+        d.items.filter((i) => i.stopId === s.id && i.receiptLineId).map((i) => i.receiptId),
+      ).size,
+      itemCount: s._count.items,
     })),
   };
 }

@@ -288,6 +288,7 @@ model Receipt {
   lines         ReceiptLine[]
   packages      Package[]
   discrepancies Discrepancy[]
+  dispatchItems DispatchItem[]
 
   @@index([dispatchId])
   @@index([stopId])
@@ -318,12 +319,46 @@ model Dispatch {
   freightAmount      Decimal?  @db.Decimal(12, 2) // taşıma ücreti (elle girilir)
   freightVatIncluded Boolean   @default(false) // girilen ücret KDV dahil mi
 
-  receipts Receipt[] // paletsiz (kabul düzeyi) sevkler
-  packages Package[] // palet bazlı: sevkiyattaki paletler
+  // items = sevkiyattaki yükün TEK defteri. packages/receipts bağları bunun AYNASIDIR
+  // (QR okutma akışı ve eski kayıtlar için korunur) — yeni kod items üzerinden çalışır.
+  items    DispatchItem[]
+  receipts Receipt[] // DORMANT: kabul düzeyi sevk (artık yazılmıyor, DispatchItem kullanılır)
+  packages Package[] // palet bazlı: sevkiyattaki paletler (items'ın aynası)
   stops    DispatchStop[] // çok duraklı teslimat noktaları (rota sırası)
 
   @@unique([waybillSerial, waybillNo]) // aynı yasal belge iki kez girilmesin
   @@index([vehicleId])
+}
+
+/// Sevkiyattaki tek bir yük satırı — "araçta ne var" sorusunun TEK kaynağı.
+/// İki türü var (XOR — tam biri dolu, migration'da CHECK kısıtı var):
+///  - `packageId` dolu  → KAP bazlı (QR'lı palet), qty her zaman 1
+///  - `receiptLineId` dolu → KALEM bazlı (ürün + miktar), kısmi sevke izin verir
+/// Bir kabul aynı anda İKİ türü birden kullanamaz (tek-granülerlik kuralı, serviste zorlanır):
+/// paleti varsa kap bazlı, yoksa kalem bazlı.
+model DispatchItem {
+  id         String       @id @default(cuid())
+  dispatchId String
+  dispatch   Dispatch     @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  stopId     String? // hangi durakta inecek
+  stop       DispatchStop? @relation(fields: [stopId], references: [id])
+  receiptId  String // denormalize: gönderici/irsaliye no/depo belgede lazım
+  receipt    Receipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  receiptLineId String?
+  receiptLine   ReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Cascade)
+  packageId     String?      @unique // bir palet en fazla bir sevkiyatta
+  package       Package?     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  qty         Int      @default(1)
+  unit        String   @default("ADET") // kalem: ADET/KG · kap: PackageType
+  description String // MALIN CİNSİ — snapshot (kayıt sonradan değişse belge sabit kalsın)
+  createdAt   DateTime @default(now())
+
+  @@index([dispatchId])
+  @@index([receiptId])
+  @@index([receiptLineId])
+  @@index([stopId])
 }
 
 // Sevkiyattaki teslimat noktası (durak). Bir seferde birden çok müşteriye /
@@ -346,8 +381,9 @@ model DispatchStop {
   deliveredAt DateTime? // durak teslim edildiğinde dolar
   createdAt   DateTime  @default(now())
 
-  packages Package[]
-  receipts Receipt[]
+  items    DispatchItem[]
+  packages Package[] // items'ın aynası
+  receipts Receipt[] // DORMANT
 
   @@index([dispatchId])
 }
@@ -365,9 +401,13 @@ model ReceiptLine {
   unit         String        @default("ADET")
   barcode      String?
   unitPrice    Decimal?      @db.Decimal(12, 2) // ön ihbardan kopyalanır (fiş ÜCRET için)
+  // Sevk edilen toplam (DispatchItem'ların toplamı — HER ZAMAN aynı transaction'da güncellenir).
+  // Depoda kalan = countedQty - dispatchedQty. Denormalize: findStock tek sorguda çalışsın diye.
+  dispatchedQty Int          @default(0)
   createdAt    DateTime      @default(now())
 
   discrepancies Discrepancy[]
+  dispatchItems DispatchItem[]
 }
 
 // Koli/palet etiketi — QR ile izlenebilirlik
@@ -389,6 +429,8 @@ model Package {
   // Çok duraklı sevkiyatta bu palet hangi durakta inecek
   stopId String?
   stop   DispatchStop? @relation(fields: [stopId], references: [id])
+  // Bu paletin sevkiyat defterindeki karşılığı (varsa)
+  dispatchItem DispatchItem?
 
   @@index([dispatchId])
   @@index([stopId])
