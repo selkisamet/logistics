@@ -61,26 +61,49 @@ export function DispatchListPage() {
         <EmptyState title="Sevkiyat yok" hint="Depodaki ürünleri çıkışa almak için yeni sevkiyat oluşturun." />
       ) : (
         <div className="flex flex-col gap-4">
-          {data.items.map((d) => (
-            <Link key={d.id} to={`/sevkiyat/${d.id}`}>
-              <Card className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-900">{d.destination}</p>
-                    <p className="text-xs text-slate-500">
-                      {d.reference}
-                      {d.vehiclePlate ? ` · ${d.vehiclePlate}` : ''}
-                    </p>
+          {data.items.map((d) => {
+            const items = d.items ?? [];
+            const kap = items.filter((i) => i.kind === 'PACKAGE').length;
+            const adet = items.filter((i) => i.kind === 'LINE').reduce((s, i) => s + i.qty, 0);
+            // Çok müşterili sefer: irsaliyede hepsi görünür, listede de belli olsun
+            const senders = [...new Set(items.map((i) => i.customerName).filter(Boolean))];
+            return (
+              <Link key={d.id} to={`/sevkiyat/${d.id}`}>
+                <Card className="space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">{d.destination}</p>
+                      <p className="text-xs text-slate-500">
+                        {d.reference}
+                        {d.vehiclePlate ? ` · ${d.vehiclePlate}` : ''}
+                        {d.stops?.length ? ` · ${d.stops.length} durak` : ''}
+                      </p>
+                    </div>
+                    <DispatchStatusBadge status={d.status} />
                   </div>
-                  <DispatchStatusBadge status={d.status} />
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>🕒 {formatDateTime(d.dispatchedAt ?? d.createdAt)}</span>
-                  <span>{d.packages.length} palet</span>
-                </div>
-              </Card>
-            </Link>
-          ))}
+                  {senders.length > 0 && (
+                    <p className="truncate text-xs text-slate-600">
+                      {senders.length > 1 && (
+                        <span className="mr-1 rounded bg-indigo-100 px-1.5 py-0.5 font-medium text-indigo-700">
+                          {senders.length} müşteri
+                        </span>
+                      )}
+                      {senders.join(', ')}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>🕒 {formatDateTime(d.dispatchedAt ?? d.createdAt)}</span>
+                    <span>
+                      {kap ? `${kap} kap` : ''}
+                      {kap && adet ? ' · ' : ''}
+                      {adet ? `${adet} adet` : ''}
+                      {!kap && !adet ? 'yük yok' : ''}
+                    </span>
+                  </div>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

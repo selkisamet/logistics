@@ -131,10 +131,17 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün
   hangi araca gideceğini görür). Depo kartında rozet. `PATCH /asn/:id/vehicle` ile plan değiştirilebilir
   (iptal hariç her durumda; ön ihbar detayından — yönetici/şef).
-- **Hızlı Sevk:** Depo kartındaki "🚚 Sevk Et" → `POST /dispatches/quick` { receiptId, vehicleId? }.
-  Plaka ELLE YAZILMAZ, kayıtlı araç listeden seçilir (planlanan ön-seçili). Tek adımda sevk eder.
-- Sevkiyat detayında yeşil/turuncu araç eşleştirmesi YALNIZCA taslakta "Depodan Palet Ekle"
-  listesinde (yüklenmiş/sevk edilmiş paletlerde gösterilmez — yanıltıcıydı).
+- **Depo = YÜK PLANLAMA ekranı** ([StockPage](apps/web/src/pages/StockPage.tsx)): kartlarda ürün/palet
+  **çoklu seçim** (paletsizde `− miktar +`, kısmi), altta sabit çubuk → **"🚚 Araca Yükle"**.
+  Modal ya **yeni taslak sefer** açar (`POST /dispatches` + `POST /:id/items`) ya da **devam eden
+  taslağa ekler**. Böylece **farklı müşterilerin malı tek sevkiyatta** toplanır → tek taşıma
+  irsaliyesinde hepsi görünür (173 GT'nin istediği liste yapısı).
+- **Hızlı Sevk** (kartın altındaki ikincil "Bu kabulün tamamını hemen sevk et") →
+  `POST /dispatches/quick`. **Tek kabulü ayrı sefer olarak ANINDA sevk eder** — çoklu müşteri
+  planlamak isteyen kullanıcı bunu kullanırsa her kabul ayrı irsaliye olur; bu yüzden modalda
+  uyarı var ve buton ikincil stilde.
+- Sevkiyat detayında yeşil/turuncu araç eşleştirmesi YALNIZCA taslakta yük ekleme listesinde
+  (yüklenmiş/sevk edilmiş yüklerde gösterilmez — yanıltıcıydı).
 - **Sevk edilmiş sevkiyatta düzeltme:** "🚚 Aracı Değiştir" (`PATCH /dispatches/:id/vehicle`; yanlış plaka)
   ve "↩ Sevkiyatı Geri Al" (`cancel`; paletler **ve** paletsiz kabuller depoya döner, durak ataması düşer).
 
