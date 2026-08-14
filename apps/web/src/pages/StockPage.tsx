@@ -58,9 +58,10 @@ export function StockPage() {
             const hasPkg = pkgs.length > 0;
             const inStock = pkgs.filter((p) => !p.dispatchedAt && !p.dispatchId).length;
             const total = pkgs.length;
-            // Paletsiz kabul: satır adetleri toplamı stok göstergesi
-            const itemQty = (r.lines ?? []).reduce((s, l) => s + (l.countedQty ?? 0), 0);
-            const canDispatch = hasPkg ? inStock > 0 : true;
+            // Paletsiz kabul: kalem bazlı KALAN miktar (kısmi sevkte düşer)
+            const itemQty = (r.lines ?? []).reduce((s, l) => s + (l.remainingQty ?? l.countedQty ?? 0), 0);
+            const totalQty = (r.lines ?? []).reduce((s, l) => s + (l.countedQty ?? 0), 0);
+            const canDispatch = hasPkg ? inStock > 0 : itemQty > 0;
             const count = hasPkg ? inStock : itemQty;
             return (
               <Card key={r.id} className="space-y-2">
@@ -94,7 +95,10 @@ export function StockPage() {
                         {total > inStock ? `/${total}` : ''} palet depoda
                       </>
                     ) : (
-                      <>{itemQty} adet · paletsiz</>
+                      <>
+                        {itemQty}
+                        {totalQty > itemQty ? `/${totalQty}` : ''} adet depoda
+                      </>
                     )}
                   </span>
                 </div>

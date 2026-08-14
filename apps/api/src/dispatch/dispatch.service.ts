@@ -445,10 +445,8 @@ export class DispatchService {
    */
   async suggestStops(id: string, userId: string) {
     const dispatch = await this.getOrThrow(id);
-    // Sevkiyattaki tüm kabuller (paletli + paletsiz)
-    const receiptIds = [
-      ...new Set([...dispatch.packages.map((p) => p.receiptId), ...dispatch.receipts.map((r) => r.id)]),
-    ];
+    // Sevkiyattaki tüm kabuller — defterden (kap + kalem satırları birlikte)
+    const receiptIds = [...new Set(dispatch.items.map((i) => i.receiptId))];
     if (receiptIds.length === 0) throw new BadRequestException('Sevkiyatta yük yok');
 
     const receipts = await this.prisma.receipt.findMany({
@@ -526,12 +524,13 @@ export class DispatchService {
             })
           ).id;
         // Yalnızca henüz atanmamış yükleri bağla (elle yapılan atamayı ezme)
-        await tx.package.updateMany({
+        await tx.dispatchItem.updateMany({
           where: { dispatchId: id, stopId: null, receiptId: { in: cand.receiptIds } },
           data: { stopId },
         });
-        await tx.receipt.updateMany({
-          where: { dispatchId: id, stopId: null, id: { in: cand.receiptIds } },
+        // Ayna: palet stopId'si
+        await tx.package.updateMany({
+          where: { dispatchId: id, stopId: null, receiptId: { in: cand.receiptIds } },
           data: { stopId },
         });
       }
@@ -540,27 +539,34 @@ export class DispatchService {
     return this.findOne(id);
   }
 
-  /** Palet/kabulleri bir durağa ata (stopId null → atamayı kaldır). */
+  /** Yükleri bir durağa ata (stopId null → atamayı kaldır).
+   *  `itemIds` yeni yol; `packageIds`/`receiptIds` geriye uyum için defter satırına çevrilir. */
   async assignToStop(id: string, stopId: string | null, input: AssignToStopInput, userId: string) {
     const dispatch = await this.getOrThrow(id);
     if (stopId) await this.getStopOrThrow(id, stopId);
-    const packageIds = input.packageIds ?? [];
-    const receiptIds = input.receiptIds ?? [];
-    // Yalnızca bu sevkiyattaki yükler atanabilir
-    const ownPkg = new Set(dispatch.packages.map((p) => p.id));
-    const ownRcp = new Set(dispatch.receipts.map((r) => r.id));
-    if (packageIds.some((p) => !ownPkg.has(p)) || receiptIds.some((r) => !ownRcp.has(r))) {
-      throw new BadRequestException('Seçilen yük bu sevkiyatta değil');
+
+    const own = new Set(dispatch.items.map((i) => i.id));
+    const itemIds = new Set((input.itemIds ?? []).filter((i) => own.has(i)));
+    // Geriye uyum: palet/kabul id'leri → defter satırı
+    for (const pid of input.packageIds ?? []) {
+      const it = dispatch.items.find((i) => i.packageId === pid);
+      if (it) itemIds.add(it.id);
     }
+    for (const rid of input.receiptIds ?? []) {
+      dispatch.items.filter((i) => i.receiptId === rid).forEach((i) => itemIds.add(i.id));
+    }
+    if (itemIds.size === 0) throw new BadRequestException('Seçilen yük bu sevkiyatta değil');
+
+    const ids = [...itemIds];
     await this.prisma.$transaction(async (tx) => {
-      if (packageIds.length) {
-        await tx.package.updateMany({ where: { id: { in: packageIds } }, data: { stopId } });
-      }
-      if (receiptIds.length) {
-        await tx.receipt.updateMany({ where: { id: { in: receiptIds } }, data: { stopId } });
+      await tx.dispatchItem.updateMany({ where: { id: { in: ids } }, data: { stopId } });
+      // Ayna: palet satırlarının stopId'si (eski okuma yolları için)
+      const pkgIds = dispatch.items.filter((i) => ids.includes(i.id) && i.packageId).map((i) => i.packageId!);
+      if (pkgIds.length) {
+        await tx.package.updateMany({ where: { id: { in: pkgIds } }, data: { stopId } });
       }
     });
-    await this.audit('dispatch.stopAssigned', id, userId, { stopId, packageIds, receiptIds });
+    await this.audit('dispatch.stopAssigned', id, userId, { stopId, itemIds: ids });
     return this.findOne(id);
   }
 

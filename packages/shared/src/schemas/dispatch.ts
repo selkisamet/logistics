@@ -83,13 +83,61 @@ export type ReorderStopsInput = z.infer<typeof reorderStopsSchema>;
 /** Palet/kabulleri bir durağa ata. stopId null gönderilirse atama kaldırılır. */
 export const assignToStopSchema = z
   .object({
-    packageIds: z.array(z.string()).optional(),
-    receiptIds: z.array(z.string()).optional(),
+    itemIds: z.array(z.string()).optional(), // yeni: defter satırları
+    packageIds: z.array(z.string()).optional(), // geriye uyum
+    receiptIds: z.array(z.string()).optional(), // geriye uyum
   })
-  .refine((v) => (v.packageIds?.length ?? 0) + (v.receiptIds?.length ?? 0) > 0, {
-    message: 'En az bir palet ya da kabul seçilmeli',
-  });
+  .refine(
+    (v) => (v.itemIds?.length ?? 0) + (v.packageIds?.length ?? 0) + (v.receiptIds?.length ?? 0) > 0,
+    { message: 'En az bir yük seçilmeli' },
+  );
 export type AssignToStopInput = z.infer<typeof assignToStopSchema>;
+
+// ---- Kalem bazlı yükleme ----
+
+/** Depodan araca yük ekleme: ya bir palet (kap) ya da bir kabul kalemi + miktar.
+ *  Kabul başına TEK mod: paleti varsa palet seçilir, yoksa kalem + miktar. */
+export const loadEntrySchema = z
+  .object({
+    packageId: z.string().optional(),
+    receiptLineId: z.string().optional(),
+    qty: z.coerce.number().int().positive().optional(), // kalem satırında zorunlu
+    stopId: z.string().nullable().optional(),
+  })
+  .refine((v) => !!v.packageId !== !!v.receiptLineId, {
+    message: 'Palet ya da kalem — tam biri seçilmeli',
+  })
+  .refine((v) => !v.receiptLineId || (v.qty ?? 0) > 0, {
+    message: 'Kalem için miktar gerekli',
+    path: ['qty'],
+  });
+export type LoadEntryInput = z.infer<typeof loadEntrySchema>;
+
+export const addDispatchItemsSchema = z.object({
+  items: z.array(loadEntrySchema).min(1, 'En az bir yük seçilmeli'),
+});
+export type AddDispatchItemsInput = z.infer<typeof addDispatchItemsSchema>;
+
+/** Sevkiyattaki bir yük satırı (kap ya da kalem) — belgeler ve UI bunu kullanır. */
+export const dispatchItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['PACKAGE', 'LINE']),
+  qty: z.number().int(),
+  unit: z.string(),
+  description: z.string(), // MALIN CİNSİ (snapshot)
+  stopId: z.string().nullable().optional(),
+  receiptId: z.string(),
+  receiptReference: z.string(),
+  receiptLineId: z.string().nullable().optional(),
+  packageId: z.string().nullable().optional(),
+  packageCode: z.string().nullable().optional(),
+  customerName: z.string().nullable().optional(), // GÖNDERİCİ
+  warehouseName: z.string().nullable().optional(), // NEREDEN
+  recipientName: z.string().nullable().optional(),
+  waybillNo: z.string().nullable().optional(), // müşterinin SEVK İRSALİYE no'su
+  plannedVehicle: vehicleSummarySchema.nullable().optional(),
+});
+export type DispatchItem = z.infer<typeof dispatchItemSchema>;
 
 /** Taşıma irsaliyesi bilgileri: matbu belgenin seri/sıra no'su + taşıma ücreti. */
 export const updateWaybillSchema = z.object({
@@ -116,6 +164,7 @@ export const dispatchStopSchema = z.object({
   deliveredAt: z.string().nullable().optional(),
   packageCount: z.number().int().default(0),
   receiptCount: z.number().int().default(0),
+  itemCount: z.number().int().optional().default(0),
 });
 export type DispatchStop = z.infer<typeof dispatchStopSchema>;
 
@@ -174,6 +223,8 @@ export const dispatchSchema = z.object({
     )
     .optional()
     .default([]),
+  // Sevkiyattaki yükün TEK kaynağı (kap + kalem satırları)
+  items: z.array(dispatchItemSchema).optional().default([]),
   // Çok duraklı teslimat (rota sırasına göre)
   stops: z.array(dispatchStopSchema).optional().default([]),
   // Taşıma irsaliyesi (matbu belge bilgileri + taşıma ücreti)

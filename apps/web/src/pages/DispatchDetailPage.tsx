@@ -5,10 +5,11 @@ import { clsx } from 'clsx';
 import {
   PACKAGE_TYPE_LABELS,
   type Dispatch,
+  type DispatchItem,
   type DispatchStop,
+  type LoadEntryInput,
   type Paginated,
   type Receipt,
-  type Package,
   type PackageType,
   type AddDispatchPackageInput,
   type VehicleSummary,
@@ -23,13 +24,6 @@ import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { WaybillModal } from '../components/print/WaybillForm';
 
-type StockPallet = {
-  pkg: Package;
-  customerName?: string;
-  receiptRef: string;
-  plannedVehicle?: VehicleSummary | null;
-};
-
 export function DispatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -41,6 +35,7 @@ export function DispatchDetailPage() {
   const [editingStop, setEditingStop] = useState<DispatchStop | null>(null);
   const [waybillModal, setWaybillModal] = useState(false);
   const [waybillEdit, setWaybillEdit] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false);
 
   const { data: dispatch, isLoading } = useQuery({
     queryKey: ['dispatches', id],
@@ -63,19 +58,19 @@ export function DispatchDetailPage() {
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Eklenemedi'),
   });
-  const bulkAddMut = useMutation({
-    mutationFn: (ids: string[]) =>
-      api.post<Dispatch>(`/dispatches/${id}/packages/bulk`, { packageIds: ids }),
+  const removeItemMut = useMutation({
+    mutationFn: (itemId: string) => api.delete<Dispatch>(`/dispatches/${id}/items/${itemId}`),
+    onSuccess: afterChange,
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Çıkarılamadı'),
+  });
+  const addItemsMut = useMutation({
+    mutationFn: (items: LoadEntryInput[]) => api.post<Dispatch>(`/dispatches/${id}/items`, { items }),
     onSuccess: (d) => {
       afterChange(d);
-      toast(`✓ ${d.packages.length} palet yüklendi`);
+      setLoadOpen(false);
+      toast('✓ Yük eklendi');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Eklenemedi'),
-  });
-  const removeMut = useMutation({
-    mutationFn: (packageId: string) =>
-      api.delete<Dispatch>(`/dispatches/${id}/packages/${packageId}`),
-    onSuccess: afterChange,
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yük eklenemedi'),
   });
   const completeMut = useMutation({
     mutationFn: () => api.post<Dispatch>(`/dispatches/${id}/complete`),
@@ -132,45 +127,18 @@ export function DispatchDetailPage() {
     onError: (e) => stopErr(e, 'Teslim durumu değiştirilemedi'),
   });
   const assignMut = useMutation({
-    mutationFn: ({ stopId, packageIds }: { stopId: string; packageIds: string[] }) =>
-      api.patch<Dispatch>(`/dispatches/${id}/stops/${stopId}/assign`, { packageIds }),
+    mutationFn: ({ stopId, itemIds }: { stopId: string; itemIds: string[] }) =>
+      api.patch<Dispatch>(`/dispatches/${id}/stops/${stopId}/assign`, { itemIds }),
     onSuccess: setDispatch,
     onError: (e) => stopErr(e, 'Durak ataması yapılamadı'),
   });
 
   const editable = dispatch?.status === 'DRAFT';
 
-  // Depodaki uygun paletler (sadece taslakta) — kabul kayıtlarından düz listeye
-  const { data: stockPallets } = useQuery({
-    queryKey: ['stock', { forDispatchPallets: true }],
-    queryFn: () => api.get<Paginated<Receipt>>('/receipts/stock?page=1&pageSize=100'),
-    enabled: !!editable,
-    select: (d): StockPallet[] =>
-      d.items.flatMap((r) =>
-        (r.packages ?? [])
-          .filter((p) => !p.dispatchedAt && !p.dispatchId)
-          .map((pkg) => ({
-            pkg,
-            customerName: r.customer?.name,
-            receiptRef: r.reference,
-            plannedVehicle: r.plannedVehicle,
-          })),
-      ),
-  });
-
   if (isLoading) return <Spinner />;
   if (!dispatch) return <p className="text-slate-500">Sevkiyat bulunamadı.</p>;
 
-  // Bu sevkiyatın aracına planlanan paletler öne gelsin
   const targetVehicleId = dispatch.vehicle?.id ?? null;
-  const isMatch = (planned?: VehicleSummary | null) =>
-    !!targetVehicleId && planned?.id === targetVehicleId;
-  const sortedPallets = [...(stockPallets ?? [])].sort(
-    (a, b) => Number(isMatch(b.plannedVehicle)) - Number(isMatch(a.plannedVehicle)),
-  );
-  const matchingPallets = targetVehicleId
-    ? sortedPallets.filter((s) => isMatch(s.plannedVehicle))
-    : [];
 
   return (
     <div className="space-y-4">
@@ -266,6 +234,15 @@ export function DispatchDetailPage() {
         />
       )}
       {waybillModal && <WaybillModal dispatch={dispatch} onClose={() => setWaybillModal(false)} />}
+      {loadOpen && (
+        <LoadFromStockModal
+          stops={dispatch.stops}
+          targetVehicleId={targetVehicleId}
+          saving={addItemsMut.isPending}
+          onClose={() => setLoadOpen(false)}
+          onLoad={(entries) => addItemsMut.mutate(entries)}
+        />
+      )}
 
       {editable && (
         <div className="space-y-2">
@@ -435,168 +412,111 @@ export function DispatchDetailPage() {
         )}
       </Card>
 
-      {/* Yüklenen paletler */}
+      {/* Yüklenen yük — defterden (kap + kalem satırları), kabule göre gruplu */}
       <Card className="space-y-2">
-        <h3 className="font-semibold text-slate-900">Yüklenen Paletler ({dispatch.packages.length})</h3>
-        {dispatch.packages.length === 0 ? (
-          <p className="text-xs text-slate-400">Palet QR okutun ya da aşağıdan depodan ekleyin.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Yüklenen Yük ({dispatch.items.length})</h3>
+            <p className="text-xs text-slate-500">{loadSummary(dispatch.items)}</p>
+          </div>
+          {editable && (
+            <Button className="shrink-0" onClick={() => setLoadOpen(true)}>
+              + Depodan Yük Ekle
+            </Button>
+          )}
+        </div>
+        {dispatch.items.length === 0 ? (
+          <p className="text-xs text-slate-400">
+            "Depodan Yük Ekle" ile ürün/palet seçin ya da palet QR okutun.
+          </p>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {dispatch.packages.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-2 py-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900">{p.code}</p>
-                  <p className="text-xs text-slate-500">
-                    {PACKAGE_TYPE_LABELS[p.type as PackageType] ?? p.type} · {p.customerName}
-                    {p.recipientName ? ` → ${p.recipientName}` : ''}
-                    {p.waybillNo ? ` · İrs: ${p.waybillNo}` : ''}
-                  </p>
+          <div className="space-y-3">
+            {groupByReceipt(dispatch.items).map((g) => (
+              <div key={g.receiptId}>
+                <Link
+                  to={`/mal-kabul/${g.receiptId}`}
+                  className="text-xs font-semibold text-slate-600 hover:text-brand"
+                >
+                  {g.customerName ?? '—'} · {g.receiptReference}
+                  {g.waybillNo ? ` · İrs: ${g.waybillNo}` : ''}
+                </Link>
+                <div className="divide-y divide-slate-100">
+                  {g.items.map((i) => (
+                    <div key={i.id} className="flex items-center justify-between gap-2 py-1.5">
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-900">
+                          {i.kind === 'PACKAGE' ? (
+                            <>
+                              <span className="font-medium">{i.packageCode}</span>{' '}
+                              <span className="text-slate-500">
+                                ({PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              {i.description}{' '}
+                              <span className="font-medium">
+                                {i.qty} {i.unit}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                        {i.recipientName && (
+                          <p className="text-xs text-slate-400">→ {i.recipientName}</p>
+                        )}
+                      </div>
+                      {dispatch.stops.length > 0 && (
+                        <select
+                          value={i.stopId ?? ''}
+                          onChange={(e) =>
+                            assignMut.mutate({
+                              stopId: e.target.value || 'yok',
+                              itemIds: [i.id],
+                            })
+                          }
+                          className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                        >
+                          <option value="">Durak yok</option>
+                          {dispatch.stops.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.seq}. {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {editable && (
+                        <button
+                          onClick={() => removeItemMut.mutate(i.id)}
+                          className="shrink-0 text-xs font-medium text-red-600"
+                        >
+                          Çıkar
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {/* Durak ataması — hangi palet nerede inecek */}
-                {dispatch.stops.length > 0 && (
-                  <select
-                    value={p.stopId ?? ''}
-                    onChange={(e) =>
-                      assignMut.mutate({
-                        stopId: e.target.value || 'yok',
-                        packageIds: [p.id],
-                      })
-                    }
-                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                  >
-                    <option value="">Durak yok</option>
-                    {dispatch.stops.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.seq}. {s.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {editable && (
-                  <button
-                    onClick={() => removeMut.mutate(p.id)}
-                    className="shrink-0 text-xs font-medium text-red-600"
-                  >
-                    Çıkar
-                  </button>
-                )}
               </div>
             ))}
           </div>
         )}
       </Card>
 
-      {/* Paletsiz (kabul düzeyi) sevk edilen mal kabuller */}
-      {(dispatch.receipts ?? []).length > 0 && (
-        <Card className="space-y-2">
-          <h3 className="font-semibold text-slate-900">
-            Sevk Edilen Kabuller ({dispatch.receipts.length})
-          </h3>
-          <div className="divide-y divide-slate-100">
-            {dispatch.receipts.map((r) => (
-              <Link
-                key={r.id}
-                to={`/mal-kabul/${r.id}`}
-                className="flex items-center justify-between py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{r.reference}</p>
-                  <p className="text-xs text-slate-500">{r.customerName ?? '—'}</p>
-                </div>
-                <span className="text-xs text-slate-500">{r.itemCount} adet</span>
-              </Link>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Depodan ekle (palet) */}
-      {editable && (
-        <Card className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold text-slate-900">Depodan Palet Ekle</h3>
-            <div className="flex flex-wrap gap-2">
-              {matchingPallets.length > 0 && (
-                <Button
-                  loading={bulkAddMut.isPending}
-                  onClick={() => bulkAddMut.mutate(matchingPallets.map((s) => s.pkg.id))}
-                >
-                  🚚 Bu araca planlı ({matchingPallets.length})
-                </Button>
-              )}
-              {sortedPallets.length > 0 && (
-                <Button
-                  variant="secondary"
-                  loading={bulkAddMut.isPending}
-                  onClick={() => bulkAddMut.mutate(sortedPallets.map((s) => s.pkg.id))}
-                >
-                  Hepsini Ekle ({sortedPallets.length})
-                </Button>
-              )}
-            </div>
-          </div>
-          {targetVehicleId ? (
-            <p className="text-xs text-slate-400">
-              ✓ = bu sevkiyatın aracına planlandı · ⚠ = başka araca planlı.
-            </p>
-          ) : (
-            <p className="text-xs text-amber-600">
-              Bu sevkiyata araç seçilmemiş; planlanan araçla eşleştirme yapılamıyor.
-            </p>
-          )}
-          {sortedPallets.length === 0 ? (
-            <EmptyState title="Eklenecek palet yok" hint="Depoda sevk bekleyen palet yok." />
-          ) : (
-            <div className="space-y-2">
-              {sortedPallets.map(({ pkg, customerName, receiptRef, plannedVehicle }) => (
-                <div
-                  key={pkg.id}
-                  className={clsx(
-                    'flex items-center justify-between rounded-lg border p-2',
-                    isMatch(plannedVehicle)
-                      ? 'border-green-300 bg-green-50/40'
-                      : 'border-slate-200',
-                  )}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-slate-900">{pkg.code}</p>
-                      <PlannedTag planned={plannedVehicle} targetId={targetVehicleId} />
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {PACKAGE_TYPE_LABELS[pkg.type as PackageType] ?? pkg.type} · {customerName} · {receiptRef}
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    loading={addMut.isPending}
-                    onClick={() => addMut.mutate({ packageId: pkg.id })}
-                  >
-                    Ekle
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
       {editable && (
         <Button
           className="w-full"
           loading={completeMut.isPending}
-          disabled={dispatch.packages.length === 0}
+          disabled={dispatch.items.length === 0}
           onClick={async () => {
             if (
               await confirmDialog({
-                message: `${dispatch.packages.length} palet sevk edilsin mi?`,
+                message: `${loadSummary(dispatch.items)} sevk edilsin mi?`,
                 confirmText: 'Sevk Et',
               })
             )
               completeMut.mutate();
           }}
         >
-          🚚 Sevk Et ({dispatch.packages.length} palet)
+          🚚 Sevk Et ({loadSummary(dispatch.items)})
         </Button>
       )}
 
@@ -614,6 +534,245 @@ export function DispatchDetailPage() {
 }
 
 /** Sevk edilmiş sevkiyatta yanlış aracı/plakayı düzeltmek için araç seçme modalı. */
+/** Yük satırlarını kabule göre gruplar (belge ve liste görünümü için). */
+function groupByReceipt(items: DispatchItem[]) {
+  const map = new Map<
+    string,
+    {
+      receiptId: string;
+      receiptReference: string;
+      customerName?: string | null;
+      waybillNo?: string | null;
+      items: DispatchItem[];
+    }
+  >();
+  for (const i of items) {
+    const g = map.get(i.receiptId) ?? {
+      receiptId: i.receiptId,
+      receiptReference: i.receiptReference,
+      customerName: i.customerName,
+      waybillNo: i.waybillNo,
+      items: [],
+    };
+    g.items.push(i);
+    map.set(i.receiptId, g);
+  }
+  return [...map.values()];
+}
+
+/** "3 palet · 40 adet" gibi özet. */
+function loadSummary(items: DispatchItem[]) {
+  const pkg = items.filter((i) => i.kind === 'PACKAGE').length;
+  const qty = items.filter((i) => i.kind === 'LINE').reduce((s, i) => s + i.qty, 0);
+  const parts = [pkg ? `${pkg} kap` : '', qty ? `${qty} adet` : ''].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Henüz yük yok';
+}
+
+/**
+ * Depodan yük ekleme: kabul başına TEK mod.
+ *  - Paleti olan kabul → palet (kap) seçilir
+ *  - Paleti olmayan kabul → ürün + miktar seçilir (kısmi sevk)
+ */
+function LoadFromStockModal({
+  stops,
+  targetVehicleId,
+  saving,
+  onClose,
+  onLoad,
+}: {
+  stops: DispatchStop[];
+  targetVehicleId: string | null;
+  saving: boolean;
+  onClose: () => void;
+  onLoad: (entries: LoadEntryInput[]) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [stopId, setStopId] = useState('');
+  const [pkgSel, setPkgSel] = useState<Record<string, boolean>>({});
+  const [lineQty, setLineQty] = useState<Record<string, number>>({});
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['stock', { forLoad: true, search }],
+    queryFn: () =>
+      api.get<Paginated<Receipt>>(
+        `/receipts/stock?page=1&pageSize=100&search=${encodeURIComponent(search)}`,
+      ),
+  });
+
+  // Bu sevkiyatın aracına planlı kabuller öne gelsin
+  const receipts = [...(data?.items ?? [])].sort(
+    (a, b) =>
+      Number(!!targetVehicleId && b.plannedVehicle?.id === targetVehicleId) -
+      Number(!!targetVehicleId && a.plannedVehicle?.id === targetVehicleId),
+  );
+
+  const entries: LoadEntryInput[] = [
+    ...Object.entries(pkgSel)
+      .filter(([, v]) => v)
+      .map(([packageId]) => ({ packageId, stopId: stopId || undefined })),
+    ...Object.entries(lineQty)
+      .filter(([, q]) => q > 0)
+      .map(([receiptLineId, qty]) => ({ receiptLineId, qty, stopId: stopId || undefined })),
+  ];
+  const selPkg = entries.filter((e) => e.packageId).length;
+  const selQty = entries.reduce((s, e) => s + (e.qty ?? 0), 0);
+
+  return (
+    <Modal title="Depodan Yük Ekle" onClose={onClose} wide>
+      <div className="space-y-3">
+        <Input
+          placeholder="Ara: müşteri, referans, irsaliye no..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {stops.length > 0 && (
+          <Field label="Durak (opsiyonel — yüklerken doğrudan ata)">
+            <Combobox
+              options={stops.map((s) => ({ value: s.id, label: `${s.seq}. ${s.name}` }))}
+              value={stopId}
+              onChange={setStopId}
+              nullable
+              nullableLabel="Durak atama"
+              placeholder="Durak seç..."
+            />
+          </Field>
+        )}
+
+        {isLoading ? (
+          <Spinner />
+        ) : receipts.length === 0 ? (
+          <EmptyState title="Depoda yük yok" hint="Sevk bekleyen mal kabul bulunamadı." />
+        ) : (
+          <div className="max-h-[45vh] space-y-3 overflow-y-auto">
+            {receipts.map((r) => {
+              const pallets = (r.packages ?? []).filter((p) => !p.dispatchedAt && !p.dispatchId);
+              const openLines = (r.lines ?? []).filter((l) => (l.remainingQty ?? 0) > 0);
+              const palletMode = (r.packages ?? []).length > 0;
+              return (
+                <div key={r.id} className="rounded-lg border border-slate-200 p-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{r.customer?.name}</p>
+                    <PlannedTag planned={r.plannedVehicle} targetId={targetVehicleId} />
+                  </div>
+                  <p className="mb-1.5 text-xs text-slate-500">
+                    {r.reference}
+                    {r.waybillNo ? ` · İrs: ${r.waybillNo}` : ''} ·{' '}
+                    {palletMode ? 'kap bazlı' : 'ürün bazlı'}
+                  </p>
+
+                  {palletMode ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {pallets.map((p) => (
+                        <label
+                          key={p.id}
+                          className={clsx(
+                            'flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-xs',
+                            pkgSel[p.id] ? 'border-brand bg-brand/5' : 'border-slate-200',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!pkgSel[p.id]}
+                            onChange={(e) =>
+                              setPkgSel((s) => ({ ...s, [p.id]: e.target.checked }))
+                            }
+                          />
+                          {p.code}
+                        </label>
+                      ))}
+                      {pallets.length > 1 && (
+                        <button
+                          onClick={() =>
+                            setPkgSel((s) => {
+                              const all = pallets.every((p) => s[p.id]);
+                              const next = { ...s };
+                              pallets.forEach((p) => (next[p.id] = !all));
+                              return next;
+                            })
+                          }
+                          className="text-xs font-medium text-brand"
+                        >
+                          Tümünü seç
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {openLines.map((l) => {
+                        const max = l.remainingQty ?? 0;
+                        const v = lineQty[l.id] ?? 0;
+                        const set = (n: number) =>
+                          setLineQty((s) => ({ ...s, [l.id]: Math.max(0, Math.min(max, n)) }));
+                        return (
+                          <div key={l.id} className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 flex-1 truncate text-xs text-slate-700">
+                              {l.description}
+                            </span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                onClick={() => set(v - 1)}
+                                className="h-6 w-6 rounded border border-slate-300 text-slate-600"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                value={v}
+                                min={0}
+                                max={max}
+                                onChange={(e) => set(Number(e.target.value))}
+                                className="w-14 rounded border border-slate-300 px-1 py-0.5 text-center text-xs"
+                              />
+                              <button
+                                onClick={() => set(v + 1)}
+                                className="h-6 w-6 rounded border border-slate-300 text-slate-600"
+                              >
+                                +
+                              </button>
+                              <button
+                                onClick={() => set(max)}
+                                className="ml-1 whitespace-nowrap text-[11px] font-medium text-brand"
+                              >
+                                /{max} {l.unit}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+          <span className="text-xs text-slate-500">
+            Seçili: {selPkg ? `${selPkg} kap` : ''}
+            {selPkg && selQty ? ' · ' : ''}
+            {selQty ? `${selQty} adet` : ''}
+            {!selPkg && !selQty ? 'yok' : ''}
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Vazgeç
+            </Button>
+            <Button
+              type="button"
+              disabled={entries.length === 0}
+              loading={saving}
+              onClick={() => onLoad(entries)}
+            >
+              Yükle
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /** Durak ekle/düzenle. Kayıtlı müşteri + lokasyon seçilebilir ya da serbest metin girilir. */
 function StopModal({
   dispatchId,

@@ -81,6 +81,9 @@ export const receiptLineSchema = z.object({
   unit: z.string(),
   barcode: z.string().nullable(),
   unitPrice: z.number().nonnegative().nullable().optional(), // birim fiyat (ön ihbardan)
+  // Kalem bazlı sevk: araca yüklenen ve depoda kalan miktar
+  dispatchedQty: z.number().int().optional().default(0),
+  remainingQty: z.number().int().optional().default(0),
 });
 export type ReceiptLine = z.infer<typeof receiptLineSchema>;
 

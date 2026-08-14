@@ -19,6 +19,7 @@ import {
   updateDispatchStopSchema,
   reorderStopsSchema,
   assignToStopSchema,
+  addDispatchItemsSchema,
   updateWaybillSchema,
   dispatchListQuerySchema,
   type CreateDispatchInput,
@@ -30,6 +31,7 @@ import {
   type UpdateDispatchStopInput,
   type ReorderStopsInput,
   type AssignToStopInput,
+  type AddDispatchItemsInput,
   type UpdateWaybillInput,
   type DispatchListQuery,
   type AuthUser,
@@ -86,6 +88,21 @@ export class DispatchController {
   @Delete(':id/packages/:packageId')
   removePackage(@Param('id') id: string, @Param('packageId') packageId: string) {
     return this.dispatchService.removePackage(id, packageId);
+  }
+
+  /** Depodan yük ekle — kalem (ürün + miktar) ya da palet. Kalem bazlı sevkin ana girişi. */
+  @Post(':id/items')
+  addItems(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(addDispatchItemsSchema)) dto: AddDispatchItemsInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dispatchService.addItems(id, dto.items, user.id);
+  }
+
+  @Delete(':id/items/:itemId')
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.dispatchService.removeItem(id, itemId);
   }
 
   @Post(':id/complete')
