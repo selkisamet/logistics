@@ -728,6 +728,13 @@ const SLIP_COPIES: CopyOption[] = [
  *  kapasiteye kilitli — geometri her modda aynı kalmazsa matbu forma hizalama bozulur. */
 const FORM_ROWS = 5;
 
+/** Çoklu yükleme/boşaltma noktalarının adları — A5'e sığsın diye yalnız ad, adres yok.
+ *  (Adresler firma bloğunda ADRESİ satırında; nokta adresleri müşteri detayında.) */
+function pointLabels(points?: { label: string }[]): string {
+  if (!points?.length) return '';
+  return points.map((p) => p.label).join(' · ');
+}
+
 /** Fişin görsel gövdesi — tek bir A5 form (yatay).
  *  `blank`=matbaa master: satır sayısı fişteki veriye göre DEĞİŞMEMELİ, hep FORM_ROWS. */
 function SlipForm({
@@ -843,6 +850,8 @@ function SlipForm({
           <FieldLine label="V. DAİRESİ" value={receipt.customer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.customer?.taxNumber || ''} />
           <FieldLine label="TEL" value={receipt.customer?.phone || ''} />
+          {/* Çoklu yükleme noktası — koşulsuz basılır (boşken de), geometri sabit kalsın */}
+          <FieldLine label="YÜKLEME YERİ" value={pointLabels(receipt.sources)} />
           {/* ADRESİ en sonda: uzunsa alttaki boşluğa sarar, hiçbir alanı itmez */}
           <FieldLine label="ADRESİ" value={receipt.customer?.address || ''} auto />
         </div>
@@ -936,6 +945,8 @@ function SlipForm({
           <FieldLine label="V. DAİRESİ" value={receipt.recipientCustomer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.recipientCustomer?.taxNumber || ''} />
           <FieldLine label="TEL" value={receipt.recipientCustomer?.phone || ''} />
+          {/* Çoklu boşaltma noktası — koşulsuz basılır (boşken de), geometri sabit kalsın */}
+          <FieldLine label="BOŞALTMA YERİ" value={pointLabels(receipt.recipients)} />
           {/* ADRESİ en sonda: uzunsa alttaki boşluğa sarar, hiçbir alanı itmez */}
           <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} auto />
         </div>

@@ -138,6 +138,31 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Sevk edilmiş sevkiyatta düzeltme:** "🚚 Aracı Değiştir" (`PATCH /dispatches/:id/vehicle`; yanlış plaka)
   ve "↩ Sevkiyatı Geri Al" (`cancel`; paletler **ve** paletsiz kabuller depoya döner, durak ataması düşer).
 
+### Kalem bazlı sevk — `DispatchItem` defteri
+
+**`DispatchItem` = "araçta ne var" sorusunun TEK kaynağı.** `Package.dispatchId` bu defterin
+**aynası** (QR okutma akışı için korunur), `Receipt.dispatchId` **DORMANT** (yazılmaz).
+
+- **Tek-granülerlik kuralı:** bir kabulün **paleti varsa KAP** bazlı (palet seçilir), **yoksa KALEM**
+  bazlı (ürün + miktar, kısmi sevk). Karışık kullanım çift sayım yapardı → serviste reddedilir
+  (`loadItems`: paletli kabulde kalem yüklenemez). Paletler kalemlere bağlı olmadığı için
+  "5 paletin 3'ü kaç adet?" sorusu hiç sorulmaz.
+- **Kalan stok:** `ReceiptLine.dispatchedQty` sayacı (defterle **aynı transaction'da** güncellenir);
+  `kalan = countedQty - dispatchedQty`. `findStock` bunu Prisma **alan-referansı** ile tek sorguda
+  filtreler (kod tabanında ham SQL yok, öyle kalsın).
+- **Tek yazma hunisi:** `loadItems`/`unloadItems` ([dispatch.service.ts](apps/api/src/dispatch/dispatch.service.ts)).
+  `addPackage`, `addPackages`, `quickDispatch`, `addItems`, `removeItem`, `cancel` hepsi buradan geçer —
+  başka yerde `package.updateMany({dispatchId})` YAZMAYIN.
+- **İyimser kilit:** `updateMany({ where: { id, dispatchedQty: okunan }, ... })` → `count===0` ise
+  "kalem az önce değişti" hatası (iki operatör aynı kalemi yükleyemez).
+- **İptal:** defter satırları **silinir** (sayaç düşer, palet depoya döner); silinen içerik
+  `AuditEvent.metadata`'ya yazılır. Böylece stok sorguları `status != CANCELLED` filtresi taşımaz.
+- **Geri açma:** `reopen` defterde satırı olan kabulü reddeder (yoksa `countedQty` düşürülüp sayaç bozulur).
+- API: `POST /dispatches/:id/items` (`[{packageId | receiptLineId+qty, stopId?}]`),
+  `DELETE /dispatches/:id/items/:itemId`. UI: "**+ Depodan Yük Ekle**" modalı
+  ([DispatchDetailPage](apps/web/src/pages/DispatchDetailPage.tsx)) — paletli kabulde checkbox,
+  paletsizde `− [miktar] +` (max = kalan).
+
 ### Çok duraklı sevkiyat + Taşıma İrsaliyesi (VUK 240/A)
 
 Bir sefer (Dispatch) = bir araç = **bir taşıma irsaliyesi**. Sefer içinde farklı göndericilerin yükü
@@ -153,8 +178,16 @@ farklı alıcılara/noktalara gidebilir.
   (`shipment.recipientCustomer` + `recipients`) durakları otomatik türetir ve **yalnızca atanmamış**
   yükleri bağlar (elle yapılan atamayı ezmez). Durakları ada göre yeniden kullanır.
 - **Belge:** [WaybillForm.tsx](apps/web/src/components/print/WaybillForm.tsx) — **A4 DİKEY**,
-  `WAYBILL_ROWS = 8`. Satır = **durak × kabul**; sütunlar `SIRA·GÖNDEREN·ALICI·NEREDEN·NEREYE·CİNSİ·MİKTAR`
-  (VUK 209 zorunlu içeriği). Durağa atanmamış yükler sonda **"ATANMAMIŞ"** grubunda + ekranda uyarı.
+  `WAYBILL_ROWS = 8`. Sütunlar klasik parsiyel ambar düzeninde: `TESELLÜM MAKBUZ NO · ADET · NEVİ ·
+  KİLO · MALIN CİNSİ · GÖNDERENİN ADI SOYADI · ALICININ ADI SOYADI · SEVK İRS. NO · TUTARI U/A · TUTARI P/O`
+  (KİLO/TUTAR matbu formda elle doldurulur). Satırlar **defterden** üretilir: kap satırı = durak × kabul ×
+  kap tipi, **kalem satırı = her ürün ayrı** (artık "Muhtelif" yok). Durağa atanmamış yükler sonda
+  **"ATANMAMIŞ"** grubunda + ekranda uyarı.
+  - **173 GT dayanağı:** birden fazla kişinin malı tek araçtaysa gönderici/alıcı adlarının **ayrı
+    sütunlarda** olduğu **liste şeklinde TEK** taşıma irsaliyesi düzenlenir; listeye **tesellüm fişi
+    örnekleri + göndericilerin sevk irsaliyeleri** eklenir (bu yüzden SEVK İRS. NO sütunu var).
+  - **EK LİSTE:** 8 satırı aşan yükler ikinci sayfaya ("TAŞIMA İRSALİYESİ EKİ — YÜK LİSTESİ", düz kağıt,
+    aynı seri/sıra no'ya atıfla) basılır. Matbu form 8 satır kalır.
 - **Nüsha etiketleri tesellüm fişinden FARKLI** (VUK): ①GÖNDERİCİ (eşyayı taşıttıran) ②ARAÇTA (sürücü)
   ③DOSYA (bizde saklanır).
 - **Seri/sıra no'yu ANLAŞMALI MATBAA basar** — uygulama üretmez. Operatör eldeki matbu formun numarasını

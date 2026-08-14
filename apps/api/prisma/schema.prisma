@@ -278,10 +278,11 @@ model Receipt {
   startedBy   User?         @relation("ReceiptStartedBy", fields: [startedById], references: [id])
   startedAt   DateTime      @default(now())
   completedAt DateTime?
-  dispatchedAt DateTime? // sevk edildiğinde dolar; null ise hâlâ depoda
+  // DORMANT (kabul düzeyi sevk): artık yazılmaz — sevk DispatchItem defterinden yürür.
+  // Kolonlar eski kayıtlar ve iptal temizliği için duruyor.
+  dispatchedAt DateTime?
   dispatchId  String?
   dispatch    Dispatch?     @relation(fields: [dispatchId], references: [id])
-  // Çok duraklı sevkiyatta bu kabul hangi durakta inecek (paletsiz kabuller için)
   stopId      String?
   stop        DispatchStop? @relation(fields: [stopId], references: [id])
 

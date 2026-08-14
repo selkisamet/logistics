@@ -33,7 +33,9 @@ const COLS: { label: string; w: number }[] = [
   { label: 'MALIN CİNSİ', w: 13 },
   { label: 'GÖNDERENİN ADI SOYADI', w: 17 },
   { label: 'ALICININ ADI SOYADI', w: 17 },
-  { label: 'FATURA NO', w: 7 },
+  // 173 GT: liste irsaliyesine göndericilerin SEVK İRSALİYESİ eklenmesi zorunlu —
+  // eşleştirme anahtarı olarak numarası burada basılır.
+  { label: 'SEVK İRS. NO', w: 7 },
   { label: 'TUTARI U/A', w: 8 },
   { label: 'TUTARI P/O', w: 8 },
 ];
@@ -59,67 +61,74 @@ type WaybillLine = {
   key: string;
   receiptRef: string; // TESELLÜM MAKBUZ NO — fişle eşleşme
   qty: string; // ADET
-  unit: string; // NEVİ (palet/koli/IBC...)
+  unit: string; // NEVİ (palet/koli/IBC... ya da kalem birimi)
   kind: string; // MALIN CİNSİ
   sender: string; // GÖNDERENİN ADI SOYADI
   recipient: string; // ALICININ ADI SOYADI
+  dispatchNote: string; // SEVK İRS. NO (göndericinin irsaliyesi)
 };
 
-/** Sevkiyattaki yükleri duraklara göre satırlara böler. Durağı olmayanlar sonda listelenir. */
+/**
+ * Sevkiyat defterini (items) belge satırlarına çevirir. Durağı olmayanlar sonda "ATANMAMIŞ".
+ *  - KAP satırları: durak × kabul × kap tipi → tek satır (ADET = kap sayısı)
+ *  - KALEM satırları: durak × kalem → ayrı satır (ADET = miktar, MALIN CİNSİ = ürün adı)
+ * Kalem bazlı sevkte artık "Muhtelif" yok — gerçek ürün dökümü basılır.
+ */
 export function buildWaybillLines(d: Dispatch): WaybillLine[] {
-  const lines: WaybillLine[] = [];
+  const out: WaybillLine[] = [];
   const stops = [...(d.stops ?? [])].sort((a, b) => a.seq - b.seq);
-  // stopId -> durak; null anahtarı "atanmamış" grubudur
   const groups: { stopId: string | null; name: string }[] = [
     ...stops.map((s) => ({ stopId: s.id, name: s.name })),
     { stopId: null, name: 'ATANMAMIŞ' },
   ];
 
   for (const g of groups) {
-    // Bu duraktaki paletleri kabule göre grupla (aynı kabulden çok palet → tek satır)
-    const pkgs = d.packages.filter((p) => (p.stopId ?? null) === g.stopId);
-    const byReceipt = new Map<
-      string,
-      { sender: string; ref: string; kind: string; count: number; types: Set<string> }
-    >();
-    for (const p of pkgs) {
-      const key = p.receiptId ?? p.receiptReference;
-      const cur = byReceipt.get(key) ?? {
-        sender: p.customerName ?? '',
-        ref: p.receiptReference,
-        kind: p.goodsKind ?? '',
+    const mine = (d.items ?? []).filter((i) => (i.stopId ?? null) === g.stopId);
+
+    // Kap satırları: kabul + kap tipine göre topla
+    const byPkg = new Map<string, { ref: string; sender: string; kind: string; note: string; unit: string; count: number }>();
+    for (const i of mine.filter((x) => x.kind === 'PACKAGE')) {
+      const unit = PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit;
+      const key = `${i.receiptId}|${unit}`;
+      const cur = byPkg.get(key) ?? {
+        ref: i.receiptReference,
+        sender: i.customerName ?? '',
+        kind: i.description,
+        note: i.waybillNo ?? '',
+        unit,
         count: 0,
-        types: new Set<string>(),
       };
-      cur.count += 1;
-      cur.types.add(PACKAGE_TYPE_LABELS[p.type as PackageType] ?? p.type);
-      byReceipt.set(key, cur);
+      cur.count += i.qty;
+      byPkg.set(key, cur);
     }
-    for (const [key, r] of byReceipt) {
-      lines.push({
+    for (const [key, p] of byPkg) {
+      out.push({
         key: `${g.stopId ?? 'x'}-p-${key}`,
-        receiptRef: r.ref,
-        qty: String(r.count),
-        unit: r.types.size === 1 ? [...r.types][0] : 'Muhtelif',
-        kind: r.kind,
-        sender: r.sender,
+        receiptRef: p.ref,
+        qty: String(p.count),
+        unit: p.unit,
+        kind: p.kind,
+        sender: p.sender,
         recipient: g.name,
+        dispatchNote: p.note,
       });
     }
-    // Paletsiz (kabul düzeyi) sevkler — adet satır toplamından gelir
-    for (const rc of (d.receipts ?? []).filter((r) => (r.stopId ?? null) === g.stopId)) {
-      lines.push({
-        key: `${g.stopId ?? 'x'}-r-${rc.id}`,
-        receiptRef: rc.reference,
-        qty: String(rc.itemCount),
-        unit: 'Adet',
-        kind: rc.goodsKind ?? '',
-        sender: rc.customerName ?? '',
+
+    // Kalem satırları: her ürün ayrı satır
+    for (const i of mine.filter((x) => x.kind === 'LINE')) {
+      out.push({
+        key: `${g.stopId ?? 'x'}-l-${i.id}`,
+        receiptRef: i.receiptReference,
+        qty: String(i.qty),
+        unit: i.unit,
+        kind: i.description,
+        sender: i.customerName ?? '',
         recipient: g.name,
+        dispatchNote: i.waybillNo ?? '',
       });
     }
   }
-  return lines;
+  return out;
 }
 
 export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClose: () => void }) {
@@ -148,8 +157,8 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
         <>
           {lines.length > WAYBILL_ROWS && (
             <div>
-              ⚠ Bu sevkiyatta {lines.length} satır var; matbu form {WAYBILL_ROWS} satırlık. Fazlası
-              basılı kutuların dışına taşar — sevkiyatı bölün.
+              ℹ Bu sevkiyatta {lines.length} satır var; ilk {WAYBILL_ROWS} satır matbu forma, kalan{' '}
+              {lines.length - WAYBILL_ROWS} satır <b>EK LİSTE</b> sayfasına basılır (düz kağıt).
             </div>
           )}
           {unassigned > 0 && (
@@ -161,6 +170,10 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
           {!COMPANY.taxNumber && (
             <div>⚠ Taşıyıcı vergi dairesi/VKN girilmemiş (yasal zorunlu) — company.ts'e ekleyin.</div>
           )}
+          <div>
+            📎 173 GT: Bu irsaliyeye <b>tesellüm fişi örnekleri</b> ve göndericilerin{' '}
+            <b>sevk irsaliyeleri</b> eklenmelidir.
+          </div>
         </>
       }
     >
@@ -182,10 +195,13 @@ function WaybillDoc({
   blank: boolean;
   lines: WaybillLine[];
 }) {
-  // Master (blank) modda satırlar veriden bağımsız — hep WAYBILL_ROWS boş satır
-  const rows = blank ? [] : lines;
+  // Master (blank) modda satırlar veriden bağımsız — hep WAYBILL_ROWS boş satır.
+  // Taşan satırlar EK LİSTE sayfasına gider (173 GT "liste şeklinde irsaliye" yapısı).
+  const all = blank ? [] : lines;
+  const rows = all.slice(0, WAYBILL_ROWS);
+  const annex = all.slice(WAYBILL_ROWS);
   const blanks = Math.max(0, WAYBILL_ROWS - rows.length);
-  const totalQty = rows.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  const totalQty = all.reduce((s, l) => s + (Number(l.qty) || 0), 0);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const docUrl = origin ? `${origin}/sevkiyat/${dispatch.id}` : dispatch.reference;
@@ -212,9 +228,13 @@ function WaybillDoc({
   const serial = [dispatch.waybillSerial, dispatch.waybillNo].filter(Boolean).join(' - ');
   // ÇIKIŞ YERİ = yükün alındığı depo (tüm kabuller aynı depodan gelir; ilkini kullan)
   const departure =
-    dispatch.packages[0]?.warehouseName ?? dispatch.receipts?.[0]?.warehouseName ?? '';
+    dispatch.items?.[0]?.warehouseName ??
+    dispatch.packages[0]?.warehouseName ??
+    dispatch.receipts?.[0]?.warehouseName ??
+    '';
 
   return (
+    <>
     <div className="slip-chrome flex min-h-[277mm] flex-1 flex-col border-2 border-sky-800">
       {/* Başlık: logo + yetki belgeleri + QR | belge bilgileri */}
       <div className="flex border-b-2 border-sky-800">
@@ -343,7 +363,9 @@ function WaybillDoc({
                 <td className={td}>
                   <span className="slip-data">{l.recipient}</span>
                 </td>
-                <td className={td} />
+                <td className={`${td} text-center`}>
+                  <span className="slip-data">{l.dispatchNote}</span>
+                </td>
                 <td className={td} />
                 <td className={td} />
               </tr>
@@ -432,5 +454,82 @@ function WaybillDoc({
         </div>
       </div>
     </div>
+
+    {/* EK LİSTE — matbu form 8 satırı aşarsa kalanlar düz kağıda basılır.
+        173 GT zaten "liste şeklinde" irsaliye öngörüyor; ek, ana belgenin parçasıdır. */}
+    {annex.length > 0 && (
+      <div className="slip-chrome mt-4 break-before-page border-2 border-sky-800">
+        <div className="flex items-start justify-between border-b-2 border-sky-800 p-2">
+          <div>
+            <h2 className="text-sm font-black tracking-wide text-sky-800">
+              TAŞIMA İRSALİYESİ EKİ — YÜK LİSTESİ
+            </h2>
+            <p className="text-[8px] text-slate-600">
+              Bu liste, <span className="slip-data font-semibold">{serial || '—'}</span> seri/sıra
+              numaralı taşıma irsaliyesinin ekidir ve onunla birlikte hüküm ifade eder.
+            </p>
+          </div>
+          <div className="w-[45%] space-y-0.5">
+            <MetaLine label="SEVKİYAT REF." value={dispatch.reference} labelWidth={92} />
+            <MetaLine label="PLAKA NO" value={trailer ? `${plate} / ${trailer}` : plate} labelWidth={92} />
+            <MetaLine
+              label="TARİH"
+              value={formatDate(dispatch.waybillDate ?? dispatch.dispatchedAt ?? dispatch.createdAt)}
+              labelWidth={92}
+            />
+          </div>
+        </div>
+        <table className="w-full table-fixed border-collapse">
+          <thead>
+            <tr>
+              {COLS.map((c) => (
+                <th key={c.label} className={th} style={{ width: `${c.w}%` }}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {annex.map((l, idx) => (
+              <tr key={l.key} className={rowH}>
+                <td className={`${td} border-x border-sky-800 text-center`}>
+                  <span className="slip-data">{l.receiptRef}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800 text-center font-semibold`}>
+                  <span className="slip-data">{l.qty}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800`}>
+                  <span className="slip-data">{l.unit}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800`} />
+                <td className={`${td} border-x border-sky-800`}>
+                  <span className="slip-data">{l.kind}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800`}>
+                  <span className="slip-data">{l.sender}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800`}>
+                  <span className="slip-data">{l.recipient}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800 text-center`}>
+                  <span className="slip-data">{l.dispatchNote}</span>
+                </td>
+                <td className={`${td} border-x border-sky-800`} />
+                <td className={`${td} border-x border-sky-800`}>
+                  <span className="slip-data text-[7px] text-slate-400">
+                    {WAYBILL_ROWS + idx + 1}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="border-t-2 border-sky-800 p-2 text-[8px] text-slate-600">
+          Ek listedeki satırlar dâhil <span className="slip-data font-bold">{totalQty}</span> adet /
+          kap taşınmaktadır. · {COMPANY.name}
+        </div>
+      </div>
+    )}
+    </>
   );
 }
