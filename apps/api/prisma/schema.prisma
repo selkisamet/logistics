@@ -83,6 +83,9 @@ model Customer {
   address     String?
   taxOffice   String? // vergi dairesi
   taxNumber   String? // vergi numarası
+  // Pasif müşteri listede/seçimde görünmez ama GEÇMİŞ BELGELERİ korunur.
+  // Geçmişi olan müşteri silinemez (fiş/irsaliye müşteri bilgisini canlı okur, VUK 5 yıl saklama).
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

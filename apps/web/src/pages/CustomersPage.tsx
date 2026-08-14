@@ -16,13 +16,16 @@ import { useAuthStore } from '../stores/auth';
 export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const canEdit = useCanEdit();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', { search }],
+    queryKey: ['customers', { search, showInactive }],
     queryFn: () =>
       api.get<Paginated<Customer>>(
-        `/customers?page=1&pageSize=50&search=${encodeURIComponent(search)}`,
+        `/customers?page=1&pageSize=50&search=${encodeURIComponent(search)}${
+          showInactive ? '&includeInactive=true' : ''
+        }`,
       ),
   });
 
@@ -39,6 +42,15 @@ export function CustomersPage() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
+      <label className="flex items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={(e) => setShowInactive(e.target.checked)}
+        />
+        Pasif müşterileri de göster
+      </label>
+
       {isLoading ? (
         <Spinner />
       ) : !data || data.items.length === 0 ? (
@@ -49,7 +61,14 @@ export function CustomersPage() {
             <Link key={c.id} to={`/musteriler/${c.id}`}>
               <Card className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-slate-900">{c.name}</p>
+                  <p className="font-semibold text-slate-900">
+                    {c.name}
+                    {c.isActive === false && (
+                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        Pasif
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-slate-500">
                     {c.code}
                     {c.contactName ? ` · ${c.contactName}` : ''}

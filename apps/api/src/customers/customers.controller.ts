@@ -15,14 +15,16 @@ import {
   createCustomerLocationSchema,
   createCustomerRecipientSchema,
   createCustomerContactSchema,
-  paginationQuerySchema,
+  customerListQuerySchema,
+  setCustomerActiveSchema,
   UserRole,
   type CreateCustomerInput,
   type UpdateCustomerInput,
   type CreateCustomerLocationInput,
   type CreateCustomerRecipientInput,
   type CreateCustomerContactInput,
-  type PaginationQuery,
+  type CustomerListQuery,
+  type SetCustomerActiveInput,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -36,13 +38,31 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  findAll(@Query(new ZodValidationPipe(paginationQuerySchema)) query: PaginationQuery) {
+  findAll(
+    @Query(new ZodValidationPipe(customerListQuerySchema)) query: CustomerListQuery,
+  ) {
     return this.customersService.findAll(query);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);
+  }
+
+  /** Geçmiş kayıt sayıları — UI "Sil" mi "Pasife Al" mı göstereceğine buna bakar. */
+  @Get(':id/usage')
+  usage(@Param('id') id: string) {
+    return this.customersService.usage(id);
+  }
+
+  /** Pasife al / aktife al — geçmişi olan müşteriler için silme yerine bu kullanılır. */
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/active')
+  setActive(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setCustomerActiveSchema)) dto: SetCustomerActiveInput,
+  ) {
+    return this.customersService.setActive(id, dto.isActive);
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)

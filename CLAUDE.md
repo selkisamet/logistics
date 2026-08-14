@@ -221,6 +221,11 @@ farklı alıcılara/noktalara gidebilir.
   elle `migration.sql` + `prisma migrate deploy` (non-interactive ortamda `migrate dev` bloklanır).
 - **Client üretimi EPERM:** `prisma generate` çalışan BASLAT node süreçleri motor DLL'ini kilitler.
   Çözüm: önce node'u durdur (`Stop-Process -Name node -Force`), `pnpm prisma generate`, sonra tekrar BASLAT.
+- **Müşteri silme:** Geçmişi olan müşteri **SİLİNEMEZ** (409) — fiş/irsaliye müşteri bilgisini (ünvan,
+  VD/VKN, adres) **canlı okur**, snapshot yok; ayrıca VUK belge saklama. `GET /customers/:id/usage`
+  sayar (gönderici/alıcı ön ihbar, mal kabul, sevkiyat durağı); UI buna göre **Sil** ya da
+  **Pasife Al** gösterir. `Customer.isActive=false` → listede/seçimde görünmez, belgeler sağlam.
+  Hiç kullanılmamış müşteri gerçekten silinir (yanlış açılan kayıt; alt kayıtlar cascade gider).
 - **Alıcı = kayıtlı Müşteri:** Ön ihbarda gönderici (customerId) ve alıcı (recipientCustomerId) ikisi de Customer;
   her birinin `CustomerLocation`'ları yükleme/boşaltma yeridir. `CustomerRecipient` dormant (kullanılmıyor).
   Müşteride `taxOffice`/`taxNumber` + çoklu `CustomerContact` (ad/görev/tel/e-posta/dahili). **Fişte GÖNDEREN/ALICI

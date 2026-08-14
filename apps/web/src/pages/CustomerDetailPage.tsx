@@ -9,11 +9,13 @@ import {
   type Customer,
   type CustomerLocation,
   type CustomerContact,
+  type CustomerUsage,
   type CreateCustomerLocationInput,
   type CreateCustomerContactInput,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { confirmDialog } from '../lib/dialog';
+import { toast } from '../lib/toast';
 import {
   Button,
   Card,
@@ -27,9 +29,22 @@ import {
 import { CustomerForm } from './CustomersPage';
 import { useAuthStore } from '../stores/auth';
 
+/** "3 ön ihbar, 2 mal kabul" gibi — neden silinemediğini kullanıcıya açıklar. */
+function usageText(u?: CustomerUsage): string {
+  if (!u) return '';
+  const parts = [
+    u.asSender ? `${u.asSender} ön ihbar (gönderici)` : '',
+    u.asRecipient ? `${u.asRecipient} ön ihbar (alıcı)` : '',
+    u.receipts ? `${u.receipts} mal kabul` : '',
+    u.stops ? `${u.stops} sevkiyat durağı` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') + ' kaydı var' : 'geçmiş kaydı yok';
+}
+
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'ADMIN' || role === 'SUPERVISOR';
   const [editing, setEditing] = useState(false);
@@ -53,6 +68,31 @@ export function CustomerDetailPage() {
     queryFn: () => api.get<CustomerContact[]>(`/customers/${id}/contacts`),
     enabled: !!id,
   });
+  // Geçmiş kayıt sayıları — "Sil" mi "Pasife Al" mı göstereceğimizi belirler
+  const { data: usage } = useQuery({
+    queryKey: ['customers', id, 'usage'],
+    queryFn: () => api.get<CustomerUsage>(`/customers/${id}/usage`),
+    enabled: !!id,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () => api.delete(`/customers/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      toast('Müşteri silindi');
+      navigate('/musteriler', { replace: true });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Silinemedi'),
+  });
+  const activeMut = useMutation({
+    mutationFn: (isActive: boolean) => api.patch(`/customers/${id}/active`, { isActive }),
+    onSuccess: (_d, isActive) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      toast(isActive ? 'Müşteri aktife alındı' : 'Müşteri pasife alındı');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Değiştirilemedi'),
+  });
+
   if (isLoading) return <Spinner />;
   if (!customer) return <p className="text-slate-500">Müşteri bulunamadı.</p>;
 
@@ -63,12 +103,61 @@ export function CustomerDetailPage() {
       </button>
 
       <Card className="space-y-1">
-        <div className="flex items-start justify-between">
-          <h2 className="text-xl font-bold text-slate-900">{customer.name}</h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-xl font-bold text-slate-900">
+            {customer.name}
+            {customer.isActive === false && (
+              <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                Pasif
+              </span>
+            )}
+          </h2>
           {canEdit && (
-            <Button variant="secondary" onClick={() => setEditing(true)}>
-              Düzenle
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                Düzenle
+              </Button>
+              {/* Geçmişi olan müşteri SİLİNEMEZ (belgeler müşteri bilgisini canlı okur) */}
+              {usage?.deletable ? (
+                <Button
+                  variant="danger"
+                  loading={deleteMut.isPending}
+                  onClick={async () => {
+                    if (
+                      await confirmDialog({
+                        title: 'Müşteriyi sil',
+                        message: `"${customer.name}" silinsin mi? Bu müşterinin hiç ön ihbar/mal kabul kaydı yok. Yetkili ve lokasyon kayıtları da silinir.`,
+                        confirmText: 'Sil',
+                        danger: true,
+                      })
+                    )
+                      deleteMut.mutate();
+                  }}
+                >
+                  Sil
+                </Button>
+              ) : (
+                <Button
+                  variant={customer.isActive === false ? 'primary' : 'secondary'}
+                  loading={activeMut.isPending}
+                  onClick={async () => {
+                    const toPassive = customer.isActive !== false;
+                    if (
+                      await confirmDialog({
+                        title: toPassive ? 'Pasife al' : 'Aktife al',
+                        message: toPassive
+                          ? `"${customer.name}" pasife alınsın mı? Listede ve ön ihbar seçiminde görünmez; geçmiş belgeleri korunur. (${usageText(usage)})`
+                          : `"${customer.name}" tekrar aktif edilsin mi?`,
+                        confirmText: toPassive ? 'Pasife Al' : 'Aktife Al',
+                      })
+                    )
+                      activeMut.mutate(!toPassive);
+                  }}
+                >
+                  {customer.isActive === false ? 'Aktife Al' : 'Pasife Al'}
+                </Button>
+              )}
+            </div>
           )}
         </div>
         <p className="text-sm text-slate-500">Kod: {customer.code}</p>

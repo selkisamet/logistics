@@ -15,16 +15,20 @@ import type {
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: PaginationQuery) {
+  async findAll(query: PaginationQuery & { includeInactive?: boolean }) {
     const { page, pageSize, search } = query;
-    const where: Prisma.CustomerWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { code: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.CustomerWhereInput = {
+      // Pasif müşteriler varsayılan olarak gizli (seçim listelerine de düşmesinler)
+      ...(query.includeInactive ? {} : { isActive: true }),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { code: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
@@ -90,10 +94,47 @@ export class CustomersService {
     return this.prisma.customer.update({ where: { id }, data: this.normalize(input) });
   }
 
+  /** Müşterinin geçmiş kayıt sayıları — silinebilir mi kararını bu belirler. */
+  async usage(id: string) {
+    const [asSender, asRecipient, receipts, stops] = await this.prisma.$transaction([
+      this.prisma.inboundShipment.count({ where: { customerId: id } }),
+      this.prisma.inboundShipment.count({ where: { recipientCustomerId: id } }),
+      this.prisma.receipt.count({ where: { customerId: id } }),
+      this.prisma.dispatchStop.count({ where: { customerId: id } }),
+    ]);
+    const total = asSender + asRecipient + receipts + stops;
+    return { asSender, asRecipient, receipts, stops, total, deletable: total === 0 };
+  }
+
+  /**
+   * Müşteriyi siler — YALNIZCA hiç kullanılmamışsa (yanlış açılan kayıt için).
+   * Geçmişi olan müşteri silinemez: tesellüm fişi / taşıma irsaliyesi müşteri
+   * bilgisini canlı okur ve belgeler VUK gereği saklanmalıdır → "pasife al".
+   */
   async remove(id: string) {
     await this.findOne(id);
+    const u = await this.usage(id);
+    if (!u.deletable) {
+      const parts = [
+        u.asSender ? `${u.asSender} ön ihbar (gönderici)` : '',
+        u.asRecipient ? `${u.asRecipient} ön ihbar (alıcı)` : '',
+        u.receipts ? `${u.receipts} mal kabul` : '',
+        u.stops ? `${u.stops} sevkiyat durağı` : '',
+      ].filter(Boolean);
+      throw new ConflictException(
+        `Bu müşterinin ${parts.join(', ')} kaydı var; silinemez. Bunun yerine "Pasife Al" kullanın — ` +
+          'listede görünmez ama geçmiş belgeleri korunur.',
+      );
+    }
+    // Kullanılmamış müşteri: yetkili/lokasyon/alıcı kayıtları cascade ile birlikte gider
     await this.prisma.customer.delete({ where: { id } });
     return { success: true };
+  }
+
+  /** Pasife al / aktife al (soft delete) — geçmiş belgeler etkilenmez. */
+  async setActive(id: string, isActive: boolean) {
+    await this.findOne(id);
+    return this.prisma.customer.update({ where: { id }, data: { isActive } });
   }
 
   // ---- Müşteri kaynak depoları ----

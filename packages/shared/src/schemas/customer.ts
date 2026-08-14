@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationQuerySchema } from './common';
 
 export const createCustomerSchema = z.object({
   name: z.string().min(2, 'Müşteri adı gerekli'),
@@ -30,9 +31,31 @@ export const customerSchema = z.object({
   address: z.string().nullable(),
   taxOffice: z.string().nullable().optional(),
   taxNumber: z.string().nullable().optional(),
+  // Pasif müşteri listede/seçimde görünmez; geçmiş belgeleri korunur
+  isActive: z.boolean().optional().default(true),
   createdAt: z.string(),
 });
 export type Customer = z.infer<typeof customerSchema>;
+
+/** Müşteri listesi sorgusu — pasifleri de göstermek için `includeInactive`. */
+export const customerListQuerySchema = paginationQuerySchema.extend({
+  includeInactive: z.preprocess((v) => v === true || v === 'true', z.boolean()).optional(),
+});
+export type CustomerListQuery = z.infer<typeof customerListQuerySchema>;
+
+export const setCustomerActiveSchema = z.object({ isActive: z.boolean() });
+export type SetCustomerActiveInput = z.infer<typeof setCustomerActiveSchema>;
+
+/** Müşterinin geçmiş kayıt sayıları — silinebilir mi kararı. */
+export const customerUsageSchema = z.object({
+  asSender: z.number().int(),
+  asRecipient: z.number().int(),
+  receipts: z.number().int(),
+  stops: z.number().int(),
+  total: z.number().int(),
+  deletable: z.boolean(),
+});
+export type CustomerUsage = z.infer<typeof customerUsageSchema>;
 
 /** Müşteri yetkili kişisi (çoklu). */
 export const createCustomerContactSchema = z.object({
