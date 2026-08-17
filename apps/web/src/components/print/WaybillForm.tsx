@@ -79,6 +79,15 @@ type WaybillLine = {
  *  gereksiz: her satırın ALICI'sı tabloda zaten yazıyor. Bu yüzden:
  *   - kısa bir ad girilmişse onu bas ("Avrupa Yakası")
  *   - girilmemiş ya da sığmayacak kadar uzunsa "MUHTELİF (N durak)" bas */
+/** NEVİ hücresi: yükün kap cinsi (Palet, Varil, Big-bag, IBC...).
+ *  Kap satırlarında `unit` = PackageType enum'u, kalem satırlarında ön ihbarda seçilen
+ *  Türkçe kap etiketi gelir. Eski kayıtlarda ham 'ADET' bulunabilir → hepsi okunur etikete çevrilir. */
+function unitLabel(u: string): string {
+  const byEnum = PACKAGE_TYPE_LABELS[u as PackageType];
+  if (byEnum) return byEnum;
+  return u.toUpperCase() === 'ADET' ? 'Adet' : u;
+}
+
 const DEST_MAX = 34;
 function destinationText(d: Dispatch): string {
   const raw = (d.destination ?? '').trim();
@@ -127,7 +136,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
       { ref: string; sender: string; kind: string; note: string; unit: string; count: number; recipient: string }
     >();
     for (const i of mine.filter((x) => x.kind === 'PACKAGE')) {
-      const unit = PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit;
+      const unit = unitLabel(i.unit);
       const recipient = recipientOf(i, g.stop);
       const key = `${i.receiptId}|${unit}|${recipient}`;
       const cur = byPkg.get(key) ?? {
@@ -161,7 +170,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         key: `${g.stopId ?? 'x'}-l-${i.id}`,
         receiptRef: i.receiptReference,
         qty: String(i.qty),
-        unit: i.unit,
+        unit: unitLabel(i.unit),
         kind: i.description,
         sender: i.customerName ?? '',
         recipient: recipientOf(i, g.stop),

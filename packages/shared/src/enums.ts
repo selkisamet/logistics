@@ -60,6 +60,7 @@ export const PackageType = {
   CASE: 'CASE', // kasa
   BAG: 'BAG', // torba/çuval
   BIGBAG: 'BIGBAG', // big-bag
+  IBC: 'IBC', // IBC tank (kimyasal sektöründe yaygın)
   UNIT: 'UNIT', // adet
   OTHER: 'OTHER', // diğer
 } as const;

@@ -8,6 +8,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   upsertReceiptLineSchema,
   PACKAGE_TYPE_LABELS,
+  KAP_TYPES,
   PACKAGE_TYPES,
   DISCREPANCY_TYPE_LABELS,
   VAT_RATE,
@@ -24,12 +25,22 @@ import { formatDate, formatMoney } from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { Button, Card, Combobox, Field, Input, Spinner, Badge } from '../components/ui';
+import { Button, Card, Combobox, Field, Input, Select, Spinner, Badge } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { WaybillCamera } from '../components/WaybillCamera';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
+
+/** Fişteki KAP hücresi: kalemin nev'i. Enum geldiyse (eski/otomatik kayıt) etikete çevir,
+ *  ham 'ADET' değerini okunur yaz, boşsa hücre boş kalsın (elle doldurulur). */
+function kapLabel(unit: string | null | undefined): string {
+  const u = (unit ?? '').trim();
+  if (!u) return '';
+  const byEnum = PACKAGE_TYPE_LABELS[u as keyof typeof PACKAGE_TYPE_LABELS];
+  if (byEnum) return byEnum;
+  return u.toUpperCase() === 'ADET' ? 'Adet' : u;
+}
 
 export function ReceiptCountPage() {
   const { id } = useParams<{ id: string }>();
@@ -635,7 +646,7 @@ function AddLineModal({
       barcode: prefill.barcode ?? '',
       description: prefill.description ?? '',
       countedQty: prefill.qty ?? 1,
-      unit: 'ADET',
+      unit: 'Palet',
     },
   });
   const scannedCode = prefill.barcode ?? prefill.sku;
@@ -653,12 +664,22 @@ function AddLineModal({
           {/* Okutulan kod arka planda barkod/sku olarak saklanır (sonraki okutmalar eşleşsin) */}
           <input type="hidden" {...register('sku')} />
           <input type="hidden" {...register('barcode')} />
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Field label="Açıklama *" error={errors.description?.message}>
-              <Input placeholder="Örn. Muhtelif palet" {...register('description')} />
-            </Field>
+          <Field label="Malın Cinsi *" error={errors.description?.message}>
+            <Input placeholder="Örn. Boya, Tiner" {...register('description')} />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
             <Field label="Adet *" error={errors.countedQty?.message}>
               <Input type="number" min={0} {...register('countedQty')} />
+            </Field>
+            {/* NEVİ = kap tipi; taşıma irsaliyesindeki NEVİ sütununa basılır */}
+            <Field label="Nevi (kap) *" error={errors.unit?.message}>
+              <Select {...register('unit')}>
+                {KAP_TYPES.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
           <div className="flex gap-2">
@@ -879,7 +900,10 @@ function SlipForm({
                   <td className={`${td} text-right font-semibold`}>
                     <span className="slip-data">{l.countedQty}</span>
                   </td>
-                  <td className={td} />
+                  {/* KAP = kalemin nev'i (ön ihbarda seçilir); eski kayıtlarda boş/ham olabilir */}
+                  <td className={`${td} text-center`}>
+                    <span className="slip-data">{kapLabel(l.unit)}</span>
+                  </td>
                   <td className={td} />
                   <td className={`${td} text-right`}>
                     {showAmount && lineAmount(l) != null ? (

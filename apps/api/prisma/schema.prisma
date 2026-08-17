@@ -47,6 +47,7 @@ enum PackageType {
   DRUM
   BAG
   BIGBAG
+  IBC
   OTHER
 }
 

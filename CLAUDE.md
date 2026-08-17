@@ -80,7 +80,16 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - ASN: oto referans, opsiyonel araç/tarih, **çoklu kaynak** (müşteri deposu + serbest metin) ve
   **çoklu alıcı** (firmanın kendi müşterileri = malın gideceği taraf; CustomerRecipient + ShipmentRecipient,
   kaynak deseninin birebir aynası; müşteri detayında yönetilir, ön ihbarda çoklu seçilir).
-  Satır = **Açıklama + Adet + opsiyonel Birim Fiyat** (SKU/Barkod kaldırıldı; müşteri belgelerinde İrsaliye No + Sipariş No + irsaliye QR var, ürün barkodu yok).
+  Satır = **Malın Cinsi + Adet + Nevi (kap) + opsiyonel Birim Fiyat** (SKU/Barkod kaldırıldı; müşteri belgelerinde İrsaliye No + Sipariş No + irsaliye QR var, ürün barkodu yok).
+  - **Nevi (kap):** `ShipmentLine.unit`/`ReceiptLine.unit` (serbest metin, Türkçe **etiket** saklanır).
+    Seçenekler `KAP_TYPES` ([shared/schemas/receipt.ts](packages/shared/src/schemas/receipt.ts)) =
+    `Object.values(PACKAGE_TYPE_LABELS)` — **QR palet tipleriyle TEK liste** (Palet/Varil/Koli/Kasa/
+    Torba-Çuval/Big-bag/**IBC**/Adet/Diğer), ayrışmasın. Varsayılan `'Palet'`. Ön ihbar satırında ve
+    kör kabulün "Kalem Ekle" modalında `<Select>` ile seçilir; mal kabule kopyalanır.
+    **Basıldığı yerler:** taşıma irsaliyesi **NEVİ** sütunu (`unitLabel()`, kap satırında enum → etiket)
+    ve tesellüm fişi **KAP** sütunu (`kapLabel()`; eskiden elle doldurulurdu). Eski kayıtlardaki ham
+    `'ADET'` her üç yerde etikete normalize edilir (`toKap()` ön ihbar düzenlemede — aksi halde
+    listede olmayan değer seçimi boşaltıp kaydedince kapı silerdi).
   - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive:
     `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
     ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi).
@@ -97,7 +106,7 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)). Klasik **"Ambar Tesellüm Fişi"** form düzeni,
   **A5 YATAY**: kaşe/QR + ünvan, fiş bilgileri (seri/sıra no=fiş ref, tarih, gönderici sevk irs.=irsaliye no,
   sipariş no, ön ihbar), Alıcı/Teslim Alan (ambar) + Gönderen/Teslim Eden (müşteri) blokları, MALIN CİNSİ tablosu
-  (Sıra·Cins·Adet·Kap·Kg·Ücret; kap/kg/ücret elle), gönderici/alıcı ödemeli kutuları, "tam ve sağlam teslim aldım"
+  (Sıra·Cins·Adet·Kap·Kg·Ücret; **kap kalemin nev'inden basılır**, kg/ücret elle), gönderici/alıcı ödemeli kutuları, "tam ve sağlam teslim aldım"
   beyanı + kaşe. **Baskı `react-to-print` ile** (izole iframe → sayfalama düzgün, kırpılma/tekrarlama YOK; eski
   `window.print()`+`position:absolute` hilesi kaldırıldı — o yaklaşım fixed-modal'ı her sayfada tekrarlıyordu).
   `@page`/ölçü `useReactToPrint({ pageStyle })` ile verilir; kök `.slip-doc`. **QR etiketleri hâlâ eski
@@ -205,7 +214,7 @@ farklı alıcılara/noktalara gidebilir.
 - **Belge:** [WaybillForm.tsx](apps/web/src/components/print/WaybillForm.tsx) — **A4 DİKEY**,
   `WAYBILL_ROWS = 8`. Sütunlar klasik parsiyel ambar düzeninde: `TESELLÜM MAKBUZ NO · ADET · NEVİ ·
   KİLO · MALIN CİNSİ · GÖNDERENİN ADI SOYADI · ALICININ ADI SOYADI · SEVK İRS. NO · TUTARI U/A · TUTARI P/O`
-  (KİLO/TUTAR matbu formda elle doldurulur). Satırlar **defterden** üretilir: kap satırı = durak × kabul ×
+  (NEVİ kalemin kap tipinden basılır; KİLO/TUTAR matbu formda elle doldurulur). Satırlar **defterden** üretilir: kap satırı = durak × kabul ×
   kap tipi, **kalem satırı = her ürün ayrı** (artık "Muhtelif" yok). Durağa atanmamış yükler sonda
   **"ATANMAMIŞ"** grubunda + ekranda uyarı.
   - **173 GT dayanağı:** birden fazla kişinin malı tek araçtaysa gönderici/alıcı adlarının **ayrı

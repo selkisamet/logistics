@@ -18,9 +18,15 @@ export const PACKAGE_TYPE_LABELS: Record<PackageType, string> = {
   CASE: 'Kasa',
   BAG: 'Torba/Çuval',
   BIGBAG: 'Big-bag',
+  IBC: 'IBC',
   UNIT: 'Adet',
   OTHER: 'Diğer',
 };
+
+/** Kalem satırının NEVİ (kap) seçenekleri — irsaliyedeki NEVİ sütununa basılır.
+ *  TEK kaynak: QR palet tipleriyle aynı liste, böylece iki yer ayrışmaz.
+ *  `ReceiptLine.unit` serbest metin olduğu için etiketler doğrudan saklanır. */
+export const KAP_TYPES = Object.values(PACKAGE_TYPE_LABELS);
 
 /** Mal kabul başlatma: ASN'ye bağlı ya da "kör kabul" (blind). */
 export const startReceiptSchema = z

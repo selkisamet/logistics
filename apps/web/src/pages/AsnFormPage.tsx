@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   createAsnSchema,
+  KAP_TYPES,
   type CreateAsnInput,
   type Asn,
   type CustomerLocation,
@@ -16,6 +17,7 @@ import {
   Card,
   Field,
   Input,
+  Select,
   Combobox,
   MultiCombobox,
   Spinner,
@@ -23,7 +25,17 @@ import {
 } from '../components/ui';
 import { useCustomers, useWarehouses, useCustomerLocations, useVehicles } from '../lib/lookups';
 
-const emptyLine = { sku: '', description: '', expectedQty: 1, unit: 'ADET', barcode: '' };
+const emptyLine = { sku: '', description: '', expectedQty: 1, unit: 'Palet', barcode: '' };
+
+/** Nevi (kap) `<Select>`'i yalnız `KAP_TYPES` etiketlerini tanır. Eski kayıtlardaki ham
+ *  değerler (ör. 'ADET') listede olmadığı için seçim boş kalır ve kaydedince kap silinirdi
+ *  → listeye en yakın etikete çevirip öyle doldur. */
+const toKap = (u: string | null | undefined): string => {
+  const v = (u ?? '').trim();
+  if (!v) return 'Palet';
+  const hit = KAP_TYPES.find((k) => k.toLocaleUpperCase('tr') === v.toLocaleUpperCase('tr'));
+  return hit ?? 'Diğer';
+};
 
 /** ShipmentSource/Recipient seçimini geri (input'a) çevirir. __ft_ = eski serbest metin. */
 const selToInput = (o: ComboOption) => ({
@@ -108,7 +120,7 @@ export function AsnFormPage() {
         sku: l.sku ?? '',
         description: l.description,
         expectedQty: l.expectedQty,
-        unit: l.unit,
+        unit: toKap(l.unit),
         barcode: l.barcode ?? '',
         unitPrice: l.unitPrice ?? undefined,
       })),
@@ -362,16 +374,27 @@ export function AsnFormPage() {
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Field
-                  label="Açıklama *"
-                  error={errors.lines?.[i]?.description?.message}
-                >
-                  <Input placeholder="Örn. Muhtelif palet" {...register(`lines.${i}.description`)} />
-                </Field>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+                <div className="sm:col-span-2">
+                  <Field label="Malın Cinsi *" error={errors.lines?.[i]?.description?.message}>
+                    <Input placeholder="Örn. Boya, Tiner" {...register(`lines.${i}.description`)} />
+                  </Field>
+                </div>
                 <Field label="Adet *" error={errors.lines?.[i]?.expectedQty?.message}>
                   <Input type="number" min={1} {...register(`lines.${i}.expectedQty`)} />
                 </Field>
+                {/* NEVİ = kap tipi; taşıma irsaliyesindeki NEVİ sütununa basılır */}
+                <Field label="Nevi (kap) *" error={errors.lines?.[i]?.unit?.message}>
+                  <Select {...register(`lines.${i}.unit`)}>
+                    {KAP_TYPES.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className="mt-2 sm:w-1/4">
                 <Field label="Birim Fiyat (₺)" error={errors.lines?.[i]?.unitPrice?.message}>
                   <Input
                     type="number"
