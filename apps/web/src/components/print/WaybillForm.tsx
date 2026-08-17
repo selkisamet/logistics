@@ -74,6 +74,19 @@ type WaybillLine = {
   dispatchNote: string; // SEVK İRS. NO (göndericinin irsaliyesi)
 };
 
+/** Formda GİDECEĞİ YER tek satırlık dar bir alan — bölge/rota adı yazılır (ambar
+ *  formlarındaki teamül). Çok noktalı seferde tüm alıcıları sığdırmak mümkün değil ve
+ *  gereksiz: her satırın ALICI'sı tabloda zaten yazıyor. Bu yüzden:
+ *   - kısa bir ad girilmişse onu bas ("Avrupa Yakası")
+ *   - girilmemiş ya da sığmayacak kadar uzunsa "MUHTELİF (N durak)" bas */
+const DEST_MAX = 34;
+function destinationText(d: Dispatch): string {
+  const raw = (d.destination ?? '').trim();
+  const stopCount = d.stops?.length ?? 0;
+  if (raw && raw.length <= DEST_MAX) return raw;
+  return stopCount > 1 ? `MUHTELİF (${stopCount} durak)` : raw.slice(0, DEST_MAX);
+}
+
 /** Belgedeki ALICI = FİRMA unvanı (VUK 209 "kime gönderildiği").
  *  Öncelik: durağın alıcı müşterisi → ön ihbardaki alıcı → durak adı (serbest metin duraklar için).
  *  DİKKAT: durağın `name`'i boşaltma NOKTASI adı olabilir ("Gökbil Depo") — o firma değildir,
@@ -185,6 +198,14 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
             <div>
               ℹ Bu sevkiyatta {lines.length} satır var; ilk {WAYBILL_ROWS} satır matbu forma, kalan{' '}
               {lines.length - WAYBILL_ROWS} satır <b>EK LİSTE</b> sayfasına basılır (düz kağıt).
+            </div>
+          )}
+          {(dispatch.destination ?? '').trim().length > DEST_MAX && (
+            <div>
+              ℹ GİDECEĞİ YER çok uzun ({(dispatch.destination ?? '').trim().length} karakter), forma
+              sığmıyor → belgede <b>"{destinationText(dispatch)}"</b> basılıyor. Her satırın alıcısı
+              tabloda zaten yazıyor. "Bilgileri Gir"den kısa bir bölge adı yazabilirsiniz (ör. Avrupa
+              Yakası).
             </div>
           )}
           {noRecipient > 0 && (
@@ -311,7 +332,7 @@ function WaybillDoc({
               value={formatDate(dispatch.waybillDate ?? dispatch.dispatchedAt ?? dispatch.createdAt)}
             />
             <MetaLine label="ÇIKIŞ YERİ" value={departure} />
-            <MetaLine label="GİDECEĞİ YER" value={dispatch.destination} />
+            <MetaLine label="GİDECEĞİ YER" value={destinationText(dispatch)} />
             <MetaLine label="PLAKA NO" value={trailer ? `${plate} / ${trailer}` : plate} />
             <MetaLine label="SÜRÜCÜNÜN ADI SOYADI" value={driver} />
             <MetaLine label="SEVKİYAT REF." value={dispatch.reference} />

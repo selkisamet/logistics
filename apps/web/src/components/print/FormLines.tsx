@@ -27,7 +27,10 @@ export function MetaLine({
         {label}
       </span>
       <span className="text-slate-400">:</span>
-      <span className="slip-data h-[1.3em] flex-1 overflow-hidden whitespace-nowrap border-b border-dotted border-slate-400 font-semibold text-slate-900">
+      {/* `min-w-0` ŞART: flex öğesinin varsayılan `min-width:auto`'su, `whitespace-nowrap`
+          metnin tam genişliğini "minimum" saydığı için kutuyu büyütür ve `overflow-hidden`
+          hiç devreye girmez → uzun değer formun dışına taşar. */}
+      <span className="slip-data h-[1.3em] min-w-0 flex-1 overflow-hidden whitespace-nowrap border-b border-dotted border-slate-400 font-semibold text-slate-900">
         {value || ' '}
       </span>
     </div>
@@ -60,7 +63,8 @@ export function FieldLine({
       <span
         style={auto ? undefined : { height: `${lines * 1.3}em` }}
         className={clsx(
-          'slip-data flex-1 border-b border-dotted border-slate-400 text-slate-900',
+          // min-w-0: bkz. MetaLine — taşmayı önler (uzun ünvan/adres formun dışına çıkmasın)
+          'slip-data min-w-0 flex-1 border-b border-dotted border-slate-400 text-slate-900',
           !auto && 'overflow-hidden',
         )}
       >

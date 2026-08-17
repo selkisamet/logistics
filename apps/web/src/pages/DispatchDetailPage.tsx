@@ -1123,7 +1123,9 @@ function WaybillInfoModal({
           />
         </Field>
         <p className="-mt-2 text-xs text-slate-400">
-          Kısa bir bölge/rota adı olmalı — alıcılar zaten belgenin satırlarında yazıyor.
+          Kısa bir <b>bölge/rota adı</b> olmalı (ör. Avrupa Yakası, Kocaeli) — alıcılar zaten belgenin
+          satırlarında yazıyor. Çok noktalı seferde boş bırakırsanız belgeye{' '}
+          <b>"MUHTELİF (N durak)"</b> basılır.
         </p>
         <div className="grid grid-cols-3 gap-2">
           <Field label="Seri">
