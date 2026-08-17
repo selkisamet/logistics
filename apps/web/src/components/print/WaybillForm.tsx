@@ -68,28 +68,40 @@ type WaybillLine = {
   dispatchNote: string; // SEVK İRS. NO (göndericinin irsaliyesi)
 };
 
+/** Belgedeki ALICI adı. Durak varsa durak adı; yoksa ön ihbardaki alıcı
+ *  (bilgi zaten var, "ATANMAMIŞ" basmak yasal alanı boş bırakmak olurdu — VUK 209
+ *  "kime gönderildiği" zorunlu). İkisi de yoksa boş kalır ve ekranda uyarı çıkar. */
+function recipientOf(item: { recipientName?: string | null }, stopName: string | null): string {
+  return stopName ?? item.recipientName ?? '';
+}
+
 /**
- * Sevkiyat defterini (items) belge satırlarına çevirir. Durağı olmayanlar sonda "ATANMAMIŞ".
+ * Sevkiyat defterini (items) belge satırlarına çevirir.
  *  - KAP satırları: durak × kabul × kap tipi → tek satır (ADET = kap sayısı)
  *  - KALEM satırları: durak × kalem → ayrı satır (ADET = miktar, MALIN CİNSİ = ürün adı)
  * Kalem bazlı sevkte artık "Muhtelif" yok — gerçek ürün dökümü basılır.
+ * Durak ZORUNLU DEĞİL: durağı olmayan yükte alıcı ön ihbardan gelir.
  */
 export function buildWaybillLines(d: Dispatch): WaybillLine[] {
   const out: WaybillLine[] = [];
   const stops = [...(d.stops ?? [])].sort((a, b) => a.seq - b.seq);
-  const groups: { stopId: string | null; name: string }[] = [
-    ...stops.map((s) => ({ stopId: s.id, name: s.name })),
-    { stopId: null, name: 'ATANMAMIŞ' },
+  const groups: { stopId: string | null; name: string | null }[] = [
+    ...stops.map((s) => ({ stopId: s.id, name: s.name as string | null })),
+    { stopId: null, name: null }, // durağa atanmamışlar — alıcı ön ihbardan
   ];
 
   for (const g of groups) {
     const mine = (d.items ?? []).filter((i) => (i.stopId ?? null) === g.stopId);
 
-    // Kap satırları: kabul + kap tipine göre topla
-    const byPkg = new Map<string, { ref: string; sender: string; kind: string; note: string; unit: string; count: number }>();
+    // Kap satırları: kabul + kap tipi (+ alıcı) bazında topla
+    const byPkg = new Map<
+      string,
+      { ref: string; sender: string; kind: string; note: string; unit: string; count: number; recipient: string }
+    >();
     for (const i of mine.filter((x) => x.kind === 'PACKAGE')) {
       const unit = PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit;
-      const key = `${i.receiptId}|${unit}`;
+      const recipient = recipientOf(i, g.name);
+      const key = `${i.receiptId}|${unit}|${recipient}`;
       const cur = byPkg.get(key) ?? {
         ref: i.receiptReference,
         sender: i.customerName ?? '',
@@ -97,6 +109,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         note: i.waybillNo ?? '',
         unit,
         count: 0,
+        recipient,
       };
       cur.count += i.qty;
       byPkg.set(key, cur);
@@ -109,7 +122,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         unit: p.unit,
         kind: p.kind,
         sender: p.sender,
-        recipient: g.name,
+        recipient: p.recipient,
         dispatchNote: p.note,
       });
     }
@@ -123,7 +136,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         unit: i.unit,
         kind: i.description,
         sender: i.customerName ?? '',
-        recipient: g.name,
+        recipient: recipientOf(i, g.name),
         dispatchNote: i.waybillNo ?? '',
       });
     }
@@ -133,10 +146,8 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
 
 export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClose: () => void }) {
   const lines = buildWaybillLines(dispatch);
-  const unassigned = [
-    ...dispatch.packages.filter((p) => !p.stopId),
-    ...(dispatch.receipts ?? []).filter((r) => !r.stopId),
-  ].length;
+  // Durak ZORUNLU DEĞİL (alıcı ön ihbardan gelir); yalnızca alıcısı hiç bilinmeyen yük sorundur.
+  const noRecipient = lines.filter((l) => !l.recipient.trim()).length;
 
   return (
     <PrintableDocModal
@@ -161,10 +172,10 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
               {lines.length - WAYBILL_ROWS} satır <b>EK LİSTE</b> sayfasına basılır (düz kağıt).
             </div>
           )}
-          {unassigned > 0 && (
+          {noRecipient > 0 && (
             <div>
-              ⚠ {unassigned} yük hiçbir durağa atanmamış; belgede "ATANMAMIŞ" olarak görünür. Önce
-              durakları atayın.
+              ⚠ {noRecipient} satırda ALICI boş (ön ihbarda alıcı seçilmemiş ve durak atanmamış).
+              Alıcı yasal zorunlu alandır — durak ekleyin ya da ön ihbarda alıcıyı belirtin.
             </div>
           )}
           {!COMPANY.taxNumber && (

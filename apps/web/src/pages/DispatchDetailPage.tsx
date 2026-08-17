@@ -244,50 +244,36 @@ export function DispatchDetailPage() {
         />
       )}
 
+      {/* Taslak aksiyonları — asıl yol "Depodan Yük Ekle" (Yüklenen Yük kartında).
+          QR okutma etiketli paletler için ikincil kısayol; ayarı da butonun yanında. */}
       {editable && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-slate-500">Okutunca:</span>
-            <div className="inline-flex overflow-hidden rounded-lg border border-slate-300">
-              <button
-                onClick={() => setScanMode('single')}
-                className={clsx(
-                  'px-3 py-1.5 font-medium',
-                  scanMode === 'single' ? 'bg-brand text-white' : 'bg-white text-slate-600',
-                )}
-              >
-                Sadece bu palet
-              </button>
-              <button
-                onClick={() => setScanMode('lot')}
-                className={clsx(
-                  'px-3 py-1.5 font-medium',
-                  scanMode === 'lot' ? 'bg-brand text-white' : 'bg-white text-slate-600',
-                )}
-              >
-                Girişin tümü
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => setScanning(true)}>📷 Palet QR Okut</Button>
-            <Button
-              variant="secondary"
-              loading={cancelMut.isPending}
-              onClick={async () => {
-                if (
-                  await confirmDialog({
-                    message: 'Sevkiyat iptal edilsin mi? Paletler depoya geri döner.',
-                    confirmText: 'İptal Et',
-                    danger: true,
-                  })
-                )
-                  cancelMut.mutate();
-              }}
-            >
-              İptal Et
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setScanning(true)}>
+            📷 QR Okut
+          </Button>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            <input
+              type="checkbox"
+              checked={scanMode === 'lot'}
+              onChange={(e) => setScanMode(e.target.checked ? 'lot' : 'single')}
+            />
+            QR okutunca paletin girişindeki <b>tüm</b> paletleri ekle
+          </label>
+          <button
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  message: 'Sevkiyat iptal edilsin mi? Yükler depoya geri döner.',
+                  confirmText: 'İptal Et',
+                  danger: true,
+                })
+              )
+                cancelMut.mutate();
+            }}
+            className="ml-auto text-xs font-medium text-red-600"
+          >
+            Sevkiyatı iptal et
+          </button>
         </div>
       )}
 
@@ -328,30 +314,42 @@ export function DispatchDetailPage() {
         </div>
       </Card>
 
-      {/* Duraklar — çok noktalı teslimat */}
+      {/* Duraklar — OPSİYONEL. Alıcı bilgisi ön ihbardan geldiği için irsaliye duraksız da
+          doğru basılır; duraklar rota sırası ve teslim takibi içindir. */}
       <Card className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-slate-900">Duraklar ({dispatch.stops.length})</h3>
+            <h3 className="font-semibold text-slate-900">
+              Duraklar ({dispatch.stops.length})
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+                opsiyonel
+              </span>
+            </h3>
             <p className="text-xs text-slate-500">
-              Teslimat noktaları sırayla. Her palet/kabul bir durağa atanır; irsaliye bu bilgiden
-              üretilir.
+              Alıcılar ön ihbardan geliyor ve irsaliyeye zaten yazılıyor. Durak yalnızca{' '}
+              <b>rota sırası</b> ve <b>teslim takibi</b> için — ör. aynı alıcıya iki ayrı adres ya da
+              ön ihbarda olmayan bir nokta eklemek istediğinizde.
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button
-              variant="secondary"
-              loading={suggestMut.isPending}
-              onClick={() => suggestMut.mutate()}
-            >
-              Kabullerden Öner
+            {dispatch.stops.length === 0 && (
+              <Button
+                variant="secondary"
+                loading={suggestMut.isPending}
+                onClick={() => suggestMut.mutate()}
+              >
+                Kabullerden Öner
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setAddingStop(true)}>
+              + Durak
             </Button>
-            <Button onClick={() => setAddingStop(true)}>+ Yeni</Button>
           </div>
         </div>
         {dispatch.stops.length === 0 ? (
           <p className="text-xs text-slate-400">
-            Henüz durak yok. "Kabullerden Öner" ile ön ihbardaki alıcılardan otomatik oluşturabilirsiniz.
+            Durak yok — irsaliyede alıcı olarak ön ihbardaki alıcı yazılır. Rota sırası/teslim takibi
+            istiyorsanız "Kabullerden Öner" ile hazırlayabilirsiniz.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -433,12 +431,21 @@ export function DispatchDetailPage() {
           <div className="space-y-3">
             {groupByReceipt(dispatch.items).map((g) => (
               <div key={g.receiptId}>
-                <Link
-                  to={`/mal-kabul/${g.receiptId}`}
-                  className="text-xs font-semibold text-slate-600 hover:text-brand"
-                >
-                  {g.customerName ?? '—'} · {g.receiptReference}
-                  {g.waybillNo ? ` · İrs: ${g.waybillNo}` : ''}
+                {/* Gönderici → Alıcı tek satırda: alıcı ön ihbardan gelir, irsaliyeye o yazılır */}
+                <Link to={`/mal-kabul/${g.receiptId}`} className="group block">
+                  <p className="text-sm font-semibold text-slate-800 group-hover:text-brand">
+                    {g.customerName ?? '—'}
+                    {g.recipientName && (
+                      <>
+                        <span className="mx-1.5 text-slate-400">→</span>
+                        {g.recipientName}
+                      </>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {g.receiptReference}
+                    {g.waybillNo ? ` · Sevk İrs: ${g.waybillNo}` : ''}
+                  </p>
                 </Link>
                 <div className="divide-y divide-slate-100">
                   {g.items.map((i) => (
@@ -461,9 +468,6 @@ export function DispatchDetailPage() {
                             </>
                           )}
                         </p>
-                        {i.recipientName && (
-                          <p className="text-xs text-slate-400">→ {i.recipientName}</p>
-                        )}
                       </div>
                       {dispatch.stops.length > 0 && (
                         <select
@@ -542,6 +546,7 @@ function groupByReceipt(items: DispatchItem[]) {
       receiptId: string;
       receiptReference: string;
       customerName?: string | null;
+      recipientName?: string | null;
       waybillNo?: string | null;
       items: DispatchItem[];
     }
@@ -551,6 +556,7 @@ function groupByReceipt(items: DispatchItem[]) {
       receiptId: i.receiptId,
       receiptReference: i.receiptReference,
       customerName: i.customerName,
+      recipientName: i.recipientName,
       waybillNo: i.waybillNo,
       items: [],
     };
