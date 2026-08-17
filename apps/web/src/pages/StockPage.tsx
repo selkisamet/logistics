@@ -345,8 +345,10 @@ function LoadToVehicleModal({
   const { data: vehicles } = useVehicles();
   const [vehicleId, setVehicleId] = useState('');
   const [draftId, setDraftId] = useState(''); // boş = yeni sefer
+  // Sefer adı KISA olmalı (ör. "Avrupa Yakası", "Kocaeli"). Tüm alıcı adlarını
+  // birleştirmek okunmaz bir başlık üretiyordu — tek alıcı varsa onun adı, yoksa boş bırak.
   const [destination, setDestination] = useState(
-    summary.recipients.length ? summary.recipients.join(' · ') : 'Karma sefer',
+    summary.recipients.length === 1 ? summary.recipients[0] : '',
   );
 
   // Devam eden yük planları (taslak sevkiyatlar)
@@ -360,7 +362,9 @@ function LoadToVehicleModal({
       let id = draftId;
       if (!id) {
         const created = await api.post<Dispatch>('/dispatches', {
-          destination: destination.trim() || 'Sefer',
+          destination:
+            destination.trim() ||
+            (summary.customers.length > 1 ? `Karma sefer (${summary.customers.length} müşteri)` : 'Sefer'),
           vehicleId: vehicleId || undefined,
         });
         id = created.id;
@@ -418,9 +422,16 @@ function LoadToVehicleModal({
                 placeholder="Araç ara / seç..."
               />
             </Field>
-            <Field label="Sefer / Gideceği yer">
-              <Input value={destination} onChange={(e) => setDestination(e.target.value)} />
+            <Field label="Sefer adı / Gideceği bölge">
+              <Input
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="Örn. Avrupa Yakası, Kocaeli, Çorlu"
+              />
             </Field>
+            <p className="-mt-1 text-xs text-slate-400">
+              Kısa tutun — alıcılar zaten yük listesinden ve duraklardan geliyor.
+            </p>
             {!vehicleId && (
               <p className="text-xs text-amber-600">
                 Araç şimdi seçilmezse sevkiyat detayından sonra da atanabilir.

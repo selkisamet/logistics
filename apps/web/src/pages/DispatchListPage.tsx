@@ -70,13 +70,22 @@ export function DispatchListPage() {
             return (
               <Link key={d.id} to={`/sevkiyat/${d.id}`}>
                 <Card className="space-y-2">
-                  <div className="flex items-start justify-between">
+                  {/* Seferin kimliği ARAÇ; altında kısa rota özeti */}
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-semibold text-slate-900">{d.destination}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="font-semibold text-slate-900">
+                        {d.vehicle?.plate ?? d.vehiclePlate ?? 'Araç atanmadı'}
+                        {d.destination && (
+                          <span className="ml-2 truncate text-sm font-normal text-slate-500">
+                            {d.destination}
+                          </span>
+                        )}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
                         {d.reference}
-                        {d.vehiclePlate ? ` · ${d.vehiclePlate}` : ''}
-                        {d.stops?.length ? ` · ${d.stops.length} durak` : ''}
+                        {d.stops?.length
+                          ? ` · ${d.stops.map((s) => s.customerName || s.name).join(' → ')}`
+                          : ''}
                       </p>
                     </div>
                     <DispatchStatusBadge status={d.status} />

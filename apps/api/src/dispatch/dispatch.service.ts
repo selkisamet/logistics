@@ -604,6 +604,8 @@ export class DispatchService {
       const updated = await this.prisma.dispatch.update({
         where: { id },
         data: {
+          // GİDECEĞİ YER belgeye basılır; boşa çekilemez (kolon NOT NULL)
+          destination: input.destination?.trim() ? input.destination.trim() : undefined,
           waybillSerial: input.waybillSerial === undefined ? undefined : blank(input.waybillSerial),
           waybillNo: input.waybillNo === undefined ? undefined : blank(input.waybillNo),
           waybillDate:

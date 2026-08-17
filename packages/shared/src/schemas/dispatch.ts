@@ -141,6 +141,7 @@ export type DispatchItem = z.infer<typeof dispatchItemSchema>;
 
 /** Taşıma irsaliyesi bilgileri: matbu belgenin seri/sıra no'su + taşıma ücreti. */
 export const updateWaybillSchema = z.object({
+  destination: z.string().optional(), // GİDECEĞİ YER (belgeye basılır) — sonradan düzeltilebilir
   waybillSerial: z.string().optional(), // matbu seri (ör. "A")
   waybillNo: z.string().optional(), // matbu sıra no (ör. "012345")
   waybillDate: z.string().optional(), // ISO tarih

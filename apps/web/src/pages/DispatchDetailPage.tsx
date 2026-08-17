@@ -155,28 +155,70 @@ export function DispatchDetailPage() {
 
   const targetVehicleId = dispatch.vehicle?.id ?? null;
 
+  // Başlık/rota için türetilenler
+  const plate = dispatch.vehicle?.plate ?? dispatch.vehiclePlate ?? '';
+  const driver = dispatch.vehicle?.driverName ?? dispatch.driverName ?? '';
+  const trailer = dispatch.vehicle?.trailerPlate ?? '';
+  const departure = dispatch.items[0]?.warehouseName ?? ''; // yükün alındığı depo
+  // Durak yoksa rota satırında ön ihbardaki alıcıları göster (tekilleştirilmiş)
+  const recipientList = [
+    ...new Set(dispatch.items.map((i) => i.recipientName).filter(Boolean)),
+  ] as string[];
+
   return (
     <div className="space-y-4">
       <button onClick={() => navigate('/sevkiyat')} className="text-slate-500">
         ← Sevkiyatlar
       </button>
 
+      {/* Başlık "hangi araç, nereden nereye" sorusunu cevaplar. Seferin kimliği ARAÇTIR;
+          `destination` uzun bir isim listesine dönüşebildiği için başlıkta kullanılmaz. */}
       <Card className="space-y-2">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{dispatch.destination}</h2>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-slate-900">
+              {plate || 'Araç atanmadı'}
+              {driver && <span className="ml-2 text-sm font-normal text-slate-500">{driver}</span>}
+            </h2>
             <p className="text-xs text-slate-500">
               {dispatch.reference}
-              {dispatch.vehicle
-                ? ` · ${dispatch.vehicle.plate}${dispatch.vehicle.driverName ? ` (${dispatch.vehicle.driverName})` : ''}${dispatch.vehicle.trailerPlate ? ` · Dorse ${dispatch.vehicle.trailerPlate}` : ''}`
-                : `${dispatch.vehiclePlate ? ` · ${dispatch.vehiclePlate}` : ''}${dispatch.driverName ? ` · ${dispatch.driverName}` : ''}`}
+              {trailer ? ` · Dorse ${trailer}` : ''}
+              {dispatch.dispatchedAt ? ` · Sevk: ${formatDateTime(dispatch.dispatchedAt)}` : ''}
             </p>
           </div>
           <DispatchStatusBadge status={dispatch.status} />
         </div>
-        {dispatch.dispatchedAt && (
-          <p className="text-xs text-slate-500">Sevk: {formatDateTime(dispatch.dispatchedAt)}</p>
-        )}
+
+        {/* ROTA: çıkış deposu → duraklar (sırayla) */}
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Rota</p>
+          <p className="mt-0.5 text-sm text-slate-800">
+            <span className="font-semibold">{departure || 'Depo'}</span>
+            {dispatch.stops.length > 0 ? (
+              dispatch.stops.map((s) => (
+                <span key={s.id}>
+                  <span className="mx-1 text-slate-400">→</span>
+                  <span className={s.deliveredAt ? 'text-green-700 line-through' : ''}>
+                    {s.seq}. {s.customerName || s.name}
+                  </span>
+                </span>
+              ))
+            ) : (
+              <>
+                <span className="mx-1 text-slate-400">→</span>
+                <span className="text-slate-500">
+                  {recipientList.length ? recipientList.join(' · ') : 'durak belirtilmedi'}
+                </span>
+              </>
+            )}
+          </p>
+          {dispatch.stops.length > 0 && (
+            <p className="mt-0.5 text-xs text-slate-400">
+              {dispatch.stops.length} durak · {loadSummary(dispatch.items)}
+            </p>
+          )}
+        </div>
+
         {dispatch.notes && (
           <p className="rounded-lg bg-slate-50 p-2 text-sm text-slate-600">{dispatch.notes}</p>
         )}
@@ -959,6 +1001,7 @@ function WaybillInfoModal({
   onClose: () => void;
   onSaved: (d: Dispatch) => void;
 }) {
+  const [destination, setDestination] = useState(dispatch.destination ?? '');
   const [serial, setSerial] = useState(dispatch.waybillSerial ?? '');
   const [no, setNo] = useState(dispatch.waybillNo ?? '');
   const [date, setDate] = useState(dispatch.waybillDate?.slice(0, 10) ?? '');
@@ -970,6 +1013,7 @@ function WaybillInfoModal({
   const mut = useMutation({
     mutationFn: () =>
       api.patch<Dispatch>(`/dispatches/${dispatch.id}/waybill`, {
+        destination,
         waybillSerial: serial,
         waybillNo: no,
         waybillDate: date || undefined,
@@ -990,6 +1034,16 @@ function WaybillInfoModal({
       onClose={onClose}
     >
       <div className="space-y-3">
+        <Field label="Gideceği Yer (belgeye basılır)">
+          <Input
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="Örn. Avrupa Yakası, Kocaeli"
+          />
+        </Field>
+        <p className="-mt-2 text-xs text-slate-400">
+          Kısa bir bölge/rota adı olmalı — alıcılar zaten belgenin satırlarında yazıyor.
+        </p>
         <div className="grid grid-cols-3 gap-2">
           <Field label="Seri">
             <Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="A" />
