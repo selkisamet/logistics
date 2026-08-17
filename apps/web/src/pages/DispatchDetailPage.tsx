@@ -147,6 +147,20 @@ export function DispatchDetailPage() {
     onSuccess: setDispatch,
     onError: (e) => stopErr(e, 'Durak ataması yapılamadı'),
   });
+  /** Tüm atamaları sıfırlayıp ön ihbardaki alıcılara göre yeniden kur.
+   *  (Elle yanlış atanmış yükleri tek tek düzeltmek yerine.) */
+  const reassignMut = useMutation({
+    mutationFn: async () => {
+      const ids = (dispatch?.items ?? []).map((i) => i.id);
+      if (ids.length) await api.patch<Dispatch>(`/dispatches/${id}/stops/yok/assign`, { itemIds: ids });
+      return api.post<Dispatch>(`/dispatches/${id}/stops/suggest`);
+    },
+    onSuccess: (d) => {
+      setDispatch(d);
+      toast('Yükler ön ihbardaki alıcılara göre yeniden atandı.');
+    },
+    onError: (e) => stopErr(e, 'Yeniden atanamadı'),
+  });
 
   const editable = dispatch?.status === 'DRAFT';
 
@@ -164,6 +178,16 @@ export function DispatchDetailPage() {
   const recipientList = [
     ...new Set(dispatch.items.map((i) => i.recipientName).filter(Boolean)),
   ] as string[];
+
+  /** Yük, ön ihbardaki alıcısından FARKLI bir durağa atanmışsa uyar.
+   *  (Elle yapılan hatalı atamayı yakalar — irsaliyede yanlış ALICI basılmasını önler.) */
+  const stopById = new Map(dispatch.stops.map((s) => [s.id, s]));
+  const isMismatched = (i: DispatchItem) => {
+    if (!i.stopId || !i.recipientName) return false;
+    const sc = stopById.get(i.stopId)?.customerName;
+    return !!sc && sc !== i.recipientName;
+  };
+  const mismatchCount = dispatch.items.filter(isMismatched).length;
 
   return (
     <div className="space-y-4">
@@ -224,30 +248,30 @@ export function DispatchDetailPage() {
         )}
       </Card>
 
-      {/* Sevk edilmiş sevkiyat: yanlış plaka düzeltme / komple geri alma */}
+      {/* Sevk edilmiş sevkiyatta düzeltme. "Geri Al" YIKICI — iri kırmızı buton fazla
+          davetkârdı, metin bağlantısına indirildi (onay diyaloğu zaten var). */}
       {dispatch.status === 'DISPATCHED' && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" onClick={() => setVehicleModal(true)}>
             🚚 Aracı Değiştir
           </Button>
-          <Button
-            variant="danger"
-            loading={cancelMut.isPending}
+          <button
             onClick={async () => {
               if (
                 await confirmDialog({
                   title: 'Sevkiyatı geri al',
                   message:
-                    'Bu sevkiyat geri alınsın mı? Tüm paletler ve paletsiz kabuller depoya geri döner, sevkiyat İPTAL olur. Doğru araçla tekrar sevk edebilirsiniz.',
+                    'Bu sevkiyat geri alınsın mı? Tüm yükler depoya geri döner, sevkiyat İPTAL olur. Doğru araçla tekrar sevk edebilirsiniz.',
                   confirmText: 'Geri Al',
                   danger: true,
                 })
               )
                 cancelMut.mutate();
             }}
+            className="ml-auto text-xs font-medium text-red-600 hover:underline"
           >
-            ↩ Sevkiyatı Geri Al
-          </Button>
+            ↩ Sevkiyatı geri al
+          </button>
         </div>
       )}
 
@@ -383,19 +407,36 @@ export function DispatchDetailPage() {
               </span>
             </h3>
             <p className="text-xs text-slate-500">
-              Alıcılar ön ihbardan geliyor ve irsaliyeye zaten yazılıyor. Durak yalnızca{' '}
-              <b>rota sırası</b> ve <b>teslim takibi</b> için — ör. aynı alıcıya iki ayrı adres ya da
-              ön ihbarda olmayan bir nokta eklemek istediğinizde.
+              Rota sırası ve teslim takibi için. Alıcılar ön ihbardan geliyor.
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
-            {dispatch.stops.length === 0 && (
+            {dispatch.stops.length === 0 ? (
               <Button
                 variant="secondary"
                 loading={suggestMut.isPending}
                 onClick={() => suggestMut.mutate()}
               >
                 Kabullerden Öner
+              </Button>
+            ) : (
+              // Atamalar bozulduysa tek tıkla ön ihbardaki alıcılara göre kurtar
+              <Button
+                variant="secondary"
+                loading={reassignMut.isPending}
+                onClick={async () => {
+                  if (
+                    await confirmDialog({
+                      title: 'Yükleri yeniden ata',
+                      message:
+                        'Tüm yüklerin durak ataması silinip ön ihbardaki alıcılara göre yeniden kurulacak. Elle yaptığınız atamalar kaybolur. Devam edilsin mi?',
+                      confirmText: 'Yeniden Ata',
+                    })
+                  )
+                    reassignMut.mutate();
+                }}
+              >
+                Yükleri Yeniden Ata
               </Button>
             )}
             <Button variant="secondary" onClick={() => setAddingStop(true)}>
@@ -502,6 +543,12 @@ export function DispatchDetailPage() {
                 ? ' · durak sırasına göre dizili'
                 : ' · yükleme sırasına göre (teslim sırası için durak ekleyin)'}
             </p>
+            {mismatchCount > 0 && (
+              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                ⚠ {mismatchCount} yük, ön ihbardaki alıcısından farklı bir durağa atanmış — irsaliyede
+                yanlış ALICI basılır. "Yükleri Yeniden Ata" ile düzeltebilirsiniz.
+              </p>
+            )}
           </div>
           {editable && (
             <Button className="shrink-0" onClick={() => setLoadOpen(true)}>
@@ -569,8 +616,17 @@ export function DispatchDetailPage() {
                             }
                             className={clsx(
                               'rounded-lg border bg-white px-2 py-1 text-xs',
-                              i.stopId ? 'border-slate-300 text-slate-700' : 'border-amber-300 text-amber-700',
+                              isMismatched(i)
+                                ? 'border-amber-500 bg-amber-50 font-medium text-amber-800'
+                                : i.stopId
+                                  ? 'border-slate-300 text-slate-700'
+                                  : 'border-amber-300 text-amber-700',
                             )}
+                            title={
+                              isMismatched(i)
+                                ? `Uyumsuz: bu yük ${i.recipientName} alıcısına gidiyor`
+                                : undefined
+                            }
                           >
                             <option value="">Seçilmedi</option>
                             {dispatch.stops.map((s) => (
