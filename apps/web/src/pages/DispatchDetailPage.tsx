@@ -449,7 +449,12 @@ export function DispatchDetailPage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-slate-900">Yüklenen Yük ({dispatch.items.length})</h3>
-            <p className="text-xs text-slate-500">{loadSummary(dispatch.items)}</p>
+            <p className="text-xs text-slate-500">
+              {loadSummary(dispatch.items)}
+              {dispatch.stops.length > 0
+                ? ' · durak sırasına göre dizili'
+                : ' · yükleme sırasına göre (teslim sırası için durak ekleyin)'}
+            </p>
           </div>
           {editable && (
             <Button className="shrink-0" onClick={() => setLoadOpen(true)}>
@@ -463,7 +468,7 @@ export function DispatchDetailPage() {
           </p>
         ) : (
           <div className="space-y-3">
-            {groupByReceipt(dispatch.items).map((g) => (
+            {sortByStop(groupByReceipt(dispatch.items), dispatch.stops).map((g) => (
               <div key={g.receiptId}>
                 {/* Gönderici → Alıcı tek satırda: alıcı ön ihbardan gelir, irsaliyeye o yazılır */}
                 <Link to={`/mal-kabul/${g.receiptId}`} className="group block">
@@ -606,6 +611,23 @@ function loadSummary(items: DispatchItem[]) {
   const qty = items.filter((i) => i.kind === 'LINE').reduce((s, i) => s + i.qty, 0);
   const parts = [pkg ? `${pkg} kap` : '', qty ? `${qty} adet` : ''].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Henüz yük yok';
+}
+
+/**
+ * Yük listesini DURAK SIRASINA göre dizer (liste · rota · irsaliye aynı sırayı göstersin).
+ * Durak yoksa yükleme sırası korunur; durağa atanmamışlar en sona gider.
+ * Bu kart bir rota editörü DEĞİL — sıra Duraklar kartından yönetilir.
+ */
+function sortByStop(groups: ReturnType<typeof groupByReceipt>, stops: DispatchStop[]) {
+  const seq = new Map(stops.map((s) => [s.id, s.seq]));
+  const LAST = Number.MAX_SAFE_INTEGER;
+  const seqOf = (stopId?: string | null) => (stopId ? (seq.get(stopId) ?? LAST) : LAST);
+  for (const g of groups) g.items.sort((a, b) => seqOf(a.stopId) - seqOf(b.stopId));
+  return [...groups].sort(
+    (a, b) =>
+      Math.min(...a.items.map((i) => seqOf(i.stopId))) -
+      Math.min(...b.items.map((i) => seqOf(i.stopId))),
+  );
 }
 
 /** Bir durakta inen yükün özeti — "0 palet" yerine gerçekte ne varsa onu yazar. */
