@@ -80,9 +80,14 @@ type WaybillLine = {
  *  bu yüzden en sonda, yalnızca firma bilinmiyorsa kullanılır. */
 function recipientOf(
   item: { recipientName?: string | null },
-  stop: { customerName?: string | null; name: string } | null,
+  stop: { customerName?: string | null; name: string; seq: number } | null,
 ): string {
-  return stop?.customerName || item.recipientName || stop?.name || '';
+  const name = stop?.customerName || item.recipientName || stop?.name || '';
+  // Durak sırası ALICI hücresinde önek olarak basılır → şoför rota sırasını belgeden okur.
+  // (Ayrı sütun açmak matbu form genişliğini değiştirirdi.) Ad boşsa önek de yok:
+  // "ALICI boş" uyarısı bozulmasın.
+  if (!name) return '';
+  return stop ? `${stop.seq}. ${name}` : name;
 }
 
 /**

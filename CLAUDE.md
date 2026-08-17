@@ -185,6 +185,10 @@ farklı alıcılara/noktalara gidebilir.
   (ör. "Gökbil Depo" — bu Arkem'in bir lokasyonu). İrsaliyedeki "kime gönderildiği" (VUK 209)
   firma unvanı olmalı → `recipientOf()` sırası: **durağın `customerName`** → ön ihbardaki alıcı
   (`item.recipientName`) → en son çare durak adı. `stops` include'ında `customer:{name}` bu yüzden var.
+  Durak varsa ada **`{seq}. ` öneki** eklenir (şoför rota sırasını belgeden okusun; ayrı sütun açmak
+  matbu form genişliğini bozardı). Ad boşsa önek de eklenmez — "ALICI boş" uyarısı çalışmaya devam etsin.
+- **Sıra tek yerden yönetilir:** Duraklar kartındaki ▲▼. Liste (`sortByStop`), rota ve irsaliye
+  hep aynı sırayı gösterir. "Yüklenen Yük" kartı rota editörü DEĞİL — yükleme manifestosudur.
 - **Yük → durak ataması:** `Package.stopId` (paletli), `Receipt.stopId` (paletsiz). Sevkiyat detayında
   her paletin yanında durak seçici. `PATCH /dispatches/:id/stops/:stopId/assign`
   (**`stopId='yok'` → atamayı kaldırır**).
