@@ -435,14 +435,19 @@ export function DispatchDetailPage() {
                   </button>
                 </div>
                 <div className="min-w-0 flex-1">
+                  {/* Durak kimliği HER YERDE aynı: önce ALICI FİRMA, altında nokta adı.
+                      (Belgede de firma yazılıyor; iki farklı ad kafa karıştırıyordu.) */}
                   <p className="text-sm font-medium text-slate-900">
-                    {s.name}
+                    {s.customerName || s.name}
                     {s.deliveredAt && (
                       <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                         ✓ Teslim
                       </span>
                     )}
                   </p>
+                  {s.customerName && s.name !== s.customerName && (
+                    <p className="text-xs text-slate-500">📍 {s.name}</p>
+                  )}
                   {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
                   <p className="text-xs text-slate-400">
                     {stopLoadText(dispatch.items, s.id)}
@@ -550,24 +555,31 @@ export function DispatchDetailPage() {
                           )}
                         </p>
                       </div>
+                      {/* Bu yük hangi durakta inecek — irsaliyedeki ALICI ve sıra bundan gelir */}
                       {dispatch.stops.length > 0 && (
-                        <select
-                          value={i.stopId ?? ''}
-                          onChange={(e) =>
-                            assignMut.mutate({
-                              stopId: e.target.value || 'yok',
-                              itemIds: [i.id],
-                            })
-                          }
-                          className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                        >
-                          <option value="">Durak yok</option>
-                          {dispatch.stops.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.seq}. {s.name}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="flex shrink-0 items-center gap-1.5">
+                          <span className="text-xs text-slate-400">İnecek durak:</span>
+                          <select
+                            value={i.stopId ?? ''}
+                            onChange={(e) =>
+                              assignMut.mutate({
+                                stopId: e.target.value || 'yok',
+                                itemIds: [i.id],
+                              })
+                            }
+                            className={clsx(
+                              'rounded-lg border bg-white px-2 py-1 text-xs',
+                              i.stopId ? 'border-slate-300 text-slate-700' : 'border-amber-300 text-amber-700',
+                            )}
+                          >
+                            <option value="">Seçilmedi</option>
+                            {dispatch.stops.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.seq}. {s.customerName || s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       )}
                       {editable && (
                         <button
@@ -740,7 +752,7 @@ function LoadFromStockModal({
         {stops.length > 0 && (
           <Field label="Durak (opsiyonel — yüklerken doğrudan ata)">
             <Combobox
-              options={stops.map((s) => ({ value: s.id, label: `${s.seq}. ${s.name}` }))}
+              options={stops.map((s) => ({ value: s.id, label: `${s.seq}. ${s.customerName || s.name}` }))}
               value={stopId}
               onChange={setStopId}
               nullable
