@@ -162,6 +162,7 @@ export const dispatchStopSchema = z.object({
   phone: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   deliveredAt: z.string().nullable().optional(),
+  customerName: z.string().nullable().optional(), // ALICI firma unvanı (belgeye bu yazılır)
   packageCount: z.number().int().default(0),
   receiptCount: z.number().int().default(0),
   itemCount: z.number().int().optional().default(0),

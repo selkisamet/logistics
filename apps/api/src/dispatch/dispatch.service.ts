@@ -63,7 +63,12 @@ const DISPATCH_INCLUDE = {
   // Çok duraklı teslimat — rota sırasına göre
   stops: {
     orderBy: { seq: 'asc' as const },
-    include: { _count: { select: { items: true } } },
+    include: {
+      _count: { select: { items: true } },
+      // ALICI = firma. `name` boşaltma NOKTASININ adı ("Gökbil Depo") olabilir;
+      // irsaliyede "kime gönderildiği" firma unvanı olmalı (VUK 209).
+      customer: { select: { name: true } },
+    },
   },
 } satisfies Prisma.DispatchInclude;
 
@@ -877,8 +882,9 @@ function serializeDispatch(d: DispatchWithRelations) {
       id: s.id,
       seq: s.seq,
       customerId: s.customerId,
+      customerName: s.customer?.name ?? null, // ALICI firma (belgede bu yazılır)
       customerLocationId: s.customerLocationId,
-      name: s.name,
+      name: s.name, // boşaltma noktası adı (ekranda gösterilir)
       address: s.address,
       phone: s.phone,
       note: s.note,

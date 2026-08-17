@@ -178,6 +178,13 @@ farklı alıcılara/noktalara gidebilir.
 - **`DispatchStop`** = sıralı teslimat noktası (`seq`). Alıcı opsiyonel kayıtlı `Customer` +
   `CustomerLocation`; ad/adres/telefon **snapshot**'lanır (ASN `validateRecipients` deseni) ki kayıt
   sonradan değişse belge sabit kalsın. `deliveredAt` ile durak teslim işaretlenir.
+  **Rota sırası UI'dan ▲▼ ile değiştirilir** (`PATCH /:id/stops/reorder`; dokunmatikte sürükle-bırak
+  yerine ok — telefonda güvenilir). Duraklar **OPSİYONEL**: alıcı ön ihbardan geldiği için irsaliye
+  duraksız da doğru basılır; durak rota sırası/teslim takibi ve ekstra nokta için.
+- **⚠ ALICI = FİRMA, nokta adı DEĞİL.** `DispatchStop.name` boşaltma NOKTASININ adı olabilir
+  (ör. "Gökbil Depo" — bu Arkem'in bir lokasyonu). İrsaliyedeki "kime gönderildiği" (VUK 209)
+  firma unvanı olmalı → `recipientOf()` sırası: **durağın `customerName`** → ön ihbardaki alıcı
+  (`item.recipientName`) → en son çare durak adı. `stops` include'ında `customer:{name}` bu yüzden var.
 - **Yük → durak ataması:** `Package.stopId` (paletli), `Receipt.stopId` (paletsiz). Sevkiyat detayında
   her paletin yanında durak seçici. `PATCH /dispatches/:id/stops/:stopId/assign`
   (**`stopId='yok'` → atamayı kaldırır**).

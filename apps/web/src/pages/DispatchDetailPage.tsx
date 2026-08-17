@@ -126,6 +126,21 @@ export function DispatchDetailPage() {
     onSuccess: setDispatch,
     onError: (e) => stopErr(e, 'Teslim durumu değiştirilemedi'),
   });
+  // Rota sırası — sürücü bu sırayla gider, irsaliyedeki satır grupları da bu sıraya göre dizilir
+  const reorderMut = useMutation({
+    mutationFn: (stopIds: string[]) =>
+      api.patch<Dispatch>(`/dispatches/${id}/stops/reorder`, { stopIds }),
+    onSuccess: setDispatch,
+    onError: (e) => stopErr(e, 'Sıra değiştirilemedi'),
+  });
+  const moveStop = (index: number, dir: -1 | 1) => {
+    const ids = (dispatch?.stops ?? []).map((s) => s.id);
+    const to = index + dir;
+    if (to < 0 || to >= ids.length) return;
+    [ids[index], ids[to]] = [ids[to], ids[index]];
+    reorderMut.mutate(ids);
+  };
+
   const assignMut = useMutation({
     mutationFn: ({ stopId, itemIds }: { stopId: string; itemIds: string[] }) =>
       api.patch<Dispatch>(`/dispatches/${id}/stops/${stopId}/assign`, { itemIds }),
@@ -353,13 +368,32 @@ export function DispatchDetailPage() {
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {dispatch.stops.map((s) => (
+            {dispatch.stops.map((s, idx) => (
               <div key={s.id} className="flex items-start justify-between gap-3 py-2">
-                <div className="min-w-0">
+                {/* Rota sırası: ▲▼ (dokunmatikte sürükle-bırak yerine — telefonda güvenilir) */}
+                <div className="flex shrink-0 flex-col items-center">
+                  <button
+                    onClick={() => moveStop(idx, -1)}
+                    disabled={idx === 0 || reorderMut.isPending}
+                    className="text-xs leading-none text-slate-400 disabled:opacity-25"
+                    aria-label="Yukarı taşı"
+                  >
+                    ▲
+                  </button>
+                  <span className="my-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                    {s.seq}
+                  </span>
+                  <button
+                    onClick={() => moveStop(idx, 1)}
+                    disabled={idx === dispatch.stops.length - 1 || reorderMut.isPending}
+                    className="text-xs leading-none text-slate-400 disabled:opacity-25"
+                    aria-label="Aşağı taşı"
+                  >
+                    ▼
+                  </button>
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-900">
-                    <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                      {s.seq}
-                    </span>
                     {s.name}
                     {s.deliveredAt && (
                       <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -369,7 +403,7 @@ export function DispatchDetailPage() {
                   </p>
                   {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
                   <p className="text-xs text-slate-400">
-                    {s.packageCount} palet · {s.receiptCount} kabul
+                    {stopLoadText(dispatch.items, s.id)}
                     {s.phone ? ` · ${s.phone}` : ''}
                   </p>
                 </div>
@@ -572,6 +606,14 @@ function loadSummary(items: DispatchItem[]) {
   const qty = items.filter((i) => i.kind === 'LINE').reduce((s, i) => s + i.qty, 0);
   const parts = [pkg ? `${pkg} kap` : '', qty ? `${qty} adet` : ''].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Henüz yük yok';
+}
+
+/** Bir durakta inen yükün özeti — "0 palet" yerine gerçekte ne varsa onu yazar. */
+function stopLoadText(items: DispatchItem[], stopId: string) {
+  const mine = items.filter((i) => i.stopId === stopId);
+  if (mine.length === 0) return 'Yük atanmadı';
+  const senders = new Set(mine.map((i) => i.customerName).filter(Boolean));
+  return `${loadSummary(mine)} · ${senders.size} gönderici`;
 }
 
 /**

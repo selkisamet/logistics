@@ -1,5 +1,11 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { PACKAGE_TYPE_LABELS, VAT_RATE, type Dispatch, type PackageType } from '@lojistik/shared';
+import {
+  PACKAGE_TYPE_LABELS,
+  VAT_RATE,
+  type Dispatch,
+  type DispatchStop,
+  type PackageType,
+} from '@lojistik/shared';
 import { COMPANY } from '../../lib/company';
 import { formatDate, formatMoney } from '../../lib/format';
 import { PrintableDocModal, type CopyOption } from './PrintableDocModal';
@@ -68,11 +74,15 @@ type WaybillLine = {
   dispatchNote: string; // SEVK İRS. NO (göndericinin irsaliyesi)
 };
 
-/** Belgedeki ALICI adı. Durak varsa durak adı; yoksa ön ihbardaki alıcı
- *  (bilgi zaten var, "ATANMAMIŞ" basmak yasal alanı boş bırakmak olurdu — VUK 209
- *  "kime gönderildiği" zorunlu). İkisi de yoksa boş kalır ve ekranda uyarı çıkar. */
-function recipientOf(item: { recipientName?: string | null }, stopName: string | null): string {
-  return stopName ?? item.recipientName ?? '';
+/** Belgedeki ALICI = FİRMA unvanı (VUK 209 "kime gönderildiği").
+ *  Öncelik: durağın alıcı müşterisi → ön ihbardaki alıcı → durak adı (serbest metin duraklar için).
+ *  DİKKAT: durağın `name`'i boşaltma NOKTASI adı olabilir ("Gökbil Depo") — o firma değildir,
+ *  bu yüzden en sonda, yalnızca firma bilinmiyorsa kullanılır. */
+function recipientOf(
+  item: { recipientName?: string | null },
+  stop: { customerName?: string | null; name: string } | null,
+): string {
+  return stop?.customerName || item.recipientName || stop?.name || '';
 }
 
 /**
@@ -85,9 +95,9 @@ function recipientOf(item: { recipientName?: string | null }, stopName: string |
 export function buildWaybillLines(d: Dispatch): WaybillLine[] {
   const out: WaybillLine[] = [];
   const stops = [...(d.stops ?? [])].sort((a, b) => a.seq - b.seq);
-  const groups: { stopId: string | null; name: string | null }[] = [
-    ...stops.map((s) => ({ stopId: s.id, name: s.name as string | null })),
-    { stopId: null, name: null }, // durağa atanmamışlar — alıcı ön ihbardan
+  const groups: { stopId: string | null; stop: DispatchStop | null }[] = [
+    ...stops.map((s) => ({ stopId: s.id, stop: s })),
+    { stopId: null, stop: null }, // durağa atanmamışlar — alıcı ön ihbardan
   ];
 
   for (const g of groups) {
@@ -100,7 +110,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
     >();
     for (const i of mine.filter((x) => x.kind === 'PACKAGE')) {
       const unit = PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit;
-      const recipient = recipientOf(i, g.name);
+      const recipient = recipientOf(i, g.stop);
       const key = `${i.receiptId}|${unit}|${recipient}`;
       const cur = byPkg.get(key) ?? {
         ref: i.receiptReference,
@@ -136,7 +146,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         unit: i.unit,
         kind: i.description,
         sender: i.customerName ?? '',
-        recipient: recipientOf(i, g.name),
+        recipient: recipientOf(i, g.stop),
         dispatchNote: i.waybillNo ?? '',
       });
     }
