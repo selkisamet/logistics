@@ -223,7 +223,7 @@ export function DispatchDetailPage() {
                 <span key={s.id}>
                   <span className="mx-1 text-slate-400">→</span>
                   <span className={s.deliveredAt ? 'text-green-700 line-through' : ''}>
-                    {s.seq}. {s.customerName || s.name}
+                    {s.seq}. {stopLabel(s)}
                   </span>
                 </span>
               ))
@@ -476,18 +476,18 @@ export function DispatchDetailPage() {
                   </button>
                 </div>
                 <div className="min-w-0 flex-1">
-                  {/* Durak kimliği HER YERDE aynı: önce ALICI FİRMA, altında nokta adı.
-                      (Belgede de firma yazılıyor; iki farklı ad kafa karıştırıyordu.) */}
+                  {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA.
+                      İkisi birlikte gösterilir: aynı firmanın birden çok lokasyonu olabilir. */}
                   <p className="text-sm font-medium text-slate-900">
-                    {s.customerName || s.name}
+                    {s.name}
                     {s.deliveredAt && (
                       <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                         ✓ Teslim
                       </span>
                     )}
                   </p>
-                  {s.customerName && s.name !== s.customerName && (
-                    <p className="text-xs text-slate-500">📍 {s.name}</p>
+                  {s.customerName && s.customerName !== s.name && (
+                    <p className="text-xs font-medium text-slate-600">🏢 {s.customerName}</p>
                   )}
                   {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
                   <p className="text-xs text-slate-400">
@@ -631,7 +631,7 @@ export function DispatchDetailPage() {
                             <option value="">Seçilmedi</option>
                             {dispatch.stops.map((s) => (
                               <option key={s.id} value={s.id}>
-                                {s.seq}. {s.customerName || s.name}
+                                {s.seq}. {stopLabel(s)}
                               </option>
                             ))}
                           </select>
@@ -724,6 +724,19 @@ function loadSummary(items: DispatchItem[]) {
 }
 
 /**
+ * Durağın tek satırlık etiketi: **YER — FİRMA**.
+ * Yer önce, çünkü ekrandaki soru "nereye inecek". Firma da yazılır, çünkü aynı firmanın
+ * birden çok lokasyonu olabilir (ör. Arkem'in "Gökbil Depo" ve "Yusufoğlu Depo"su) —
+ * yalnız firma yazsak iki durak ayırt edilemezdi. Belgede (irsaliye) ALICI olarak
+ * yasal gereklilikten FİRMA basılır; ekranda ikisi birlikte gösterilir.
+ */
+function stopLabel(s: { name: string; customerName?: string | null }): string {
+  const co = s.customerName?.trim();
+  if (!co || co === s.name) return s.name;
+  return `${s.name} — ${co}`;
+}
+
+/**
  * Yük listesini DURAK SIRASINA göre dizer (liste · rota · irsaliye aynı sırayı göstersin).
  * Durak yoksa yükleme sırası korunur; durağa atanmamışlar en sona gider.
  * Bu kart bir rota editörü DEĞİL — sıra Duraklar kartından yönetilir.
@@ -808,7 +821,7 @@ function LoadFromStockModal({
         {stops.length > 0 && (
           <Field label="Durak (opsiyonel — yüklerken doğrudan ata)">
             <Combobox
-              options={stops.map((s) => ({ value: s.id, label: `${s.seq}. ${s.customerName || s.name}` }))}
+              options={stops.map((s) => ({ value: s.id, label: `${s.seq}. ${stopLabel(s)}` }))}
               value={stopId}
               onChange={setStopId}
               nullable

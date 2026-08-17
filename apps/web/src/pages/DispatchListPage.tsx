@@ -84,7 +84,9 @@ export function DispatchListPage() {
                       <p className="truncate text-xs text-slate-500">
                         {d.reference}
                         {d.stops?.length
-                          ? ` · ${d.stops.map((s) => s.customerName || s.name).join(' → ')}`
+                          // Listede tek satır: YER adları (kısa ve ayırt edici; aynı firmanın
+                          // birden çok lokasyonu olabildiği için firma adı tekrar edebilirdi)
+                          ? ` · ${d.stops.map((s) => s.name).join(' → ')}`
                           : ''}
                       </p>
                     </div>

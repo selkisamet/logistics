@@ -189,6 +189,13 @@ farklı alıcılara/noktalara gidebilir.
   matbu form genişliğini bozardı). Ad boşsa önek de eklenmez — "ALICI boş" uyarısı çalışmaya devam etsin.
 - **Sıra tek yerden yönetilir:** Duraklar kartındaki ▲▼. Liste (`sortByStop`), rota ve irsaliye
   hep aynı sırayı gösterir. "Yüklenen Yük" kartı rota editörü DEĞİL — yükleme manifestosudur.
+- **Durak etiketi = `stopLabel()` → "YER — FİRMA".** Ekranda yer önce (operatörün sorusu "nereye"),
+  firma da yazılır çünkü **aynı firmanın birden çok lokasyonu olabilir** (Arkem'in "Gökbil Depo" ve
+  "Yusufoğlu Depo"su) — yalnız firma yazınca iki durak ayırt edilemiyordu. Belgede ALICI olarak
+  yasal gereklilikten yalnız FİRMA basılır. `stopLabel` yer==firma ise tekrar etmez.
+- **Yanlış atama uyarısı:** `isMismatched()` — yükün durağının `customerName`'i ile ön ihbardaki
+  `recipientName` farklıysa seçici amber olur + kart başında uyarı (irsaliyede yanlış ALICI basılmasını
+  önler). **"Yükleri Yeniden Ata"** tüm atamaları sıfırlayıp `suggest`'i yeniden çalıştırır.
 - **Yük → durak ataması:** `Package.stopId` (paletli), `Receipt.stopId` (paletsiz). Sevkiyat detayında
   her paletin yanında durak seçici. `PATCH /dispatches/:id/stops/:stopId/assign`
   (**`stopId='yok'` → atamayı kaldırır**).
