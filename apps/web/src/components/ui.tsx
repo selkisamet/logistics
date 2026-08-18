@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 import { createPortal } from 'react-dom';
 import { formatPlate } from '../lib/plate';
 import { formatPhone } from '../lib/phone';
+import { formatMoneyInput, moneyToInput, parseMoneyInput } from '../lib/money';
 import {
   forwardRef,
   useEffect,
@@ -524,6 +525,59 @@ export function PhoneInput({
       value={value}
       onChange={(e) => onChange(formatPhone(e.target.value))}
       placeholder={placeholder ?? '0539 953 10 89'}
+    />
+  );
+}
+
+/**
+ * Para girişi (₺) — TSE biçimi: 1.250,50.
+ *
+ * `type="number"` binlik ayracı gösteremediği için metin input + maske kullanılır
+ * (PhoneInput/PlateInput deseni). Dışarıya **sayı** verir; şemalardaki
+ * `z.coerce.number()` olduğu gibi çalışır. react-hook-form'a `Controller` ile bağlanır.
+ *
+ * Metin (görünen) ile sayı (değer) ayrı tutulur: "1250," yazarken virgül silinmesin diye
+ * ham metin state'te durur; dışarıdan gelen değer değişirse (form reset/ön-doldurma)
+ * metin yeniden üretilir.
+ */
+export function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  value: number | string | null | undefined;
+  onChange: (v: number | undefined) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState(() => moneyToInput(value));
+  const emitted = useRef<number | undefined>(parseMoneyInput(moneyToInput(value)));
+
+  // Değer DIŞARIDAN değiştiyse (form reset / düzenlemede ön-doldurma) metni tazele.
+  // Kendi emit ettiğimiz değeri atlarız; aksi halde "1250," yazarken virgül silinirdi.
+  useEffect(() => {
+    const external = value === '' || value === null || value === undefined ? undefined : Number(value);
+    if (external !== emitted.current) {
+      setText(moneyToInput(value));
+      emitted.current = external;
+    }
+  }, [value]);
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      disabled={disabled}
+      placeholder={placeholder ?? '0,00'}
+      onChange={(e) => {
+        const masked = formatMoneyInput(e.target.value);
+        const num = parseMoneyInput(masked);
+        setText(masked);
+        emitted.current = num;
+        onChange(num);
+      }}
     />
   );
 }

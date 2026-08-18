@@ -264,6 +264,12 @@ farklı alıcılara/noktalara gidebilir.
   0'sız yazılırsa/yapıştırılırsa eklenir, +90/0090 ülke kodu temizlenir; [lib/phone.ts](apps/web/src/lib/phone.ts)).
   react-hook-form'da `Controller` ile bağlanır (register ile değil). Uygulandığı yerler: müşteri, yetkili,
   lokasyon, araç şoförü.
+- **Para girişleri `MoneyInput`** ile maskelenir: `1.250,50` ([lib/money.ts](apps/web/src/lib/money.ts)).
+  **`<input type="number">` binlik ayracı GÖSTEREMEZ** (HTML standardı; değer daima `1250.5` gibi ham
+  durur) — bu yüzden metin input + maske. Dışarıya **sayı** verir, şemadaki `z.coerce.number()`
+  değişmeden çalışır; `Controller` ile bağlanır. Görünen metin ile değer ayrı tutulur (yazarken
+  "1250," virgülü silinmesin diye); dışarıdan gelen değer değişirse metin tazelenir (`emitted` ref).
+  Uygulandığı yerler: ön ihbar birim fiyat, irsaliye taşıma ücreti.
 
 ## Veritabanı / Prisma kuralları
 

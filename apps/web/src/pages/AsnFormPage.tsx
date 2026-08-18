@@ -17,6 +17,7 @@ import {
   Card,
   Field,
   Input,
+  MoneyInput,
   Select,
   Combobox,
   MultiCombobox,
@@ -396,12 +397,12 @@ export function AsnFormPage() {
               </div>
               <div className="mt-2 sm:w-1/4">
                 <Field label="Birim Fiyat (₺)" error={errors.lines?.[i]?.unitPrice?.message}>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    placeholder="0,00"
-                    {...register(`lines.${i}.unitPrice`)}
+                  <Controller
+                    name={`lines.${i}.unitPrice`}
+                    control={control}
+                    render={({ field }) => (
+                      <MoneyInput value={field.value} onChange={field.onChange} />
+                    )}
                   />
                 </Field>
               </div>

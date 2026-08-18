@@ -19,7 +19,17 @@ import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { formatDate, formatDateTime, formatMoney } from '../lib/format';
 import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
-import { Button, Card, Combobox, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
+import {
+  Button,
+  Card,
+  Combobox,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  MoneyInput,
+  Spinner,
+} from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { WaybillModal } from '../components/print/WaybillForm';
@@ -1087,9 +1097,7 @@ function WaybillInfoModal({
   const [serial, setSerial] = useState(dispatch.waybillSerial ?? '');
   const [no, setNo] = useState(dispatch.waybillNo ?? '');
   const [date, setDate] = useState(dispatch.waybillDate?.slice(0, 10) ?? '');
-  const [amount, setAmount] = useState(
-    dispatch.freightAmount != null ? String(dispatch.freightAmount) : '',
-  );
+  const [amount, setAmount] = useState<number | undefined>(dispatch.freightAmount ?? undefined);
   const [vatIncluded, setVatIncluded] = useState(!!dispatch.freightVatIncluded);
 
   const mut = useMutation({
@@ -1099,7 +1107,7 @@ function WaybillInfoModal({
         waybillSerial: serial,
         waybillNo: no,
         waybillDate: date || undefined,
-        freightAmount: amount,
+        freightAmount: amount ?? '',
         freightVatIncluded: vatIncluded,
       }),
     onSuccess: (d) => {
@@ -1142,14 +1150,7 @@ function WaybillInfoModal({
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Taşıma Ücreti (₺)">
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0,00"
-          />
+          <MoneyInput value={amount} onChange={(v) => setAmount(v)} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
