@@ -17,7 +17,7 @@ import {
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { formatDate, formatDateTime } from '../lib/format';
+import { formatDate, formatDateTime, formatMoney } from '../lib/format';
 import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
 import { Button, Card, Combobox, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
@@ -388,7 +388,7 @@ export function DispatchDetailPage() {
             Ücret:{' '}
             <b className="text-slate-800">
               {dispatch.freightAmount != null
-                ? `${dispatch.freightAmount} ₺ (${dispatch.freightVatIncluded ? 'KDV dahil' : 'KDV hariç'})`
+                ? `${formatMoney(dispatch.freightAmount)} (${dispatch.freightVatIncluded ? 'KDV dahil' : 'KDV hariç'})`
                 : '—'}
             </b>
           </span>
@@ -814,7 +814,8 @@ function LoadFromStockModal({
     <Modal title="Depodan Yük Ekle" onClose={onClose} wide>
       <div className="space-y-3">
         <Input
-          placeholder="Ara: müşteri, referans, irsaliye no..."
+          type="search"
+        placeholder="Ara: müşteri, referans, irsaliye no..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { USER_ROLES, UserRole } from '../enums';
+import { upperStr } from '../text';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Yönetici',
@@ -9,7 +10,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export const createUserSchema = z.object({
   email: z.string().email('Geçerli bir e-posta girin'),
-  fullName: z.string().min(2, 'Ad soyad gerekli'),
+  fullName: upperStr(z.string().min(2, 'Ad soyad gerekli')),
   password: z.string().min(6, 'Şifre en az 6 karakter olmalı'),
   role: z.enum(USER_ROLES as [UserRole, ...UserRole[]]).default(UserRole.OPERATOR),
 });

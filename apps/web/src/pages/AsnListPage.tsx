@@ -62,6 +62,7 @@ export function AsnListPage() {
       </div>
 
       <Input
+        type="search"
         placeholder="Ara: referans veya müşteri..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}

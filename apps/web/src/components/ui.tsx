@@ -52,13 +52,36 @@ export function Button({
   );
 }
 
+/** Büyük harfe çevrilmeyen input tipleri: e-posta/şifre olduğu gibi kalmalı, geri kalanlar
+ *  zaten metin değil (rakam/tarih) ya da arama kutusu. */
+const NO_UPPERCASE_TYPES = new Set([
+  'email',
+  'password',
+  'tel',
+  'number',
+  'date',
+  'datetime-local',
+  'time',
+  'search',
+  'url',
+  'file',
+  'checkbox',
+  'radio',
+]);
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function Input({ className, ...props }, ref) {
+  function Input({ className, type, ...props }, ref) {
+    // Girilen değerler sunucuda BÜYÜK HARFE normalize ediliyor (shared/text.ts `upperStr`).
+    // Kullanıcı ne kaydedeceğini yazarken görsün diye görsel olarak da büyütülür — `value`
+    // değişmez, yalnızca görüntü (`lang="tr"` sayesinde CSS de i→İ Türkçe eşlemesini yapar).
+    const uppercase = !NO_UPPERCASE_TYPES.has(type ?? 'text');
     return (
       <input
         ref={ref}
+        type={type}
         className={clsx(
           'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20',
+          uppercase && 'uppercase placeholder:normal-case',
           className,
         )}
         {...props}

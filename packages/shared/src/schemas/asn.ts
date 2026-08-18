@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SHIPMENT_STATUSES, ShipmentStatus } from '../enums';
 import { paginationQuerySchema } from './common';
+import { upperStr, upperOpt } from '../text';
 
 /** KDV oranı (%20). */
 export const VAT_RATE = 0.2;
@@ -11,8 +12,8 @@ export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
 /** Beklenen sevkiyat satırı (ürün + beklenen adet + opsiyonel birim fiyat) */
 export const expectedLineSchema = z.object({
-  sku: z.string().optional(), // opsiyonel: müşteri ürün kodu/varsa
-  description: z.string().min(1, 'Ürün açıklaması gerekli'),
+  sku: upperOpt(), // opsiyonel: müşteri ürün kodu/varsa
+  description: upperStr(z.string().min(1, 'Ürün açıklaması gerekli')),
   expectedQty: z.coerce.number().int().positive('Adet pozitif olmalı'),
   unit: z.string().default('ADET'),
   barcode: z.string().optional(),
@@ -27,14 +28,14 @@ export type ExpectedLineInput = z.infer<typeof expectedLineSchema>;
 /** Kaynak (pickup): kayıtlı müşteri deposu (customerLocationId) ya da serbest metin. */
 export const shipmentSourceInputSchema = z.object({
   customerLocationId: z.string().optional(),
-  label: z.string().min(1, 'Kaynak adı gerekli'),
+  label: upperStr(z.string().min(1, 'Kaynak adı gerekli')),
 });
 export type ShipmentSourceInput = z.infer<typeof shipmentSourceInputSchema>;
 
 /** Boşaltma yeri: alıcı müşterinin lokasyonu (customerLocationId) ya da serbest metin. */
 export const shipmentRecipientInputSchema = z.object({
   customerLocationId: z.string().optional(),
-  label: z.string().min(1, 'Boşaltma yeri gerekli'),
+  label: upperStr(z.string().min(1, 'Boşaltma yeri gerekli')),
 });
 export type ShipmentRecipientInput = z.infer<typeof shipmentRecipientInputSchema>;
 
@@ -47,10 +48,10 @@ export const createAsnSchema = z.object({
   recipients: z.array(shipmentRecipientInputSchema).optional().default([]), // alıcının boşaltma yerleri
   vehicleId: z.string().optional(), // plaka belli değilse boş
   expectedAt: z.string().optional(), // ISO tarih
-  notes: z.string().optional(),
+  notes: upperOpt(),
   // Fiş için taraf/adres/ödeme (hepsi opsiyonel)
-  loadAddress: z.string().optional(), // yükleme (gönderici) adresi
-  deliveryAddress: z.string().optional(), // teslimat (alıcı) adresi
+  loadAddress: upperOpt(), // yükleme (gönderici) adresi
+  deliveryAddress: upperOpt(), // teslimat (alıcı) adresi
   paymentType: z.enum(PAYMENT_TYPES).optional(),
   showAmountOnSlip: z.boolean().optional().default(false),
   vatIncluded: z.boolean().optional().default(false),

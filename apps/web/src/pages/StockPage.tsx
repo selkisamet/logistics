@@ -13,7 +13,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
-import { formatDate, daysSince } from '../lib/format';
+import { formatCount, formatDate, daysSince } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
 import {
   Badge,
@@ -113,6 +113,7 @@ export function StockPage() {
       </div>
 
       <Input
+        type="search"
         placeholder="Ara: müşteri, referans, irsaliye no..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -165,13 +166,13 @@ export function StockPage() {
                   <span className="text-sm font-medium text-slate-700">
                     {hasPkg ? (
                       <>
-                        {pkgs.length}
-                        {total > pkgs.length ? `/${total}` : ''} palet depoda
+                        {formatCount(pkgs.length)}
+                        {total > pkgs.length ? `/${formatCount(total)}` : ''} palet depoda
                       </>
                     ) : (
                       <>
-                        {itemQty}
-                        {totalQty > itemQty ? `/${totalQty}` : ''} adet depoda
+                        {formatCount(itemQty)}
+                        {totalQty > itemQty ? `/${formatCount(totalQty)}` : ''} adet depoda
                       </>
                     )}
                   </span>
@@ -293,9 +294,9 @@ export function StockPage() {
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
             <div className="text-sm">
               <span className="font-semibold text-slate-900">
-                Seçili: {sel.pkg ? `${sel.pkg} kap` : ''}
+                Seçili: {sel.pkg ? `${formatCount(sel.pkg)} kap` : ''}
                 {sel.pkg && sel.qty ? ' · ' : ''}
-                {sel.qty ? `${sel.qty} adet` : ''}
+                {sel.qty ? `${formatCount(sel.qty)} adet` : ''}
               </span>
               <span className="ml-2 text-xs text-slate-500">
                 {sel.customers.length} müşteri
@@ -390,8 +391,8 @@ function LoadToVehicleModal({
   return (
     <Modal
       title="Araca Yükle"
-      description={`${summary.pkg ? `${summary.pkg} kap` : ''}${summary.pkg && summary.qty ? ' · ' : ''}${
-        summary.qty ? `${summary.qty} adet` : ''
+      description={`${summary.pkg ? `${formatCount(summary.pkg)} kap` : ''}${summary.pkg && summary.qty ? ' · ' : ''}${
+        summary.qty ? `${formatCount(summary.qty)} adet` : ''
       } · ${summary.customers.join(', ')}`}
       onClose={onClose}
     >

@@ -22,7 +22,7 @@ async function main() {
     update: {},
     create: {
       email: adminEmail,
-      fullName: 'Sistem Yöneticisi',
+      fullName: 'SİSTEM YÖNETİCİSİ',
       role: 'ADMIN',
       passwordHash: await bcrypt.hash(adminPassword, 10),
     },
@@ -33,7 +33,7 @@ async function main() {
     update: {},
     create: {
       email: 'operator@lojistik.local',
-      fullName: 'Depo Operatörü',
+      fullName: 'DEPO OPERATÖRÜ',
       role: 'OPERATOR',
       passwordHash: await bcrypt.hash('operator123', 10),
     },

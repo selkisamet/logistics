@@ -1,14 +1,16 @@
 import { z } from 'zod';
+import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const createWarehouseSchema = z.object({
-  name: z.string().min(2, 'Depo adı gerekli'),
+  name: upperStr(z.string().min(2, 'Depo adı gerekli')),
   // Boş bırakılırsa sunucu addan otomatik üretir (MERKEZ_DEPO gibi).
-  code: z
-    .string()
-    .min(2, 'Kod en az 2 karakter olmalı')
-    .regex(/^[A-Za-z0-9_-]+$/, 'Kod sadece harf, rakam, - ve _ içerebilir')
-    .optional(),
-  address: z.string().optional(),
+  code: codeOpt(
+    z
+      .string()
+      .min(2, 'Kod en az 2 karakter olmalı')
+      .regex(/^[A-Za-z0-9_-]+$/, 'Kod sadece harf, rakam, - ve _ içerebilir'),
+  ),
+  address: upperOpt(),
 });
 export type CreateWarehouseInput = z.infer<typeof createWarehouseSchema>;
 
@@ -28,8 +30,8 @@ export type Warehouse = z.infer<typeof warehouseSchema>;
 /** Depo içi lokasyon (raf/koridor/göz) — MVP'de temel düzeyde */
 export const createLocationSchema = z.object({
   warehouseId: z.string().min(1),
-  code: z.string().min(1, 'Lokasyon kodu gerekli'),
-  description: z.string().optional(),
+  code: upperStr(z.string().min(1, 'Lokasyon kodu gerekli')),
+  description: upperOpt(),
 });
 export type CreateLocationInput = z.infer<typeof createLocationSchema>;
 

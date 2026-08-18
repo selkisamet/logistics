@@ -29,10 +29,37 @@ const moneyFmt = new Intl.NumberFormat('tr-TR', {
   maximumFractionDigits: 2,
 });
 
-/** Para biçimi (₺). null/undefined → boş dize. */
+/** Para biçimi (₺). null/undefined → boş dize. Ör. 12345.5 → "₺12.345,50" */
 export function formatMoney(value?: number | null): string {
   if (value == null || Number.isNaN(value)) return '';
   return moneyFmt.format(value);
+}
+
+/** Simgesiz para/tutar — matbu formun "TUTARI" gibi ₺ sütunu zaten yazılı hücreleri için. */
+const amountFmt = new Intl.NumberFormat('tr-TR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+export function formatAmount(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return '';
+  return amountFmt.format(value);
+}
+
+/** Ağırlık (kg) — binlik ayraçlı, en çok 3 ondalık (0,250 kg gibi küsuratlar için). */
+const weightFmt = new Intl.NumberFormat('tr-TR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+export function formatWeight(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return '';
+  return weightFmt.format(value);
+}
+
+/** Adet/sayım: **ondalık YOK** (5 palet "5,00" olmaz), yalnız binlik ayracı: 1250 → "1.250". */
+const countFmt = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
+export function formatCount(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return '';
+  return countFmt.format(value);
 }
 
 /** Verilen tarihten bugüne kaç tam gün geçtiği. */

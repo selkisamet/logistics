@@ -71,6 +71,22 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Roller:** ADMIN / SUPERVISOR / OPERATOR. ASN rotaları admin/supervisor; receipts & dispatches
   herhangi bir oturum açmış kullanıcı (operatör sevk eder).
 - **Arayüz dili Türkçe.** Bildirimler inline değil **toast** (`lib/toast.ts`) — akışı bozmasın.
+- **Girilen METİNLER BÜYÜK HARF** ([shared/text.ts](packages/shared/src/text.ts)): kullanıcılar aynı
+  bilgiyi farklı yazıyordu ("arkem kimya"/"Arkem Kimya") → belge ve listeler tutarsızdı.
+  `upperStr()`/`upperOpt()` **zod `.transform()`'u** ile şemada normalize edilir; `ZodValidationPipe`
+  `parse()` sonucunu döndürdüğü ve tüm `@Body`'ler pipe'tan geçtiği için bu **TEK yazma hunisidir**
+  (yeni serbest metin alanı eklerken bunları kullan). Türkçe eşleme şart: `trUpper` =
+  `toLocaleUpperCase('tr-TR')` — düz `toUpperCase()` "işi"yi "ISI" yapar, doğrusu "İŞİ".
+  Kod/slug alanları (`[A-Za-z0-9_-]` regex'li: müşteri/depo kodu, irsaliye seri/no) `codeOpt()` ile
+  **ASCII** büyütülür — `İ` regex'i ihlal ederdi. **Dokunulmayanlar:** e-posta, şifre, telefon,
+  vergi no, arama metni (`search`), id'ler. UI'da `Input` görsel olarak da büyütür
+  (`uppercase` sınıfı; `type` email/password/tel/number/date/**search** ise hariç) — `value` değişmez,
+  gerçek normalizasyon sunucuda. Eski kayıtlar için tek seferlik `BUYUKHARF.bat`
+  (`apps/api/scripts/uppercase-text.mjs`, `--dry-run` destekli).
+- **Sayı biçimi TSE/tr-TR** ([lib/format.ts](apps/web/src/lib/format.ts)): `formatMoney` (₺12.345,50),
+  `formatAmount` (simgesiz), `formatWeight` (kg, ≤3 ondalık), **`formatCount`** (adet — **ondalık YOK**,
+  yalnız binlik: 1.250; "5 palet" asla "5,00" olmaz). Belgelerde satır `qty` **sayı olarak** taşınır,
+  biçimlendirme basımda yapılır — aksi halde toplam `Number("1.250")=1.25` olur.
 
 ## Domain akışı
 

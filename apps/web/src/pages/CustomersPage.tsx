@@ -37,6 +37,7 @@ export function CustomersPage() {
       </div>
 
       <Input
+        type="search"
         placeholder="Ara: ad veya kod..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}

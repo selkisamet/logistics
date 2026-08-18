@@ -3,6 +3,7 @@ import { RECEIPT_STATUSES, ReceiptStatus, PACKAGE_TYPES, PackageType } from '../
 import { paginationQuerySchema } from './common';
 import { discrepancySchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
+import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const RECEIPT_STATUS_LABELS: Record<ReceiptStatus, string> = {
   DRAFT: 'Taslak',
@@ -35,7 +36,7 @@ export const startReceiptSchema = z
     // Blind kabul için müşteri ve depo doğrudan verilir.
     customerId: z.string().optional(),
     warehouseId: z.string().optional(),
-    notes: z.string().optional(),
+    notes: upperOpt(),
   })
   .refine((v) => !!v.asnId || (!!v.customerId && !!v.warehouseId), {
     message: 'ASN seçin ya da kör kabul için müşteri ve depo belirtin',
@@ -45,8 +46,8 @@ export type StartReceiptInput = z.infer<typeof startReceiptSchema>;
 /** Tek bir satırın (ürünün) sayım kaydı/güncellemesi. */
 export const upsertReceiptLineSchema = z.object({
   lineId: z.string().optional(), // mevcut satırı id ile güncelle (en güvenilir eşleşme)
-  sku: z.string().optional().default(''), // ürün kodu (çoğu sevkiyatta yok)
-  description: z.string().min(1, 'Açıklama gerekli'),
+  sku: upperStr().default(''), // ürün kodu (çoğu sevkiyatta yok)
+  description: upperStr(z.string().min(1, 'Açıklama gerekli')),
   countedQty: z.coerce.number().int().min(0),
   unit: z.string().default('ADET'),
   barcode: z.string().optional(),
@@ -58,9 +59,9 @@ export type UpsertReceiptLineInput = z.infer<typeof upsertReceiptLineSchema>;
 export const createPackageSchema = z.object({
   type: z.enum(PACKAGE_TYPES as [PackageType, ...PackageType[]]).default(PackageType.CARTON),
   count: z.coerce.number().int().min(1).max(500).default(1), // kaç adet benzersiz etiket
-  sku: z.string().optional(),
+  sku: upperOpt(),
   qty: z.coerce.number().int().positive().optional(),
-  note: z.string().optional(),
+  note: upperOpt(),
 });
 export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 
@@ -158,9 +159,9 @@ export type Receipt = z.infer<typeof receiptSchema>;
 
 /** Mal kabul bilgilerini güncelleme (irsaliye no / sipariş no / notlar). */
 export const updateReceiptSchema = z.object({
-  waybillNo: z.string().optional(),
-  orderNo: z.string().optional(),
-  notes: z.string().optional(),
+  waybillNo: codeOpt(),
+  orderNo: codeOpt(),
+  notes: upperOpt(),
 });
 export type UpdateReceiptInput = z.infer<typeof updateReceiptSchema>;
 

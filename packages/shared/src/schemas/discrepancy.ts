@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DISCREPANCY_TYPES, DiscrepancyType } from '../enums';
+import { upperStr } from '../text';
 
 export const DISCREPANCY_TYPE_LABELS: Record<DiscrepancyType, string> = {
   SHORTAGE: 'Eksik',
@@ -14,7 +15,7 @@ export const createDiscrepancySchema = z.object({
   receiptLineId: z.string().optional(),
   type: z.enum(DISCREPANCY_TYPES as [DiscrepancyType, ...DiscrepancyType[]]),
   qty: z.coerce.number().int().min(0).optional(),
-  description: z.string().min(1, 'Açıklama gerekli'),
+  description: upperStr(z.string().min(1, 'Açıklama gerekli')),
   // Yüklenmiş ek (foto) id'leri
   attachmentIds: z.array(z.string()).optional(),
 });

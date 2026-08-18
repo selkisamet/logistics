@@ -12,6 +12,7 @@ import {
   PACKAGE_TYPES,
   DISCREPANCY_TYPE_LABELS,
   VAT_RATE,
+  trUpper,
   type Receipt,
   type ReceiptLine,
   type UpsertReceiptLineInput,
@@ -21,7 +22,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
-import { formatDate, formatMoney } from '../lib/format';
+import { formatCount, formatDate, formatMoney } from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -37,9 +38,8 @@ import { MetaLine, FieldLine } from '../components/print/FormLines';
 function kapLabel(unit: string | null | undefined): string {
   const u = (unit ?? '').trim();
   if (!u) return '';
-  const byEnum = PACKAGE_TYPE_LABELS[u as keyof typeof PACKAGE_TYPE_LABELS];
-  if (byEnum) return byEnum;
-  return u.toUpperCase() === 'ADET' ? 'Adet' : u;
+  // Fişteki diğer veriler BÜYÜK HARF → kap adı da büyütülür.
+  return trUpper(PACKAGE_TYPE_LABELS[u as keyof typeof PACKAGE_TYPE_LABELS] ?? u);
 }
 
 export function ReceiptCountPage() {
@@ -170,8 +170,8 @@ export function ReceiptCountPage() {
         <div className="flex justify-between text-sm">
           <span className="text-slate-500">Toplam sayılan</span>
           <span className="font-semibold">
-            {totalCounted}
-            {totalExpected ? ` / ${totalExpected}` : ''} adet
+            {formatCount(totalCounted)}
+            {totalExpected ? ` / ${formatCount(totalExpected)}` : ''} adet
           </span>
         </div>
         <Button variant="secondary" className="w-full" onClick={() => setSlipOpen(true)}>
@@ -898,7 +898,7 @@ function SlipForm({
                     <span className="slip-data">{l.description}</span>
                   </td>
                   <td className={`${td} text-right font-semibold`}>
-                    <span className="slip-data">{l.countedQty}</span>
+                    <span className="slip-data">{formatCount(l.countedQty)}</span>
                   </td>
                   {/* KAP = kalemin nev'i (ön ihbarda seçilir); eski kayıtlarda boş/ham olabilir */}
                   <td className={`${td} text-center`}>
@@ -929,11 +929,11 @@ function SlipForm({
                   TOPLAM
                 </td>
                 <td className={`${td} text-right font-bold`}>
-                  <span className="slip-data">{totalCounted}</span>
+                  <span className="slip-data">{formatCount(totalCounted)}</span>
                 </td>
                 <td className={td} colSpan={2}>
                   <span className="slip-data">
-                    Palet/Koli: {packages.length}
+                    Palet/Koli: {formatCount(packages.length)}
                     {typeSummary ? ` · ${typeSummary}` : ''}
                   </span>
                 </td>

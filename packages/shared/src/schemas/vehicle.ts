@@ -1,22 +1,23 @@
 import { z } from 'zod';
+import { upperStr, upperOpt } from '../text';
 
 /** Araç tipi serbest metindir; bunlar sadece hızlı seçim önerileridir. */
 export const VEHICLE_TYPE_SUGGESTIONS = [
-  'Tır',
-  'Kamyon',
-  'Kamyonet',
-  'Kırkayak',
-  'Kamyonet 50 NC',
-  'Panelvan',
-  'Diğer',
+  'TIR',
+  'KAMYON',
+  'KAMYONET',
+  'KIRKAYAK',
+  'KAMYONET 50 NC',
+  'PANELVAN',
+  'DİĞER',
 ];
 
 export const createVehicleSchema = z.object({
-  plate: z.string().min(2, 'Plaka gerekli'),
-  type: z.string().min(1, 'Araç tipi gerekli').default('Kamyon'),
-  driverName: z.string().optional(),
+  plate: upperStr(z.string().min(2, 'Plaka gerekli')),
+  type: upperStr(z.string().min(1, 'Araç tipi gerekli')).default('KAMYON'),
+  driverName: upperOpt(),
   driverPhone: z.string().optional(),
-  trailerPlate: z.string().optional(), // dorse (tır)
+  trailerPlate: upperOpt(), // dorse (tır)
 });
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
 

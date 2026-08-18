@@ -2,12 +2,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   PACKAGE_TYPE_LABELS,
   VAT_RATE,
+  trUpper,
   type Dispatch,
   type DispatchStop,
   type PackageType,
 } from '@lojistik/shared';
 import { COMPANY } from '../../lib/company';
-import { formatDate, formatMoney } from '../../lib/format';
+import { formatCount, formatDate, formatMoney } from '../../lib/format';
 import { PrintableDocModal, type CopyOption } from './PrintableDocModal';
 import { MetaLine, FieldLine } from './FormLines';
 
@@ -66,7 +67,7 @@ const WAYBILL_COPIES: CopyOption[] = [
 type WaybillLine = {
   key: string;
   receiptRef: string; // TESELLÜM MAKBUZ NO — fişle eşleşme
-  qty: string; // ADET
+  qty: number; // ADET (biçimlendirme basımda: formatCount)
   unit: string; // NEVİ (palet/koli/IBC... ya da kalem birimi)
   kind: string; // MALIN CİNSİ
   sender: string; // GÖNDERENİN ADI SOYADI
@@ -74,20 +75,19 @@ type WaybillLine = {
   dispatchNote: string; // SEVK İRS. NO (göndericinin irsaliyesi)
 };
 
+/** NEVİ hücresi: yükün kap cinsi (Palet, Varil, Big-bag, IBC...).
+ *  Kap satırlarında `unit` = PackageType enum'u, kalem satırlarında ön ihbarda seçilen
+ *  Türkçe kap etiketi gelir. Eski kayıtlarda ham 'ADET' bulunabilir → hepsi okunur etikete çevrilir.
+ *  Belgedeki diğer veriler BÜYÜK HARF olduğu için kap adı da büyütülür. */
+function unitLabel(u: string): string {
+  return trUpper(PACKAGE_TYPE_LABELS[u as PackageType] ?? u);
+}
+
 /** Formda GİDECEĞİ YER tek satırlık dar bir alan — bölge/rota adı yazılır (ambar
  *  formlarındaki teamül). Çok noktalı seferde tüm alıcıları sığdırmak mümkün değil ve
  *  gereksiz: her satırın ALICI'sı tabloda zaten yazıyor. Bu yüzden:
  *   - kısa bir ad girilmişse onu bas ("Avrupa Yakası")
  *   - girilmemiş ya da sığmayacak kadar uzunsa "MUHTELİF (N durak)" bas */
-/** NEVİ hücresi: yükün kap cinsi (Palet, Varil, Big-bag, IBC...).
- *  Kap satırlarında `unit` = PackageType enum'u, kalem satırlarında ön ihbarda seçilen
- *  Türkçe kap etiketi gelir. Eski kayıtlarda ham 'ADET' bulunabilir → hepsi okunur etikete çevrilir. */
-function unitLabel(u: string): string {
-  const byEnum = PACKAGE_TYPE_LABELS[u as PackageType];
-  if (byEnum) return byEnum;
-  return u.toUpperCase() === 'ADET' ? 'Adet' : u;
-}
-
 const DEST_MAX = 34;
 function destinationText(d: Dispatch): string {
   const raw = (d.destination ?? '').trim();
@@ -155,7 +155,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
       out.push({
         key: `${g.stopId ?? 'x'}-p-${key}`,
         receiptRef: p.ref,
-        qty: String(p.count),
+        qty: p.count,
         unit: p.unit,
         kind: p.kind,
         sender: p.sender,
@@ -169,7 +169,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
       out.push({
         key: `${g.stopId ?? 'x'}-l-${i.id}`,
         receiptRef: i.receiptReference,
-        qty: String(i.qty),
+        qty: i.qty,
         unit: unitLabel(i.unit),
         kind: i.description,
         sender: i.customerName ?? '',
@@ -257,7 +257,7 @@ function WaybillDoc({
   const rows = all.slice(0, WAYBILL_ROWS);
   const annex = all.slice(WAYBILL_ROWS);
   const blanks = Math.max(0, WAYBILL_ROWS - rows.length);
-  const totalQty = all.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  const totalQty = all.reduce((s, l) => s + l.qty, 0);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const docUrl = origin ? `${origin}/sevkiyat/${dispatch.id}` : dispatch.reference;
@@ -404,7 +404,7 @@ function WaybillDoc({
                   <span className="slip-data">{l.receiptRef}</span>
                 </td>
                 <td className={`${td} text-center font-semibold`}>
-                  <span className="slip-data">{l.qty}</span>
+                  <span className="slip-data">{formatCount(l.qty)}</span>
                 </td>
                 <td className={td}>
                   <span className="slip-data">{l.unit}</span>
@@ -451,7 +451,7 @@ function WaybillDoc({
               {i === 0 && <span className="text-[8px] font-bold text-slate-700">TOPLAM</span>}
               {i === 1 && (
                 <span className="slip-data block text-center text-[9px] font-bold">
-                  {totalQty || ' '}
+                  {totalQty ? formatCount(totalQty) : ' '}
                 </span>
               )}
               {i === 8 && (
@@ -552,7 +552,7 @@ function WaybillDoc({
                   <span className="slip-data">{l.receiptRef}</span>
                 </td>
                 <td className={`${td} border-x border-sky-800 text-center font-semibold`}>
-                  <span className="slip-data">{l.qty}</span>
+                  <span className="slip-data">{formatCount(l.qty)}</span>
                 </td>
                 <td className={`${td} border-x border-sky-800`}>
                   <span className="slip-data">{l.unit}</span>
@@ -581,7 +581,7 @@ function WaybillDoc({
           </tbody>
         </table>
         <div className="border-t-2 border-sky-800 p-2 text-[8px] text-slate-600">
-          Ek listedeki satırlar dâhil <span className="slip-data font-bold">{totalQty}</span> adet /
+          Ek listedeki satırlar dâhil <span className="slip-data font-bold">{formatCount(totalQty)}</span> adet /
           kap taşınmaktadır. · {COMPANY.name}
         </div>
       </div>

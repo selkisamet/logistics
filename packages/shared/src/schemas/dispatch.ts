@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DISPATCH_STATUSES, DispatchStatus } from '../enums';
 import { paginationQuerySchema } from './common';
 import { vehicleSummarySchema } from './vehicle';
+import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const DISPATCH_STATUS_LABELS: Record<DispatchStatus, string> = {
   DRAFT: 'Hazırlanıyor',
@@ -10,11 +11,11 @@ export const DISPATCH_STATUS_LABELS: Record<DispatchStatus, string> = {
 };
 
 export const createDispatchSchema = z.object({
-  destination: z.string().min(1, 'Hedef/alıcı gerekli'),
+  destination: upperStr(z.string().min(1, 'Hedef/alıcı gerekli')),
   vehicleId: z.string().optional(), // kayıtlı araç seçildiyse
-  vehiclePlate: z.string().optional(), // ya da elle plaka (kayıtsız araç)
-  driverName: z.string().optional(),
-  notes: z.string().optional(),
+  vehiclePlate: upperOpt(), // ya da elle plaka (kayıtsız araç)
+  driverName: upperOpt(),
+  notes: upperOpt(),
 });
 export type CreateDispatchInput = z.infer<typeof createDispatchSchema>;
 
@@ -44,7 +45,7 @@ export type BulkAddDispatchPackagesInput = z.infer<typeof bulkAddDispatchPackage
 export const quickDispatchSchema = z.object({
   receiptId: z.string().min(1, 'Kabul gerekli'),
   vehicleId: z.string().optional(), // boşsa ön ihbarda planlanan araç kullanılır
-  destination: z.string().optional(), // boşsa müşteri adı kullanılır
+  destination: upperOpt(), // boşsa müşteri adı kullanılır
 });
 export type QuickDispatchInput = z.infer<typeof quickDispatchSchema>;
 
@@ -61,10 +62,10 @@ export const createDispatchStopSchema = z
   .object({
     customerId: z.string().optional(), // alıcı = kayıtlı müşteri (opsiyonel)
     customerLocationId: z.string().optional(), // müşterinin boşaltma lokasyonu
-    name: z.string().optional(), // lokasyon seçilmediyse serbest metin (zorunlu)
-    address: z.string().optional(),
+    name: upperOpt(), // lokasyon seçilmediyse serbest metin (zorunlu)
+    address: upperOpt(),
     phone: z.string().optional(),
-    note: z.string().optional(),
+    note: upperOpt(),
   })
   .refine((v) => !!v.customerLocationId || !!v.name?.trim(), {
     message: 'Durak adı gerekli (ya da kayıtlı bir lokasyon seçin)',
@@ -141,9 +142,9 @@ export type DispatchItem = z.infer<typeof dispatchItemSchema>;
 
 /** Taşıma irsaliyesi bilgileri: matbu belgenin seri/sıra no'su + taşıma ücreti. */
 export const updateWaybillSchema = z.object({
-  destination: z.string().optional(), // GİDECEĞİ YER (belgeye basılır) — sonradan düzeltilebilir
-  waybillSerial: z.string().optional(), // matbu seri (ör. "A")
-  waybillNo: z.string().optional(), // matbu sıra no (ör. "012345")
+  destination: upperOpt(), // GİDECEĞİ YER (belgeye basılır) — sonradan düzeltilebilir
+  waybillSerial: codeOpt(), // matbu seri (ör. "A")
+  waybillNo: codeOpt(), // matbu sıra no (ör. "012345")
   waybillDate: z.string().optional(), // ISO tarih
   freightAmount: z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? undefined : v),

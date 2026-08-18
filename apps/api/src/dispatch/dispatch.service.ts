@@ -185,7 +185,7 @@ export class DispatchService {
       const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
       if (!vehicle) throw new BadRequestException('Geçersiz araç seçimi');
     }
-    const destination = input.destination?.trim() || receipt.customer?.name || 'Sevkiyat';
+    const destination = input.destination?.trim() || receipt.customer?.name || 'SEVKİYAT';
 
     const now = new Date();
     let lastErr: unknown;
