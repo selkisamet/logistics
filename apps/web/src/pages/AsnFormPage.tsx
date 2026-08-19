@@ -113,6 +113,7 @@ export function AsnFormPage() {
       warehouseId: existing.warehouseId,
       vehicleId: existing.vehicleId ?? undefined,
       expectedAt: existing.expectedAt ? existing.expectedAt.slice(0, 10) : undefined,
+      deliveryBy: existing.deliveryBy ? existing.deliveryBy.slice(0, 10) : undefined,
       notes: existing.notes ?? undefined,
       paymentType: existing.paymentType ?? 'RECIPIENT',
       showAmountOnSlip: existing.showAmountOnSlip ?? false,
@@ -124,6 +125,7 @@ export function AsnFormPage() {
         unit: toKap(l.unit),
         barcode: l.barcode ?? '',
         unitPrice: l.unitPrice ?? undefined,
+        weightKg: l.weightKg ?? undefined,
       })),
     });
     setSourceSel(
@@ -347,6 +349,18 @@ export function AsnFormPage() {
             </Field>
           </div>
 
+          {/* Termin: depoda bekleyen yükün son teslim günü — depo ekranı buna göre uyarır */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Field label="Son Teslim Tarihi (opsiyonel)" error={errors.deliveryBy?.message}>
+                <Input type="date" {...register('deliveryBy')} />
+              </Field>
+              <p className="mt-1 text-xs text-slate-500">
+                Depoda bekleyen yük bu tarihe göre önceliklendirilir; gününde sevk edilmezse uyarır.
+              </p>
+            </div>
+          </div>
+
           <Field label="Notlar" error={errors.notes?.message}>
             <Input {...register('notes')} />
           </Field>
@@ -395,7 +409,7 @@ export function AsnFormPage() {
                   </Select>
                 </Field>
               </div>
-              <div className="mt-2 sm:w-1/4">
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:w-1/2 sm:grid-cols-2">
                 <Field label="Birim Fiyat (₺)" error={errors.lines?.[i]?.unitPrice?.message}>
                   <Controller
                     name={`lines.${i}.unitPrice`}
@@ -403,6 +417,16 @@ export function AsnFormPage() {
                     render={({ field }) => (
                       <MoneyInput value={field.value} onChange={field.onChange} />
                     )}
+                  />
+                </Field>
+                {/* Kalemin TOPLAM kilosu — irsaliyedeki KİLO, fişteki KG sütununa basılır */}
+                <Field label="Kilo (kg)" error={errors.lines?.[i]?.weightKg?.message}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.001"
+                    placeholder="0"
+                    {...register(`lines.${i}.weightKg`)}
                   />
                 </Field>
               </div>

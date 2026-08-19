@@ -106,6 +106,19 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     ve tesellüm fişi **KAP** sütunu (`kapLabel()`; eskiden elle doldurulurdu). Eski kayıtlardaki ham
     `'ADET'` her üç yerde etikete normalize edilir (`toKap()` ön ihbar düzenlemede — aksi halde
     listede olmayan değer seçimi boşaltıp kaydedince kapı silerdi).
+  - **Kilo (`weightKg`)**: kalemin TOPLAM ağırlığı (müşterinin irsaliyesindeki gibi), opsiyonel.
+    `ShipmentLine` → `ReceiptLine`'a kopyalanır → `DispatchItem`'a **snapshot**'lanır; taşıma
+    irsaliyesi **KİLO** ve tesellüm fişi **KG** sütunlarına basılır (eskiden elle dolduruluyordu).
+    Girilmemişse hücre **boş** kalır — matbu formda elle yazılabilsin. **Kısmi sevkte oransal**
+    ([dispatch.service.ts](apps/api/src/dispatch/dispatch.service.ts) `portionWeight`/`perPackageWeight`):
+    kalemde `kg × qty/countedQty`; kapta palet–kalem bağı OLMADIĞI için (tek-granülerlik kuralı)
+    kabulün toplam kilosu palet sayısına eşit paylaştırılır → yaklaşık ama tutarlı.
+  - **Son teslim tarihi (`deliveryBy`, termin)**: ön ihbar başlığında, opsiyonel. `expectedAt`
+    malın GELECEĞİ gün, `deliveryBy` GİTMESİ GEREKEN son gün. Depo ekranında `DueBadge`
+    ("2 gün kaldı" / "1 gün GECİKTİ") ve **sıralama** bundan gelir: `findStock`
+    `orderBy: [{shipment:{deliveryBy:'asc'}}, {completedAt:'asc'}]` — Postgres ASC'te NULL'lar
+    sona düştüğü için terminsiz yükler altta kalır. Kopyalanmaz; `serializeReceipt` ön ihbardan
+    yüzeye çıkarır (tek kaynak `InboundShipment`).
   - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive:
     `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
     ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi).

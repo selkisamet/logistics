@@ -126,6 +126,7 @@ export const dispatchItemSchema = z.object({
   qty: z.number().int(),
   unit: z.string(),
   description: z.string(), // MALIN CİNSİ (snapshot)
+  weightKg: z.number().nonnegative().nullable().optional(), // KİLO (snapshot, kısmi sevkte oransal)
   stopId: z.string().nullable().optional(),
   receiptId: z.string(),
   receiptReference: z.string(),

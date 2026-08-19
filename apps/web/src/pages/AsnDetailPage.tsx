@@ -5,7 +5,7 @@ import { type Asn } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { formatDate } from '../lib/format';
+import { formatDate, formatWeight } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
 import { Button, Card, Combobox, Field, Spinner } from '../components/ui';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
@@ -66,6 +66,7 @@ export function AsnDetailPage() {
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <Info label="Beklenen tarih" value={formatDate(asn.expectedAt)} />
+          <Info label="Son teslim (termin)" value={asn.deliveryBy ? formatDate(asn.deliveryBy) : '–'} />
           <Info label="Gönderici" value={asn.customer?.name ?? '–'} />
           <Info
             label="Yükleme Yeri"
@@ -112,6 +113,9 @@ export function AsnDetailPage() {
                   {l.receivedQty}/{l.expectedQty}
                 </span>
                 <span className="ml-1 text-xs text-slate-400">{l.unit}</span>
+                {l.weightKg != null && (
+                  <span className="block text-xs text-slate-400">{formatWeight(l.weightKg)} kg</span>
+                )}
               </div>
             </div>
           ))}

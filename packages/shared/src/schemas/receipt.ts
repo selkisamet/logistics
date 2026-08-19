@@ -51,6 +51,11 @@ export const upsertReceiptLineSchema = z.object({
   countedQty: z.coerce.number().int().min(0),
   unit: z.string().default('ADET'),
   barcode: z.string().optional(),
+  // kalemin toplam ağırlığı (kg) — boş input '' → undefined
+  weightKg: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().nonnegative('Ağırlık negatif olamaz').optional(),
+  ),
   asnLineId: z.string().optional(), // beklenen satırla eşleşme
 });
 export type UpsertReceiptLineInput = z.infer<typeof upsertReceiptLineSchema>;
@@ -88,6 +93,7 @@ export const receiptLineSchema = z.object({
   unit: z.string(),
   barcode: z.string().nullable(),
   unitPrice: z.number().nonnegative().nullable().optional(), // birim fiyat (ön ihbardan)
+  weightKg: z.number().nonnegative().nullable().optional(), // ağırlık kg (ön ihbardan)
   // Kalem bazlı sevk: araca yüklenen ve depoda kalan miktar
   dispatchedQty: z.number().int().optional().default(0),
   remainingQty: z.number().int().optional().default(0),
@@ -118,6 +124,8 @@ export const receiptSchema = z.object({
   notes: z.string().nullable(),
   waybillNo: z.string().nullable().optional(),
   orderNo: z.string().nullable().optional(),
+  // Ön ihbardaki termin — kopyalanmaz, serializeReceipt yüzeye çıkarır (tek kaynak shipment)
+  deliveryBy: z.string().nullable().optional(),
   dispatchId: z.string().nullable().optional(),
   dispatchedAt: z.string().nullable().optional(),
   // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)

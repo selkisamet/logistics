@@ -89,6 +89,38 @@ function describeLines(lines: { description: string }[]): string {
   return 'Muhtelif';
 }
 
+/** Decimal(12,3) kolonuna yazılacak kilo — float gürültüsünü kırp. */
+const kg = (n: number): number => Math.round(n * 1000) / 1000;
+
+/**
+ * Kısmi sevkte kalemin kilosu: kalemin TOPLAM kilosunun sevk edilen orana düşen kısmı.
+ * Kilo girilmemişse (null) belge hücresi boş kalır — elle doldurulmaya devam edilebilir.
+ */
+function portionWeight(
+  total: Prisma.Decimal | null,
+  qty: number,
+  countedQty: number,
+): number | null {
+  if (total === null || countedQty <= 0) return null;
+  return kg(Number(total) * (qty / countedQty));
+}
+
+/**
+ * Bir paletin kilosu. Palet ile kalem arasında bağ YOK (tek-granülerlik kuralı), bu yüzden
+ * kabulün toplam kilosu palet sayısına eşit paylaştırılır — kısmi palet sevkinde belgeye
+ * yaklaşık ama tutarlı bir KİLO basılır. Hiç kilo girilmemişse null.
+ */
+function perPackageWeight(
+  lines: { weightKg: Prisma.Decimal | null }[],
+  packageCount: number,
+): number | null {
+  if (packageCount <= 0) return null;
+  const withKg = lines.filter((l) => l.weightKg !== null);
+  if (withKg.length === 0) return null;
+  const total = withKg.reduce((sum, l) => sum + Number(l.weightKg), 0);
+  return kg(total / packageCount);
+}
+
 @Injectable()
 export class DispatchService {
   constructor(private readonly prisma: PrismaService) {}
@@ -376,6 +408,7 @@ export class DispatchService {
       qty: i.qty,
       unit: i.unit,
       description: i.description,
+      weightKg: i.weightKg === null ? null : Number(i.weightKg),
     }));
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -650,7 +683,14 @@ export class DispatchService {
         const pkg = await tx.package.findUnique({
           where: { id: e.packageId },
           include: {
-            receipt: { select: { id: true, status: true, lines: { select: { description: true } } } },
+            receipt: {
+              select: {
+                id: true,
+                status: true,
+                lines: { select: { description: true, weightKg: true } },
+                _count: { select: { packages: true } },
+              },
+            },
           },
         });
         if (!pkg) throw new NotFoundException('Palet bulunamadı');
@@ -671,6 +711,8 @@ export class DispatchService {
             qty: 1,
             unit: pkg.type,
             description: describeLines(pkg.receipt.lines),
+            // Palet kaleme bağlı değil → kabulün toplam kilosu paletlere eşit paylaştırılır
+            weightKg: perPackageWeight(pkg.receipt.lines, pkg.receipt._count.packages),
           },
         });
         // Ayna
@@ -721,6 +763,8 @@ export class DispatchService {
           qty,
           unit: line.unit,
           description: line.description,
+          // Kısmi sevkte kilo da oransal: 100 adet / 500 kg kalemden 40 adet → 200 kg
+          weightKg: portionWeight(line.weightKg, qty, line.countedQty),
         },
       });
       count++;
@@ -868,6 +912,7 @@ function serializeDispatch(d: DispatchWithRelations) {
       qty: i.qty,
       unit: i.unit,
       description: i.description, // MALIN CİNSİ (snapshot)
+      weightKg: i.weightKg === null ? null : Number(i.weightKg), // KİLO (snapshot)
       stopId: i.stopId,
       receiptId: i.receiptId,
       receiptReference: i.receipt.reference,

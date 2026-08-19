@@ -22,6 +22,11 @@ export const expectedLineSchema = z.object({
     (v) => (v === '' || v === null || v === undefined ? undefined : v),
     z.coerce.number().nonnegative('Fiyat negatif olamaz').optional(),
   ),
+  // kalemin TOPLAM ağırlığı (kg) — belgelerdeki KİLO/KG sütunu; aynı boş-input deseni
+  weightKg: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().nonnegative('Ağırlık negatif olamaz').optional(),
+  ),
 });
 export type ExpectedLineInput = z.infer<typeof expectedLineSchema>;
 
@@ -47,7 +52,8 @@ export const createAsnSchema = z.object({
   recipientCustomerId: z.string().optional(), // alıcı = kayıtlı müşteri
   recipients: z.array(shipmentRecipientInputSchema).optional().default([]), // alıcının boşaltma yerleri
   vehicleId: z.string().optional(), // plaka belli değilse boş
-  expectedAt: z.string().optional(), // ISO tarih
+  expectedAt: z.string().optional(), // ISO tarih — malın depoya geleceği gün
+  deliveryBy: z.string().optional(), // ISO tarih — SON TESLİM (termin)
   notes: upperOpt(),
   // Fiş için taraf/adres/ödeme (hepsi opsiyonel)
   loadAddress: upperOpt(), // yükleme (gönderici) adresi
@@ -74,6 +80,7 @@ export const asnLineSchema = expectedLineSchema.extend({
   id: z.string(),
   receivedQty: z.number().int().default(0),
   unitPrice: z.number().nonnegative().nullable().optional(),
+  weightKg: z.number().nonnegative().nullable().optional(),
 });
 
 export const asnListQuerySchema = paginationQuerySchema.extend({
@@ -134,6 +141,7 @@ export const asnSchema = z.object({
     )
     .default([]),
   expectedAt: z.string().nullable(),
+  deliveryBy: z.string().nullable().optional(),
   notes: z.string().nullable(),
   loadAddress: z.string().nullable().optional(),
   deliveryAddress: z.string().nullable().optional(),

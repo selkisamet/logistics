@@ -149,9 +149,15 @@ export function StockPage() {
                         {r.recipientCustomer?.name ? ` → ${r.recipientCustomer.name}` : ''}
                       </p>
                     </div>
-                    <WaitBadge days={wait} />
+                    <div className="flex flex-col items-end gap-1">
+                      <WaitBadge days={wait} />
+                      {r.deliveryBy && <DueBadge date={r.deliveryBy} />}
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500">📅 Giriş: {formatDate(r.completedAt)}</p>
+                  <p className="text-xs text-slate-500">
+                    📅 Giriş: {formatDate(r.completedAt)}
+                    {r.deliveryBy ? ` · Son teslim: ${formatDate(r.deliveryBy)}` : ''}
+                  </p>
                 </Link>
 
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2">
@@ -529,6 +535,24 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
       </div>
     </Modal>
   );
+}
+
+/**
+ * Termin rozeti — ön ihbardaki SON TESLİM tarihine kalan gün.
+ * Depo ekranının asıl sorusu "hangi yükü önce yükleyeyim"; bekleme süresi bunu tek başına
+ * söylemiyordu (3 gündür bekleyen yükün termini yarın, 10 gündür bekleyenin haftaya olabilir).
+ */
+function DueBadge({ date }: { date: string }) {
+  const days = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
+  const cls =
+    days < 0
+      ? 'bg-red-100 text-red-700'
+      : days <= 1
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-slate-100 text-slate-600';
+  const text =
+    days < 0 ? `${Math.abs(days)} gün GECİKTİ` : days === 0 ? 'Bugün teslim' : `${days} gün kaldı`;
+  return <Badge className={cls}>⏳ {text}</Badge>;
 }
 
 function WaitBadge({ days }: { days: number }) {

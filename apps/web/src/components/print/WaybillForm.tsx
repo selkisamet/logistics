@@ -8,7 +8,7 @@ import {
   type PackageType,
 } from '@lojistik/shared';
 import { COMPANY } from '../../lib/company';
-import { formatCount, formatDate, formatMoney } from '../../lib/format';
+import { formatCount, formatDate, formatMoney, formatWeight } from '../../lib/format';
 import { PrintableDocModal, type CopyOption } from './PrintableDocModal';
 import { MetaLine, FieldLine } from './FormLines';
 
@@ -69,6 +69,7 @@ type WaybillLine = {
   receiptRef: string; // TESELLÜM MAKBUZ NO — fişle eşleşme
   qty: number; // ADET (biçimlendirme basımda: formatCount)
   unit: string; // NEVİ (palet/koli/IBC... ya da kalem birimi)
+  weightKg: number | null; // KİLO — girilmemişse null (hücre boş, elle doldurulur)
   kind: string; // MALIN CİNSİ
   sender: string; // GÖNDERENİN ADI SOYADI
   recipient: string; // ALICININ ADI SOYADI
@@ -133,7 +134,16 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
     // Kap satırları: kabul + kap tipi (+ alıcı) bazında topla
     const byPkg = new Map<
       string,
-      { ref: string; sender: string; kind: string; note: string; unit: string; count: number; recipient: string }
+      {
+        ref: string;
+        sender: string;
+        kind: string;
+        note: string;
+        unit: string;
+        count: number;
+        recipient: string;
+        weightKg: number | null;
+      }
     >();
     for (const i of mine.filter((x) => x.kind === 'PACKAGE')) {
       const unit = unitLabel(i.unit);
@@ -147,8 +157,10 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         unit,
         count: 0,
         recipient,
+        weightKg: null,
       };
       cur.count += i.qty;
+      if (i.weightKg != null) cur.weightKg = (cur.weightKg ?? 0) + i.weightKg;
       byPkg.set(key, cur);
     }
     for (const [key, p] of byPkg) {
@@ -157,6 +169,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         receiptRef: p.ref,
         qty: p.count,
         unit: p.unit,
+        weightKg: p.weightKg,
         kind: p.kind,
         sender: p.sender,
         recipient: p.recipient,
@@ -171,6 +184,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         receiptRef: i.receiptReference,
         qty: i.qty,
         unit: unitLabel(i.unit),
+        weightKg: i.weightKg ?? null,
         kind: i.description,
         sender: i.customerName ?? '',
         recipient: recipientOf(i, g.stop),
@@ -258,6 +272,11 @@ function WaybillDoc({
   const annex = all.slice(WAYBILL_ROWS);
   const blanks = Math.max(0, WAYBILL_ROWS - rows.length);
   const totalQty = all.reduce((s, l) => s + l.qty, 0);
+  // Toplam kilo — hiçbir satırda kg yoksa null (hücre boş kalır, matbu formda elle yazılır)
+  const totalKg = all.reduce<number | null>(
+    (sum, l) => (l.weightKg == null ? sum : (sum ?? 0) + l.weightKg),
+    null,
+  );
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const docUrl = origin ? `${origin}/sevkiyat/${dispatch.id}` : dispatch.reference;
@@ -409,7 +428,10 @@ function WaybillDoc({
                 <td className={td}>
                   <span className="slip-data">{l.unit}</span>
                 </td>
-                <td className={td} />
+                {/* KİLO — ön ihbarda/mal kabulde girilen kg; boşsa matbu formda elle yazılır */}
+                <td className={`${td} text-right`}>
+                  <span className="slip-data">{formatWeight(l.weightKg)}</span>
+                </td>
                 <td className={td}>
                   <span className="slip-data">{l.kind}</span>
                 </td>
@@ -452,6 +474,11 @@ function WaybillDoc({
               {i === 1 && (
                 <span className="slip-data block text-center text-[9px] font-bold">
                   {totalQty ? formatCount(totalQty) : ' '}
+                </span>
+              )}
+              {i === 3 && (
+                <span className="slip-data block text-right text-[9px] font-bold">
+                  {totalKg != null ? formatWeight(totalKg) : ' '}
                 </span>
               )}
               {i === 8 && (
@@ -557,7 +584,9 @@ function WaybillDoc({
                 <td className={`${td} border-x border-sky-800`}>
                   <span className="slip-data">{l.unit}</span>
                 </td>
-                <td className={`${td} border-x border-sky-800`} />
+                <td className={`${td} border-x border-sky-800 text-right`}>
+                  <span className="slip-data">{formatWeight(l.weightKg)}</span>
+                </td>
                 <td className={`${td} border-x border-sky-800`}>
                   <span className="slip-data">{l.kind}</span>
                 </td>
@@ -582,7 +611,14 @@ function WaybillDoc({
         </table>
         <div className="border-t-2 border-sky-800 p-2 text-[8px] text-slate-600">
           Ek listedeki satırlar dâhil <span className="slip-data font-bold">{formatCount(totalQty)}</span> adet /
-          kap taşınmaktadır. · {COMPANY.name}
+          kap
+          {totalKg != null && (
+            <>
+              {' '}
+              · <span className="slip-data font-bold">{formatWeight(totalKg)}</span> kg
+            </>
+          )}{' '}
+          taşınmaktadır. · {COMPANY.name}
         </div>
       </div>
     )}

@@ -77,6 +77,7 @@ export class AsnService {
       warehouseId: input.warehouseId,
       vehicleId: input.vehicleId || null,
       expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
+      deliveryBy: input.deliveryBy ? new Date(input.deliveryBy) : null,
       notes: input.notes,
       // Yükleme/boşaltma adresi seçilen lokasyonların adresinden türetilir.
       loadAddress: joinAddresses(sources),
@@ -198,6 +199,8 @@ export class AsnService {
           vehicleId: input.vehicleId === undefined ? undefined : input.vehicleId || null,
           expectedAt:
             input.expectedAt === undefined ? undefined : input.expectedAt ? new Date(input.expectedAt) : null,
+          deliveryBy:
+            input.deliveryBy === undefined ? undefined : input.deliveryBy ? new Date(input.deliveryBy) : null,
           notes: input.notes,
           // Adresler seçilen kaynak/alıcıdan; yalnızca ilgili liste verildiyse güncelle
           loadAddress: sources ? joinAddresses(sources) : undefined,
@@ -327,6 +330,7 @@ function toLineData(line: CreateAsnInput['lines'][number]) {
     unit: line.unit,
     barcode: line.barcode,
     unitPrice: line.unitPrice ?? null,
+    weightKg: line.weightKg ?? null,
   };
 }
 
@@ -357,6 +361,7 @@ function serializeShipment(s: ShipmentWithRelations) {
       address: rec.address,
     })),
     expectedAt: s.expectedAt,
+    deliveryBy: s.deliveryBy,
     notes: s.notes,
     loadAddress: s.loadAddress,
     deliveryAddress: s.deliveryAddress,
@@ -372,6 +377,7 @@ function serializeShipment(s: ShipmentWithRelations) {
       unit: l.unit,
       barcode: l.barcode,
       unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+      weightKg: l.weightKg === null ? null : Number(l.weightKg),
       receivedQty: l.receiptLines.reduce((sum, r) => sum + r.countedQty, 0),
     })),
   };

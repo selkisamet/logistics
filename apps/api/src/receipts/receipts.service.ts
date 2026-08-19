@@ -28,6 +28,7 @@ const RECEIPT_INCLUDE = {
   shipment: {
     select: {
       reference: true,
+      deliveryBy: true, // termin — fiş/depo ekranında gösterilir
       vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
       loadAddress: true,
       deliveryAddress: true,
@@ -134,7 +135,9 @@ export class ReceiptsService {
       this.prisma.receipt.findMany({
         where,
         include: RECEIPT_INCLUDE,
-        orderBy: { completedAt: 'asc' }, // en uzun bekleyen üstte
+        // Önce TERMİNİ yakın olan (Postgres ASC'te NULL'lar sona düşer → terminsizler altta),
+        // termin eşitse/yoksa en uzun bekleyen üstte.
+        orderBy: [{ shipment: { deliveryBy: 'asc' } }, { completedAt: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -213,6 +216,7 @@ export class ReceiptsService {
                 unit: l.unit,
                 barcode: l.barcode,
                 unitPrice: l.unitPrice,
+                weightKg: l.weightKg,
                 shipmentLineId: l.id,
               })),
             },
@@ -257,6 +261,8 @@ export class ReceiptsService {
           description: input.description,
           unit: input.unit,
           barcode: input.barcode ?? existing.barcode,
+          // kg gönderilmediyse mevcut değeri koru (sayım butonları kg taşımıyor)
+          weightKg: input.weightKg === undefined ? undefined : input.weightKg,
         },
       });
     } else {
@@ -268,6 +274,7 @@ export class ReceiptsService {
           countedQty: input.countedQty,
           unit: input.unit,
           barcode: input.barcode,
+          weightKg: input.weightKg ?? null,
           shipmentLineId: input.asnLineId,
           expectedQty: null, // ön ihbarda olmayan ekstra kalem
         },
@@ -462,6 +469,7 @@ function serializeReceipt(r: ReceiptWithRelations) {
     notes: r.notes,
     waybillNo: r.waybillNo,
     orderNo: r.orderNo,
+    deliveryBy: r.shipment?.deliveryBy ?? null,
     dispatchId: r.dispatchId,
     dispatchedAt: r.dispatchedAt,
     // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
@@ -486,6 +494,7 @@ function serializeReceipt(r: ReceiptWithRelations) {
       unit: l.unit,
       barcode: l.barcode,
       unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+      weightKg: l.weightKg === null ? null : Number(l.weightKg),
       // Kalem bazlı sevk: ne kadarı araca yüklendi, depoda ne kaldı
       dispatchedQty: l.dispatchedQty,
       remainingQty: Math.max(0, l.countedQty - l.dispatchedQty),

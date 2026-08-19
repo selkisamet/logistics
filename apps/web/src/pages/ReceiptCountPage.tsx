@@ -22,7 +22,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
-import { formatCount, formatDate, formatMoney } from '../lib/format';
+import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -590,6 +590,9 @@ function LineRow({
           <span className="font-bold text-slate-900">{line.countedQty}</span>
           {expected != null && <span className="text-slate-400"> / {expected}</span>}
           <span className="ml-1 text-xs text-slate-400">{line.unit}</span>
+          {line.weightKg != null && (
+            <span className="block text-xs text-slate-400">{formatWeight(line.weightKg)} kg</span>
+          )}
         </div>
       </div>
       {editable && (
@@ -682,6 +685,10 @@ function AddLineModal({
               </Select>
             </Field>
           </div>
+          {/* Kalemin TOPLAM kilosu — fişteki KG, irsaliyedeki KİLO sütununa basılır */}
+          <Field label="Kilo (kg)" error={errors.weightKg?.message}>
+            <Input type="number" min={0} step="0.001" placeholder="0" {...register('weightKg')} />
+          </Field>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Vazgeç
@@ -798,6 +805,11 @@ function SlipForm({
   const lineAmount = (l: ReceiptLine) => (l.unitPrice != null ? l.countedQty * l.unitPrice : null);
   const hasPrice = receipt.lines.some((l) => l.unitPrice != null);
   const subtotal = receipt.lines.reduce((s, l) => s + (lineAmount(l) ?? 0), 0);
+  // Toplam kilo — hiçbir kalemde girilmemişse null (hücre boş kalır, elle yazılır)
+  const totalKg = lines.reduce<number | null>(
+    (sum, l) => (l.weightKg == null ? sum : (sum ?? 0) + l.weightKg),
+    null,
+  );
   const vatIncluded = !!receipt.vatIncluded;
   const net = vatIncluded ? subtotal / (1 + VAT_RATE) : subtotal;
   const vat = vatIncluded ? subtotal - net : subtotal * VAT_RATE;
@@ -904,7 +916,10 @@ function SlipForm({
                   <td className={`${td} text-center`}>
                     <span className="slip-data">{kapLabel(l.unit)}</span>
                   </td>
-                  <td className={td} />
+                  {/* KG = kalemin ağırlığı (ön ihbarda/mal kabulde girilir); boşsa elle yazılır */}
+                  <td className={`${td} text-right`}>
+                    <span className="slip-data">{formatWeight(l.weightKg)}</span>
+                  </td>
                   <td className={`${td} text-right`}>
                     {showAmount && lineAmount(l) != null ? (
                       <span className="slip-data">{formatMoney(lineAmount(l))}</span>
@@ -935,6 +950,7 @@ function SlipForm({
                   <span className="slip-data">
                     Palet/Koli: {formatCount(packages.length)}
                     {typeSummary ? ` · ${typeSummary}` : ''}
+                    {totalKg != null ? ` · ${formatWeight(totalKg)} kg` : ''}
                   </span>
                 </td>
                 <td className={`${td} text-right font-bold`}>
