@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
+  DEFAULT_FREIGHT_AMOUNT,
   PACKAGE_TYPE_LABELS,
   type Dispatch,
   type DispatchItem,
@@ -1097,8 +1098,15 @@ function WaybillInfoModal({
   const [serial, setSerial] = useState(dispatch.waybillSerial ?? '');
   const [no, setNo] = useState(dispatch.waybillNo ?? '');
   const [date, setDate] = useState(dispatch.waybillDate?.slice(0, 10) ?? '');
-  const [amount, setAmount] = useState<number | undefined>(dispatch.freightAmount ?? undefined);
-  const [vatIncluded, setVatIncluded] = useState(!!dispatch.freightVatIncluded);
+  // Tutar girilmemiş eski kayıtlarda da varsayılanla başla (yeni sevkiyatlar zaten
+  // sunucuda DEFAULT_FREIGHT_AMOUNT ile açılıyor).
+  const [amount, setAmount] = useState<number | undefined>(
+    dispatch.freightAmount ?? DEFAULT_FREIGHT_AMOUNT,
+  );
+  // Tutar hiç girilmemişse varsayılanla aynı kabul (1,00 ₺ KDV dahil → GEN. TOP tam 1,00)
+  const [vatIncluded, setVatIncluded] = useState(
+    dispatch.freightAmount == null ? true : !!dispatch.freightVatIncluded,
+  );
 
   const mut = useMutation({
     mutationFn: () =>
@@ -1152,6 +1160,10 @@ function WaybillInfoModal({
         <Field label="Taşıma Ücreti (₺)">
           <MoneyInput value={amount} onChange={(v) => setAmount(v)} />
         </Field>
+        <p className="-mt-1 text-xs text-slate-500">
+          Varsayılan {formatMoney(DEFAULT_FREIGHT_AMOUNT)}. Belgeye burada yazan tutar basılır —
+          gerçek taşıma ücretini göstermek isterseniz değiştirin.
+        </p>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"

@@ -6,6 +6,7 @@ import { datedReference } from '../common/codes';
 import {
   DispatchStatus,
   ReceiptStatus,
+  DEFAULT_FREIGHT_AMOUNT,
   type AddDispatchPackageInput,
   type AssignToStopInput,
   type CreateDispatchInput,
@@ -169,6 +170,9 @@ export class DispatchService {
             vehiclePlate: input.vehiclePlate,
             driverName: input.driverName,
             notes: input.notes,
+            freightAmount: DEFAULT_FREIGHT_AMOUNT,
+            // KDV dahil: belgedeki GEN. TOP tam 1,00 ₺ okunsun (hariç olsaydı 1,20 çıkardı)
+            freightVatIncluded: true,
           },
           include: DISPATCH_INCLUDE,
         });
@@ -232,6 +236,8 @@ export class DispatchService {
               vehicleId,
               dispatchedAt: now,
               dispatchedById: userId,
+              freightAmount: DEFAULT_FREIGHT_AMOUNT,
+              freightVatIncluded: true,
             },
           });
           // Tek huni: paletsizse kalan kalemler, paletliyse depodaki paletler

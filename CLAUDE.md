@@ -253,6 +253,13 @@ farklı alıcılara/noktalara gidebilir.
     aynı seri/sıra no'ya atıfla) basılır. Matbu form 8 satır kalır.
 - **Nüsha etiketleri tesellüm fişinden FARKLI** (VUK): ①GÖNDERİCİ (eşyayı taşıttıran) ②ARAÇTA (sürücü)
   ③DOSYA (bizde saklanır).
+- **Taşıma ücreti varsayılanı `DEFAULT_FREIGHT_AMOUNT = 1` ₺ (KDV dahil → belgede GEN. TOP tam 1,00)**
+  ([shared/schemas/dispatch.ts](packages/shared/src/schemas/dispatch.ts)). Ücret VUK'ta zorunlu alan,
+  boş bırakılamıyor; firma aynı araçta çok müşterinin yükü olduğu için sefer tutarının belgeye
+  basılmasını istemedi (herkes herkesin navlununu görüyordu). **TEK DEĞER kuralı:** belgeye ne
+  basılıyorsa kayıtta duran odur — arka planda ayrı bir "gerçek tutar" SAKLANMAZ. Gerçek ücret
+  gerektiğinde irsaliye bilgileri modalından yazılır. (Gizliliği asıl çözecek yol gönderici başına
+  ayrı irsaliye basmaktır — önerildi, kullanıcı varsayılan tutarı tercih etti.)
 - **Seri/sıra no'yu ANLAŞMALI MATBAA basar** — uygulama üretmez. Operatör eldeki matbu formun numarasını
   girer (`waybillSerial`/`waybillNo`, `@@unique` ile mükerrer engellenir); `PATCH /dispatches/:id/waybill`
   ayrıca `waybillDate` + `freightAmount`/`freightVatIncluded` (taşıma ücreti VUK'ta zorunlu alan).

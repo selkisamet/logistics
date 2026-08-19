@@ -4,6 +4,19 @@ import { paginationQuerySchema } from './common';
 import { vehicleSummarySchema } from './vehicle';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
+/**
+ * Yeni sevkiyatta taşıma ücretinin başlangıç değeri (₺).
+ *
+ * Taşıma ücreti VUK'ta irsaliyenin zorunlu alanı; boş bırakılamıyor. Firma, aynı araçta
+ * birden çok müşterinin yükü taşındığı için sefer tutarının belgeye basılmasını istemedi
+ * (herkes herkesin navlununu görüyordu) ve alanın 1,00 ₺ ile başlamasını tercih etti.
+ *
+ * TEK DEĞER kuralı: belgeye ne basılıyorsa kayıtta duran odur — arka planda ayrı bir
+ * "gerçek tutar" saklanmaz. Operatör irsaliye bilgileri modalından istediği an
+ * gerçek tutarı yazabilir.
+ */
+export const DEFAULT_FREIGHT_AMOUNT = 1;
+
 export const DISPATCH_STATUS_LABELS: Record<DispatchStatus, string> = {
   DRAFT: 'Hazırlanıyor',
   DISPATCHED: 'Sevk edildi',
