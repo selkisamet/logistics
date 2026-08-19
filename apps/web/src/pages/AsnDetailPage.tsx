@@ -62,7 +62,21 @@ export function AsnDetailPage() {
               {asn.customer?.name} · {asn.warehouse?.name}
             </p>
           </div>
-          <ShipmentStatusBadge status={asn.status} />
+          {/* Düzenle BAŞLIKTA: eskiden yalnız sayfanın en altında, İptal Et/Sil ile aynı
+              gruptaydı; kullanıcı onu bulamayıp plakanın yanındaki "Değiştir"i kullanıyor ve
+              yalnızca aracın değiştiğini sanıyordu. Yıkıcı işlemler altta kalmaya devam eder. */}
+          <div className="flex flex-col items-end gap-2">
+            <ShipmentStatusBadge status={asn.status} />
+            {canCancel && (
+              <Button
+                variant="secondary"
+                className="px-3 py-1.5 text-xs"
+                onClick={() => navigate(`/on-ihbar/${asn.id}/duzenle`)}
+              >
+                Düzenle
+              </Button>
+            )}
+          </div>
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <Info label="Beklenen tarih" value={formatDate(asn.expectedAt)} />
@@ -134,15 +148,6 @@ export function AsnDetailPage() {
 
       {(canCancel || isAdmin) && (
         <div className="flex gap-2">
-          {canCancel && (
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => navigate(`/on-ihbar/${asn.id}/duzenle`)}
-            >
-              Düzenle
-            </Button>
-          )}
           {canCancel && (
             <Button
               variant="secondary"
@@ -220,7 +225,7 @@ function PlannedVehicleEditor({ asn, canEdit }: { asn: Asn; canEdit: boolean }) 
               setEditing(true);
             }}
           >
-            Değiştir
+            Aracı Değiştir
           </Button>
         )}
       </div>
