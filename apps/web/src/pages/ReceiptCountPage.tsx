@@ -798,10 +798,18 @@ function SlipForm({
   const slipUrl = origin ? `${origin}/mal-kabul/${receipt.id}` : receipt.reference;
   const logoUrl = origin ? `${origin}${COMPANY.logoPath}` : COMPANY.logoPath;
 
-  // Ücret: alıcı ödemeli→görünür; gönderici ödemeli→yalnız "göster" işaretliyse görünür.
-  const showAmount =
-    receipt.paymentType === 'RECIPIENT' ||
-    (receipt.paymentType === 'SENDER' && !!receipt.showAmountOnSlip);
+  /**
+   * Ücret fişte YALNIZ istendiğinde basılır (varsayılan: GİZLİ).
+   *
+   * Fişin nüshaları ①ALICI ②TAŞIYICI(şoför) ③DOSYA'ya gidiyor; firma gerçek navlunun ne
+   * müşteri ne de şoför tarafından görülmesini istemiyor. Eskiden koşul
+   * `paymentType === 'RECIPIENT' || ...` idi ve alıcı ödemeli VARSAYILAN olduğu için tutar
+   * koşulsuz basılıyordu. Artık tek anahtar `showAmountOnSlip` — ödeme tipinden bağımsız.
+   *
+   * Gizliyken ÜCRET hücreleri BOŞ kalır (matbu formda elle yazılabilir), sahte bir rakam
+   * basılmaz: taşıma irsaliyesinin aksine fişte ücret zorunlu alan değil.
+   */
+  const showAmount = !!receipt.showAmountOnSlip;
   const lineAmount = (l: ReceiptLine) => (l.unitPrice != null ? l.countedQty * l.unitPrice : null);
   const hasPrice = receipt.lines.some((l) => l.unitPrice != null);
   const subtotal = receipt.lines.reduce((s, l) => s + (lineAmount(l) ?? 0), 0);
