@@ -120,13 +120,8 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     sona düştüğü için terminsiz yükler altta kalır. Kopyalanmaz; `serializeReceipt` ön ihbardan
     yüzeye çıkarır (tek kaynak `InboundShipment`).
   - **Taraf/adres/ödeme/fiyat (opsiyonel, fişe yansır)** — InboundShipment'ta additive:
-    `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip`, `vatIncluded` (KDV dahil mi;
-    `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi).
-    **⚠ Fişte ÜCRET varsayılan GİZLİ** — tek anahtar `showAmountOnSlip`, ödeme tipinden bağımsız.
-    Eskiden koşul `paymentType==='RECIPIENT' || (SENDER && showAmountOnSlip)` idi; alıcı ödemeli
-    VARSAYILAN olduğu için gerçek navlun koşulsuz basılıyor, fişin ①ALICI ve ②TAŞIYICI (şoför)
-    nüshalarıyla dışarı sızıyordu. Gizliyken ÜCRET hücreleri **boş** kalır (elle yazılabilir) —
-    taşıma irsaliyesinin aksine fişte ücret zorunlu alan olmadığı için sahte rakam basılmaz.
+    `paymentType` ('SENDER'|'RECIPIENT'), `showAmountOnSlip` (gönderici ödemeli iken
+    ücret göster), `vatIncluded` (KDV dahil mi; `VAT_RATE=0.2`). **Müşteri=Gönderici** (malın sahibi).
     (`principalName`/"İşi Veren/Cari" alanı KALDIRILDI — kolon dormant; gönderici/alıcı yeterli görüldü.)
     Satır `unitPrice` (Decimal) → ReceiptLine'a kopyalanır. **Adresler:** `ShipmentSource`/`ShipmentRecipient`'e
     seçilen kaydın `address`'i snapshot'lanır; fişte **her yükleme/teslim noktası ayrı listelenir** (kaynak yoksa

@@ -87,6 +87,7 @@ export function AsnFormPage() {
 
   const customerId = watch('customerId'); // gönderici müşteri
   const recipientCustomerId = watch('recipientCustomerId'); // alıcı müşteri
+  const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
   const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
 
@@ -307,11 +308,18 @@ export function AsnFormPage() {
                 <label className="inline-flex items-center gap-1.5">
                   <input type="checkbox" {...register('vatIncluded')} /> Fiyatlar KDV dahil (değilse %20 eklenir)
                 </label>
-                {/* Varsayılan KAPALI: fiş nüshaları alıcıya ve şoföre gidiyor, gerçek navlun
-                    görünmesin. Ödeme tipinden bağımsız — eskiden yalnız gönderici ödemelide
-                    seçilebiliyordu, alıcı ödemelide ise tutar zaten koşulsuz basılıyordu. */}
-                <label className="inline-flex items-center gap-1.5">
-                  <input type="checkbox" {...register('showAmountOnSlip')} /> Ücreti fişte göster
+                <label
+                  className={
+                    'inline-flex items-center gap-1.5 ' +
+                    (paymentType !== 'SENDER' ? 'text-slate-400' : '')
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    disabled={paymentType !== 'SENDER'}
+                    {...register('showAmountOnSlip')}
+                  />{' '}
+                  Ücreti fişte göster (gönderici ödemeli)
                 </label>
               </div>
             </div>
