@@ -20,7 +20,7 @@ import {
   type DiscrepancyType,
   type WaybillExtraction,
 } from '@lojistik/shared';
-import { api, ApiError, assetUrl, uploadSingle } from '../lib/api';
+import { api, ApiError, assetUrl, uploadFiles, uploadSingle } from '../lib/api';
 import { isNativeApp } from '../lib/config';
 import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/format';
 import { COMPANY } from '../lib/company';
@@ -185,6 +185,8 @@ export function ReceiptCountPage() {
         initialOrder={receipt.orderNo ?? ''}
         editable={editable}
       />
+
+      <AttachmentsCard receipt={receipt} editable={editable} />
 
       {editable && (
         <Button
@@ -543,6 +545,107 @@ function DocumentEditor({
       )}
       {cameraOpen && (
         <WaybillCamera onResult={fillFromOcr} onClose={() => setCameraOpen(false)} />
+      )}
+    </Card>
+  );
+}
+
+/** İrsaliye/belge görüntüleri — çoklu foto yükle, galeri göster, sil.
+ *  (OCR yok; buradaki fotolar yalnızca belge kaydı olarak saklanır.) */
+function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: boolean }) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const attachments = receipt.attachments ?? [];
+
+  const uploadMut = useMutation({
+    mutationFn: (files: File[]) =>
+      uploadFiles<Receipt>(`/receipts/${receipt.id}/attachments`, files),
+    onSuccess: (r) => {
+      qc.setQueryData(['receipts', receipt.id], r);
+      toast(`📎 ${(r.attachments?.length ?? 0) - attachments.length} görüntü eklendi`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yüklenemedi'),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (attachmentId: string) =>
+      api.delete<Receipt>(`/receipts/${receipt.id}/attachments/${attachmentId}`),
+    onSuccess: (r) => qc.setQueryData(['receipts', receipt.id], r),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Silinemedi'),
+  });
+
+  // Tamamlanmış ve hiç görüntü yoksa gizle
+  if (!editable && attachments.length === 0) return null;
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-slate-700">
+          İrsaliye Görüntüleri ({attachments.length})
+        </span>
+        {editable && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) uploadMut.mutate(files);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              loading={uploadMut.isPending}
+              onClick={() => fileRef.current?.click()}
+            >
+              📷 Görüntü Ekle
+            </Button>
+          </>
+        )}
+      </div>
+      {attachments.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((a) => (
+            <div key={a.id} className="relative">
+              <a href={assetUrl(a.url)} target="_blank" rel="noreferrer">
+                <img
+                  src={assetUrl(a.url)}
+                  alt={a.fileName}
+                  className="h-24 w-24 rounded-lg border border-slate-200 object-cover"
+                />
+              </a>
+              {editable && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (
+                      await confirmDialog({
+                        message: 'Görüntü silinsin mi?',
+                        confirmText: 'Sil',
+                        danger: true,
+                      })
+                    )
+                      removeMut.mutate(a.id);
+                  }}
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow"
+                  aria-label="Sil"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">
+          İrsaliyenin/belgenin fotoğrafını ekleyin (birden fazla eklenebilir).
+        </p>
       )}
     </Card>
   );

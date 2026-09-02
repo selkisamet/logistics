@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/pagination';
 import { datedReference, randomCode } from '../common/codes';
+import { attachmentUrl } from '../common/upload';
 import {
   ReceiptStatus,
   ShipmentStatus,
@@ -56,6 +57,7 @@ const RECEIPT_INCLUDE = {
     orderBy: { createdAt: 'desc' } as const,
     include: { attachments: { orderBy: { createdAt: 'asc' } as const } },
   },
+  attachments: { orderBy: { createdAt: 'asc' } as const },
 } satisfies Prisma.ReceiptInclude;
 
 type ReceiptWithRelations = Prisma.ReceiptGetPayload<{ include: typeof RECEIPT_INCLUDE }>;
@@ -409,6 +411,30 @@ export class ReceiptsService {
     return serializeReceipt(updated);
   }
 
+  /** İrsaliye/belge görüntülerini (foto) mal kabule ekler. */
+  async addAttachments(id: string, files: Express.Multer.File[]) {
+    const receipt = await this.getOrThrow(id);
+    this.ensureInProgress(receipt);
+    if (!files || files.length === 0) throw new BadRequestException('Görsel bulunamadı');
+    await this.prisma.attachment.createMany({
+      data: files.map((f) => ({
+        url: attachmentUrl(f.filename),
+        fileName: f.originalname,
+        mimeType: f.mimetype,
+        receiptId: id,
+      })),
+    });
+    return this.findOne(id);
+  }
+
+  /** Mal kabule bağlı bir görüntüyü siler. */
+  async removeAttachment(id: string, attachmentId: string) {
+    const receipt = await this.getOrThrow(id);
+    this.ensureInProgress(receipt);
+    await this.prisma.attachment.deleteMany({ where: { id: attachmentId, receiptId: id } });
+    return this.findOne(id);
+  }
+
   // ---- helpers ----
 
   private async getOrThrow(id: string): Promise<ReceiptWithRelations> {
@@ -527,6 +553,13 @@ function serializeReceipt(r: ReceiptWithRelations) {
         mimeType: a.mimeType,
         createdAt: a.createdAt,
       })),
+    })),
+    attachments: r.attachments.map((a) => ({
+      id: a.id,
+      url: a.url,
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      createdAt: a.createdAt,
     })),
   };
 }

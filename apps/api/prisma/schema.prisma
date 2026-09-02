@@ -297,6 +297,7 @@ model Receipt {
   packages      Package[]
   discrepancies Discrepancy[]
   dispatchItems DispatchItem[]
+  attachments   Attachment[] // irsaliye/belge görüntüleri (foto)
 
   @@index([dispatchId])
   @@index([stopId])
@@ -472,7 +473,12 @@ model Attachment {
   mimeType      String
   discrepancyId String?
   discrepancy   Discrepancy? @relation(fields: [discrepancyId], references: [id], onDelete: Cascade)
+  // Doğrudan mal kabule bağlı görüntü (irsaliye/belge fotoğrafı)
+  receiptId     String?
+  receipt       Receipt?     @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   createdAt     DateTime     @default(now())
+
+  @@index([receiptId])
 }
 
 // İzlenebilirlik / denetim kaydı

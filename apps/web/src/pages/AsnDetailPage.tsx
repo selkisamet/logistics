@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { type Asn } from '@lojistik/shared';
+import { type Asn, type Receipt } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -31,6 +31,18 @@ export function AsnDetailPage() {
       qc.invalidateQueries({ queryKey: ['asn'] });
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İşlem başarısız'),
+  });
+
+  /** Bu ön ihbarın mal kabulünü doğrudan başlatır (ReceiptStartPage'deki AsnPicker ile aynı
+   *  çağrı) — kullanıcı ön ihbarı seçmek için listeye geri dönmek zorunda kalmasın. */
+  const startMut = useMutation({
+    mutationFn: () => api.post<Receipt>('/receipts/start', { asnId: id }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['asn'] });
+      navigate(`/mal-kabul/${r.id}`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Başlatılamadı'),
   });
 
   const deleteMut = useMutation({
@@ -137,12 +149,8 @@ export function AsnDetailPage() {
       </Card>
 
       {asn.status === 'EXPECTED' && (
-        <Button
-          className="w-full"
-          onClick={() => navigate('/mal-kabul')}
-          title="Faz 3'te aktif olacak"
-        >
-          📦 Mal Kabul Başlat (Faz 3)
+        <Button className="w-full" loading={startMut.isPending} onClick={() => startMut.mutate()}>
+          📦 Mal Kabul Başlat
         </Button>
       )}
 

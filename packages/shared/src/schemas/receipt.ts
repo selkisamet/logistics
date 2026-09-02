@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { RECEIPT_STATUSES, ReceiptStatus, PACKAGE_TYPES, PackageType } from '../enums';
 import { paginationQuerySchema } from './common';
-import { discrepancySchema } from './discrepancy';
+import { discrepancySchema, attachmentSchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
@@ -159,6 +159,8 @@ export const receiptSchema = z.object({
   lines: z.array(receiptLineSchema),
   packages: z.array(packageSchema).optional(),
   discrepancies: z.array(discrepancySchema).optional(),
+  // İrsaliye/belge görüntüleri (foto) — doğrudan mal kabule bağlı
+  attachments: z.array(attachmentSchema).optional().default([]),
   startedById: z.string().nullable(),
   startedAt: z.string(),
   completedAt: z.string().nullable(),

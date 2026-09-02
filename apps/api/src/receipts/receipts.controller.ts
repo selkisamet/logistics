@@ -7,8 +7,11 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   startReceiptSchema,
   upsertReceiptLineSchema,
@@ -23,6 +26,7 @@ import {
   type AuthUser,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { imageUploadOptions } from '../common/upload';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ReceiptsService } from './receipts.service';
@@ -97,5 +101,17 @@ export class ReceiptsController {
   @Post(':id/reopen')
   reopen(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.receiptsService.reopen(id, user.id);
+  }
+
+  /** İrsaliye/belge görüntüleri (foto) — çoklu yükle + mal kabule bağla. */
+  @Post(':id/attachments')
+  @UseInterceptors(FilesInterceptor('files', 12, imageUploadOptions))
+  addAttachments(@Param('id') id: string, @UploadedFiles() files: Express.Multer.File[]) {
+    return this.receiptsService.addAttachments(id, files);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  removeAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.receiptsService.removeAttachment(id, attachmentId);
   }
 }
