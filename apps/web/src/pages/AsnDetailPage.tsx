@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { type Asn, type Receipt } from '@lojistik/shared';
+import { CURRENCY_LABELS, type Asn, type Receipt } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { formatDate, formatWeight } from '../lib/format';
+import { formatDate, formatMoney, formatWeight } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
 import { Button, Card, Combobox, Field, Spinner } from '../components/ui';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
@@ -114,6 +114,7 @@ export function AsnDetailPage() {
             }
           />
           <Info label="KDV" value={asn.vatIncluded ? 'Dahil' : 'Hariç (%20 eklenir)'} />
+          <Info label="Para birimi" value={CURRENCY_LABELS[asn.currency ?? 'TRY']} />
           <Info label="Toplam kalem" value={String(asn.lines.length)} />
           <Info label="Toplam adet" value={String(totalExpected)} />
         </dl>
@@ -141,6 +142,11 @@ export function AsnDetailPage() {
                 <span className="ml-1 text-xs text-slate-400">{l.unit}</span>
                 {l.weightKg != null && (
                   <span className="block text-xs text-slate-400">{formatWeight(l.weightKg)} kg</span>
+                )}
+                {l.unitPrice != null && (
+                  <span className="block text-xs text-slate-400">
+                    {formatMoney(l.unitPrice, asn.currency ?? 'TRY')} / birim
+                  </span>
                 )}
               </div>
             </div>

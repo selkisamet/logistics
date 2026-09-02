@@ -78,6 +78,7 @@ export class AsnService {
       vehicleId: input.vehicleId || null,
       expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
       deliveryBy: input.deliveryBy ? new Date(input.deliveryBy) : null,
+      currency: input.currency,
       notes: input.notes,
       // Yükleme/boşaltma adresi seçilen lokasyonların adresinden türetilir.
       loadAddress: joinAddresses(sources),
@@ -208,6 +209,7 @@ export class AsnService {
           paymentType: input.paymentType === undefined ? undefined : input.paymentType ?? null,
           showAmountOnSlip: input.showAmountOnSlip,
           vatIncluded: input.vatIncluded,
+          currency: input.currency,
           status: input.status,
         },
         include: SHIPMENT_INCLUDE,
@@ -368,6 +370,7 @@ function serializeShipment(s: ShipmentWithRelations) {
     paymentType: s.paymentType as 'SENDER' | 'RECIPIENT' | null,
     showAmountOnSlip: s.showAmountOnSlip,
     vatIncluded: s.vatIncluded,
+    currency: s.currency,
     createdAt: s.createdAt,
     lines: s.lines.map((l) => ({
       id: l.id,

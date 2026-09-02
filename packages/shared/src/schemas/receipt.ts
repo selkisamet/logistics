@@ -3,6 +3,7 @@ import { RECEIPT_STATUSES, ReceiptStatus, PACKAGE_TYPES, PackageType } from '../
 import { paginationQuerySchema } from './common';
 import { discrepancySchema, attachmentSchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
+import { CURRENCIES } from './asn';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const RECEIPT_STATUS_LABELS: Record<ReceiptStatus, string> = {
@@ -134,6 +135,8 @@ export const receiptSchema = z.object({
   paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),
   showAmountOnSlip: z.boolean().optional().default(false),
   vatIncluded: z.boolean().optional().default(false),
+  // Para birimi — kopyalanmaz, serializeReceipt ön ihbardan yüzeye çıkarır (tek kaynak shipment)
+  currency: z.enum(CURRENCIES).optional().default('TRY'),
   // Alıcı = kayıtlı müşteri (fişte ALICI ünvanı)
   recipientCustomer: z
     .object({

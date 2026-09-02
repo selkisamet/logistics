@@ -6,6 +6,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   createAsnSchema,
   KAP_TYPES,
+  CURRENCIES,
+  CURRENCY_LABELS,
+  CURRENCY_SYMBOLS,
   type CreateAsnInput,
   type Asn,
   type CustomerLocation,
@@ -80,6 +83,7 @@ export function AsnFormPage() {
       paymentType: 'RECIPIENT', // varsayılan: alıcı ödemeli
       showAmountOnSlip: false,
       vatIncluded: false,
+      currency: 'TRY',
     },
   });
 
@@ -87,6 +91,7 @@ export function AsnFormPage() {
 
   const customerId = watch('customerId'); // gönderici müşteri
   const recipientCustomerId = watch('recipientCustomerId'); // alıcı müşteri
+  const currency = watch('currency') ?? 'TRY'; // satır fiyat etiketleri buna göre
   const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
   const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
@@ -118,6 +123,7 @@ export function AsnFormPage() {
       paymentType: existing.paymentType ?? 'RECIPIENT',
       showAmountOnSlip: existing.showAmountOnSlip ?? false,
       vatIncluded: existing.vatIncluded ?? false,
+      currency: existing.currency ?? 'TRY',
       lines: existing.lines.map((l) => ({
         sku: l.sku ?? '',
         description: l.description,
@@ -289,6 +295,20 @@ export function AsnFormPage() {
             (Adresleri müşteri detayından güncelleyebilirsiniz.)
           </p>
 
+          {/* Para birimi — satır birim fiyatları ve tesellüm fişindeki tutarlar bu cinsten.
+              Kur dönüşümü YOK: hangi cinsten girildiyse belgede o cinsten basılır. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Para Birimi" error={errors.currency?.message}>
+              <Select {...register('currency')}>
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CURRENCY_LABELS[c]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
           {/* Ödeme & KDV */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
@@ -410,7 +430,10 @@ export function AsnFormPage() {
                 </Field>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:w-1/2 sm:grid-cols-2">
-                <Field label="Birim Fiyat (₺)" error={errors.lines?.[i]?.unitPrice?.message}>
+                <Field
+                  label={`Birim Fiyat (${CURRENCY_SYMBOLS[currency] ?? '₺'})`}
+                  error={errors.lines?.[i]?.unitPrice?.message}
+                >
                   <Controller
                     name={`lines.${i}.unitPrice`}
                     control={control}

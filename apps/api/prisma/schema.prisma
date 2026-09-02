@@ -195,6 +195,7 @@ model InboundShipment {
   paymentType      String? // 'SENDER' | 'RECIPIENT'
   showAmountOnSlip Boolean @default(false) // gönderici ödemeli iken ücret fişte görünsün mü
   vatIncluded      Boolean @default(false) // girilen birim fiyatlar KDV dahil mi
+  currency         String  @default("TRY") // birim fiyatların para birimi (TRY/USD/EUR/GBP)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 

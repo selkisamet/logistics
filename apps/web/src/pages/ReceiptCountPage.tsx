@@ -913,6 +913,8 @@ function SlipForm({
     (sum, l) => (l.weightKg == null ? sum : (sum ?? 0) + l.weightKg),
     null,
   );
+  // Tutarlar ön ihbarda seçilen para biriminden basılır (kur dönüşümü yok)
+  const cur = receipt.currency ?? 'TRY';
   const vatIncluded = !!receipt.vatIncluded;
   const net = vatIncluded ? subtotal / (1 + VAT_RATE) : subtotal;
   const vat = vatIncluded ? subtotal - net : subtotal * VAT_RATE;
@@ -1025,7 +1027,7 @@ function SlipForm({
                   </td>
                   <td className={`${td} text-right`}>
                     {showAmount && lineAmount(l) != null ? (
-                      <span className="slip-data">{formatMoney(lineAmount(l))}</span>
+                      <span className="slip-data">{formatMoney(lineAmount(l), cur)}</span>
                     ) : null}
                   </td>
                 </tr>
@@ -1058,7 +1060,7 @@ function SlipForm({
                 </td>
                 <td className={`${td} text-right font-bold`}>
                   {showAmount && hasPrice ? (
-                    <span className="slip-data">{formatMoney(grand)}</span>
+                    <span className="slip-data">{formatMoney(grand, cur)}</span>
                   ) : null}
                 </td>
               </tr>
@@ -1069,8 +1071,8 @@ function SlipForm({
                   <span className="slip-data text-[8px]">
                     {showAmount && hasPrice
                       ? vatIncluded
-                        ? `Genel Toplam: ${formatMoney(grand)} (KDV dahil)`
-                        : `Ara Toplam: ${formatMoney(net)} · KDV %20: ${formatMoney(vat)} · Genel Toplam: ${formatMoney(grand)}`
+                        ? `Genel Toplam: ${formatMoney(grand, cur)} (KDV dahil)`
+                        : `Ara Toplam: ${formatMoney(net, cur)} · KDV %20: ${formatMoney(vat, cur)} · Genel Toplam: ${formatMoney(grand, cur)}`
                       : ' '}
                   </span>
                 </td>

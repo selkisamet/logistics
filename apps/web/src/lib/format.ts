@@ -22,17 +22,31 @@ export function formatDate(value?: string | null): string {
   return dateOnlyFmt.format(new Date(value));
 }
 
-const moneyFmt = new Intl.NumberFormat('tr-TR', {
-  style: 'currency',
-  currency: 'TRY',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+/** Para birimi başına biçimlendirici — Intl.NumberFormat kurulumu pahalı, tekrar kullanılır. */
+const moneyFmts = new Map<string, Intl.NumberFormat>();
+function moneyFmt(currency: string): Intl.NumberFormat {
+  let f = moneyFmts.get(currency);
+  if (!f) {
+    // Ayraçlar HER ZAMAN tr-TR (binlik `.`, ondalık `,`); yalnızca simge para birimine göre
+    // değişir → "$12.345,50". Ön ihbardaki para birimi fişe bu yolla yansır.
+    f = new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    moneyFmts.set(currency, f);
+  }
+  return f;
+}
 
-/** Para biçimi (₺). null/undefined → boş dize. Ör. 12345.5 → "₺12.345,50" */
-export function formatMoney(value?: number | null): string {
+/**
+ * Para biçimi. null/undefined → boş dize. Ör. 12345.5 → "₺12.345,50", USD → "$12.345,50".
+ * `currency` verilmezse ₺ — taşıma irsaliyesindeki navlun gibi hep TL olan alanlar için.
+ */
+export function formatMoney(value?: number | null, currency: string = 'TRY'): string {
   if (value == null || Number.isNaN(value)) return '';
-  return moneyFmt.format(value);
+  return moneyFmt(currency).format(value);
 }
 
 /** Simgesiz para/tutar — matbu formun "TUTARI" gibi ₺ sütunu zaten yazılı hücreleri için. */
