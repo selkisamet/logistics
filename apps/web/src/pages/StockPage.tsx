@@ -40,7 +40,10 @@ type QuickTarget = {
  * seçim kullanılır — aksi halde her kabul ayrı sevkiyat/irsaliye olurdu.)
  */
 export function StockPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [vehicleId, setVehicleId] = useState(''); // boş = araç bağlamı yok (eski akış)
+  const [onlyPlanned, setOnlyPlanned] = useState(false);
   const [quick, setQuick] = useState<QuickTarget | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   // Seçim: palet id → işaretli, kalem id → miktar
@@ -121,6 +124,83 @@ export function StockPage() {
 
   const totalPackages = data?.items.reduce((s, r) => s + (r.packages?.length ?? 0), 0) ?? 0;
 
+  // ---- Araç bağlamı: "bu araca ne yükleyeceğim?" ----
+  // Ön ihbardaki `plannedVehicle` zaten hangi yükün hangi araca ait olduğunu söylüyordu;
+  // şerit bunu görünür kılar. Araç seçiliyken modal atlanır, yükleme doğrudan o aracın
+  // taslak seferine gider ve SAYFADA KALINIR (arka arkaya yük eklenebilsin).
+  const { data: vehicles } = useVehicles();
+  const { data: drafts } = useQuery({
+    queryKey: ['dispatches', { status: 'DRAFT', forPlan: true }],
+    queryFn: () => api.get<Paginated<Dispatch>>('/dispatches?page=1&pageSize=50&status=DRAFT'),
+  });
+  const draftFor = (vid: string) => (drafts?.items ?? []).find((d) => d.vehicle?.id === vid) ?? null;
+
+  /** Araç başına: depoda o araca planlı yük sayısı + açık taslak seferdeki yük sayısı. */
+  const vehicleStats = useMemo(() => {
+    const planned = new Map<string, number>();
+    for (const r of data?.items ?? []) {
+      const vid = r.plannedVehicle?.id;
+      if (vid) planned.set(vid, (planned.get(vid) ?? 0) + 1);
+    }
+    return (vehicles ?? [])
+      .map((v) => ({
+        v,
+        planned: planned.get(v.id) ?? 0,
+        draft: draftFor(v.id),
+      }))
+      // İlgili araçlar önce: planlı yükü olan, sonra açık seferi olan, sonra plakaya göre
+      .sort(
+        (a, b) =>
+          b.planned - a.planned ||
+          Number(!!b.draft) - Number(!!a.draft) ||
+          a.v.plate.localeCompare(b.v.plate, 'tr'),
+      );
+  }, [vehicles, data, drafts]);
+
+  const activeVehicle = vehicleStats.find((x) => x.v.id === vehicleId) ?? null;
+
+  const loadToVehicleMut = useMutation({
+    mutationFn: async () => {
+      let id = draftFor(vehicleId)?.id;
+      if (!id) {
+        const created = await api.post<Dispatch>('/dispatches', {
+          destination:
+            sel.recipients.length === 1
+              ? sel.recipients[0]
+              : sel.customers.length > 1
+                ? `Karma sefer (${sel.customers.length} müşteri)`
+                : 'Sefer',
+          vehicleId,
+        });
+        id = created.id;
+      }
+      return api.post<Dispatch>(`/dispatches/${id}/items`, { items: entries });
+    },
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ['stock'] });
+      qc.invalidateQueries({ queryKey: ['dispatches'] });
+      clear();
+      toast(`🚚 ${d.reference} planına eklendi`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yüklenemedi'),
+  });
+
+  /** Seçili aracın depodaki tüm planlı yüklerini işaretler. */
+  const selectPlanned = () => {
+    for (const r of data?.items ?? []) {
+      if (r.plannedVehicle?.id === vehicleId) toggleReceipt(r, true);
+    }
+  };
+
+  // Liste: araç seçiliyken o aracın planlı yükleri ÖNE alınır; istenirse yalnız onlar.
+  const visible = useMemo(() => {
+    const items = data?.items ?? [];
+    if (!vehicleId) return items;
+    const mine = (r: Receipt) => r.plannedVehicle?.id === vehicleId;
+    if (onlyPlanned) return items.filter(mine);
+    return [...items].sort((a, b) => Number(mine(b)) - Number(mine(a)));
+  }, [data, vehicleId, onlyPlanned]);
+
   return (
     <div className="space-y-4 pb-28">
       <div>
@@ -135,6 +215,66 @@ export function StockPage() {
         </p>
       </div>
 
+      {/* Araç şeridi — önce aracı seç, sonra ona yükle. Seçilmezse eski akış (modal) sürer. */}
+      {vehicleStats.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {vehicleStats.map(({ v, planned, draft }) => {
+              const on = v.id === vehicleId;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setVehicleId(on ? '' : v.id);
+                    setOnlyPlanned(false);
+                  }}
+                  className={clsx(
+                    'shrink-0 rounded-lg border px-3 py-2 text-left transition',
+                    on ? 'border-brand bg-brand/5' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  )}
+                >
+                  <span className="block text-sm font-semibold text-slate-900">🚚 {v.plate}</span>
+                  <span className="block text-[11px] text-slate-500">
+                    {v.driverName || 'Şoför yok'}
+                    {planned > 0 ? ` · ${formatCount(planned)} planlı` : ''}
+                    {draft ? ` · seferde ${formatCount(draft.items?.length ?? 0)}` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeVehicle && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand/5 px-3 py-2 text-sm">
+              <span className="font-medium text-slate-800">{activeVehicle.v.plate} seçili</span>
+              {activeVehicle.planned > 0 && (
+                <>
+                  <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={onlyPlanned}
+                      onChange={(e) => setOnlyPlanned(e.target.checked)}
+                    />
+                    Yalnız bu araca planlı
+                  </label>
+                  <button onClick={selectPlanned} className="text-xs font-medium text-brand">
+                    Planlı {formatCount(activeVehicle.planned)} yükün hepsini seç
+                  </button>
+                </>
+              )}
+              {activeVehicle.draft && (
+                <Link
+                  to={`/sevkiyat/${activeVehicle.draft.id}`}
+                  className="ml-auto text-xs font-medium text-brand"
+                >
+                  Seferi aç ({activeVehicle.draft.reference}) →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <Input
         type="search"
         placeholder="Ara: müşteri, referans, irsaliye no..."
@@ -146,9 +286,15 @@ export function StockPage() {
         <Spinner />
       ) : !data || data.items.length === 0 ? (
         <EmptyState title="Depo boş görünüyor" hint="Tamamlanan mal kabuller burada listelenir." />
+      ) : visible.length === 0 ? (
+        // "Yalnız bu araca planlı" süzgeci hiçbir şey bırakmadıysa: çıkış yolunu göster
+        <EmptyState
+          title="Bu araca planlı yük yok"
+          hint="Süzgeci kaldırın ya da depodaki başka yükleri seçip bu araca yükleyin."
+        />
       ) : (
         <div className="flex flex-col gap-4">
-          {data.items.map((r) => {
+          {visible.map((r) => {
             const wait = daysSince(r.completedAt);
             const pkgs = (r.packages ?? []).filter((p) => !p.dispatchedAt && !p.dispatchId);
             const hasPkg = (r.packages ?? []).length > 0;
@@ -274,7 +420,18 @@ export function StockPage() {
               <Button variant="secondary" onClick={clear}>
                 Temizle
               </Button>
-              <Button onClick={() => setPlanOpen(true)}>🚚 Araca Yükle</Button>
+              {activeVehicle ? (
+                // Araç belli → modal sorusu gereksiz; doğrudan o aracın seferine ekle ve
+                // sayfada kal (arka arkaya yük eklenebilsin).
+                <Button
+                  loading={loadToVehicleMut.isPending}
+                  onClick={() => loadToVehicleMut.mutate()}
+                >
+                  🚚 {activeVehicle.v.plate} aracına yükle
+                </Button>
+              ) : (
+                <Button onClick={() => setPlanOpen(true)}>🚚 Araca Yükle</Button>
+              )}
             </div>
           </div>
         </div>
