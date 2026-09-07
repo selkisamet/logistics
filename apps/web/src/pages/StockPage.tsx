@@ -3,10 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
-  PACKAGE_TYPE_LABELS,
   type Dispatch,
   type LoadEntryInput,
-  type PackageType,
   type Paginated,
   type Receipt,
   type VehicleSummary,
@@ -94,6 +92,31 @@ export function StockPage() {
   const clear = () => {
     setPkgSel({});
     setLineQty({});
+  };
+
+  /**
+   * Kabulün TAMAMINI seçer/bırakır — müşterinin yükü bölünmüyor, hepsi aynı araca gider.
+   * Paletli kabulde tüm kaplar, paletsizde her kalemin DEPODA KALAN miktarı işaretlenir
+   * (daha önce kısmi sevk olduysa yalnız kalanı yüklenir).
+   */
+  const toggleReceipt = (r: Receipt, on: boolean) => {
+    const pkgs = (r.packages ?? []).filter((p) => !p.dispatchedAt && !p.dispatchId);
+    if (pkgs.length > 0) {
+      setPkgSel((sel) => {
+        const next = { ...sel };
+        pkgs.forEach((p) => (next[p.id] = on));
+        return next;
+      });
+      return;
+    }
+    setLineQty((sel) => {
+      const next = { ...sel };
+      for (const l of r.lines ?? []) {
+        const remaining = l.remainingQty ?? 0;
+        if (remaining > 0) next[l.id] = on ? remaining : 0;
+      }
+      return next;
+    });
   };
 
   const totalPackages = data?.items.reduce((s, r) => s + (r.packages?.length ?? 0), 0) ?? 0;
@@ -184,92 +207,30 @@ export function StockPage() {
                   </span>
                 </div>
 
-                {/* Yük planı seçimi — paletliyse kap, paletsizse ürün + miktar */}
+                {/* Yük planı seçimi — KABUL BAZINDA, tek onay kutusu.
+                    Bir müşterinin yükü BÖLÜNMÜYOR: tamamı aynı araca gider. Eskiden
+                    paletsizde `− miktar +` sayacı, paletlide palet palet checkbox vardı;
+                    ikisi de gereksiz karar noktasıydı ve operatörü yavaşlatıyordu.
+                    Alttaki `entries`/API yapısı aynı — seçim tüm kapları/kalemleri işaretler. */}
                 {canDispatch && (
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    {hasPkg ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {pkgs.map((p) => (
-                          <label
-                            key={p.id}
-                            className={clsx(
-                              'flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2 py-1 text-xs',
-                              pkgSel[p.id] ? 'border-brand text-brand' : 'border-slate-200',
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!!pkgSel[p.id]}
-                              onChange={(e) => setPkgSel((s) => ({ ...s, [p.id]: e.target.checked }))}
-                            />
-                            {p.code}
-                            <span className="text-slate-400">
-                              {PACKAGE_TYPE_LABELS[p.type as PackageType] ?? p.type}
-                            </span>
-                          </label>
-                        ))}
-                        {pkgs.length > 1 && (
-                          <button
-                            onClick={() =>
-                              setPkgSel((s) => {
-                                const all = pkgs.every((p) => s[p.id]);
-                                const next = { ...s };
-                                pkgs.forEach((p) => (next[p.id] = !all));
-                                return next;
-                              })
-                            }
-                            className="text-xs font-medium text-brand"
-                          >
-                            {pkgs.every((p) => pkgSel[p.id]) ? 'Seçimi kaldır' : 'Tümünü seç'}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {openLines.map((l) => {
-                          const max = l.remainingQty ?? 0;
-                          const v = lineQty[l.id] ?? 0;
-                          const set = (n: number) =>
-                            setLineQty((s) => ({ ...s, [l.id]: Math.max(0, Math.min(max, n)) }));
-                          return (
-                            <div key={l.id} className="flex items-center justify-between gap-2">
-                              <span className="min-w-0 flex-1 truncate text-xs text-slate-700">
-                                {l.description}
-                              </span>
-                              <div className="flex shrink-0 items-center gap-1">
-                                <button
-                                  onClick={() => set(v - 1)}
-                                  className="h-6 w-6 rounded border border-slate-300 bg-white text-slate-600"
-                                >
-                                  −
-                                </button>
-                                <input
-                                  type="number"
-                                  value={v}
-                                  min={0}
-                                  max={max}
-                                  onChange={(e) => set(Number(e.target.value))}
-                                  className="w-14 rounded border border-slate-300 px-1 py-0.5 text-center text-xs"
-                                />
-                                <button
-                                  onClick={() => set(v + 1)}
-                                  className="h-6 w-6 rounded border border-slate-300 bg-white text-slate-600"
-                                >
-                                  +
-                                </button>
-                                <button
-                                  onClick={() => set(v === max ? 0 : max)}
-                                  className="ml-1 whitespace-nowrap text-[11px] font-medium text-brand"
-                                >
-                                  /{max} {l.unit}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                  <label
+                    className={clsx(
+                      'flex cursor-pointer items-center justify-between gap-2 rounded-lg border p-2',
+                      picked ? 'border-brand bg-brand/5' : 'border-slate-200 bg-slate-50',
                     )}
-                  </div>
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={picked}
+                        onChange={(e) => toggleReceipt(r, e.target.checked)}
+                      />
+                      Bu kabulü araca yükle
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {picked ? 'Seçildi' : 'Tamamı'}
+                    </span>
+                  </label>
                 )}
 
                 {canDispatch && (
