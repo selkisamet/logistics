@@ -149,6 +149,12 @@ export const dispatchItemSchema = z.object({
   customerName: z.string().nullable().optional(), // GÖNDERİCİ
   warehouseName: z.string().nullable().optional(), // NEREDEN
   recipientName: z.string().nullable().optional(),
+  /** Yükün ön ihbarında SEÇİLEN teslim yerleri — "İnecek durak" seçicisi bunlarla sınırlanır
+   *  (başka müşterinin durağına atanıp irsaliyeye yanlış ALICI basılmasın). */
+  recipientPoints: z
+    .array(z.object({ customerLocationId: z.string().nullable(), label: z.string() }))
+    .optional()
+    .default([]),
   waybillNo: z.string().nullable().optional(), // müşterinin SEVK İRSALİYE no'su
   plannedVehicle: vehicleSummarySchema.nullable().optional(),
 });

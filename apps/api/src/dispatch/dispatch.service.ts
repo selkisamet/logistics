@@ -29,7 +29,7 @@ const RECEIPT_FOR_WAYBILL = {
     select: {
       vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
       recipientCustomer: { select: { id: true, name: true } },
-      recipients: { select: { label: true, address: true } },
+      recipients: { select: { customerLocationId: true, label: true, address: true } },
     },
   },
 } satisfies Prisma.ReceiptSelect;
@@ -529,6 +529,11 @@ export class DispatchService {
               },
             ]
           : [];
+      // Ön ihbarda TEK teslim yeri varsa yükü ona otomatik bağla (kolaylık).
+      // BİRDEN FAZLA ise hangisine ineceğini uygulama BİLEMEZ → durakları oluştur ama
+      // yükü atama; operatör "İnecek durak" seçicisinden bilinçli seçsin. Rastgele birine
+      // atamak irsaliyeye sessizce yanlış ALICI bastırırdı.
+      const autoAssign = points.length === 1;
       for (const pt of points) {
         const cur = byKey.get(pt.key) ?? {
           name: pt.name,
@@ -539,7 +544,7 @@ export class DispatchService {
           receiptIds: [],
         };
         // Aynı kabul aynı durağa iki kez yazılmasın
-        if (!cur.receiptIds.includes(r.id)) cur.receiptIds.push(r.id);
+        if (autoAssign && !cur.receiptIds.includes(r.id)) cur.receiptIds.push(r.id);
         byKey.set(pt.key, cur);
       }
     }
@@ -928,6 +933,12 @@ function serializeDispatch(d: DispatchWithRelations) {
       customerName: i.receipt.customer?.name ?? null, // GÖNDERİCİ
       warehouseName: i.receipt.warehouse?.name ?? null, // NEREDEN
       recipientName: recipientNameOf(i.receipt.shipment), // ön ihbardaki alıcı
+      // Bu yükün ön ihbarında SEÇİLEN teslim yerleri — "İnecek durak" seçicisi bunlarla
+      // sınırlanır (başka müşterinin durağına atanıp irsaliyeye yanlış ALICI basılmasın).
+      recipientPoints: (i.receipt.shipment?.recipients ?? []).map((p) => ({
+        customerLocationId: p.customerLocationId,
+        label: p.label,
+      })),
       waybillNo: i.receipt.waybillNo, // müşterinin SEVK İRSALİYE no'su
       plannedVehicle: i.receipt.shipment?.vehicle ?? null,
     })),

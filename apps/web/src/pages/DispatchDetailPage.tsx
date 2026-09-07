@@ -199,6 +199,11 @@ export function DispatchDetailPage() {
     return !!sc && sc !== i.recipientName;
   };
   const mismatchCount = dispatch.items.filter(isMismatched).length;
+  // Ön ihbarında birden çok teslim yeri olan yükler bilinçli olarak ATANMAMIŞ bırakılır
+  // (uygulama hangisine ineceğini bilemez) — operatör seçmezse irsaliyede ALICI boş kalır.
+  const unassignedCount = dispatch.stops.length > 0
+    ? dispatch.items.filter((i) => !i.stopId).length
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -554,6 +559,13 @@ export function DispatchDetailPage() {
                 ? ' · durak sırasına göre dizili'
                 : ' · yükleme sırasına göre (teslim sırası için durak ekleyin)'}
             </p>
+            {unassignedCount > 0 && (
+              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                ⚠ {unassignedCount} yükün ineceği durak seçilmedi. Ön ihbarda birden fazla teslim
+                yeri varsa hangisine ineceğini uygulama bilemez — aşağıdan seçin, yoksa irsaliyede
+                ALICI boş basılır.
+              </p>
+            )}
             {mismatchCount > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                 ⚠ {mismatchCount} yük, ön ihbardaki alıcısından farklı bir durağa atanmış — irsaliyede
@@ -640,11 +652,28 @@ export function DispatchDetailPage() {
                             }
                           >
                             <option value="">Seçilmedi</option>
-                            {dispatch.stops.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.seq}. {stopLabel(s)}
-                              </option>
-                            ))}
+                            {(() => {
+                              // Yükün ön ihbarında seçilen teslim yerleri ÖNCE ve ayrı grupta.
+                              // Diğerleri gizlenmez (elle eklenen ekstra durak olabilir) ama
+                              // ayrılır — yanlış müşterinin durağına atamak zorlaşsın.
+                              const { own, other } = splitStops(dispatch.stops, i);
+                              const opt = (st: DispatchStop) => (
+                                <option key={st.id} value={st.id}>
+                                  {st.seq}. {stopLabel(st)}
+                                </option>
+                              );
+                              if (own.length === 0) return dispatch.stops.map(opt);
+                              return (
+                                <>
+                                  <optgroup label="Bu ön ihbarın teslim yerleri">
+                                    {own.map(opt)}
+                                  </optgroup>
+                                  {other.length > 0 && (
+                                    <optgroup label="Diğer duraklar">{other.map(opt)}</optgroup>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </select>
                         </label>
                       )}
@@ -741,6 +770,24 @@ function loadSummary(items: DispatchItem[]) {
  * yalnız firma yazsak iki durak ayırt edilemezdi. Belgede (irsaliye) ALICI olarak
  * yasal gereklilikten FİRMA basılır; ekranda ikisi birlikte gösterilir.
  */
+/**
+ * Durakları ikiye ayırır: yükün ÖN İHBARINDA seçilen teslim yerleri ve diğerleri.
+ * Eşleşme önce lokasyon id'siyle (kesin), yoksa adla yapılır — `suggestStops` durağı
+ * `customerLocationId` + `name` (= ShipmentRecipient.label) ile oluşturuyor.
+ */
+function splitStops(
+  stops: DispatchStop[],
+  item: { recipientPoints?: { customerLocationId: string | null; label: string }[] },
+) {
+  const points = item.recipientPoints ?? [];
+  if (points.length === 0) return { own: [], other: stops };
+  const ids = new Set(points.map((p) => p.customerLocationId).filter(Boolean) as string[]);
+  const labels = new Set(points.map((p) => p.label));
+  const isOwn = (s: DispatchStop) =>
+    (s.customerLocationId ? ids.has(s.customerLocationId) : false) || labels.has(s.name);
+  return { own: stops.filter(isOwn), other: stops.filter((s) => !isOwn(s)) };
+}
+
 function stopLabel(s: { name: string; customerName?: string | null }): string {
   const co = s.customerName?.trim();
   if (!co || co === s.name) return s.name;
