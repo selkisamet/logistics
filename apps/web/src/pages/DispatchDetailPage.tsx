@@ -556,7 +556,7 @@ export function DispatchDetailPage() {
             <p className="text-xs text-slate-500">
               {loadSummary(dispatch.items)}
               {dispatch.stops.length > 0
-                ? ' · durak sırasına göre dizili'
+                ? ' · durak sırasına göre dizili · her yük tek durakta iner'
                 : ' · yükleme sırasına göre (teslim sırası için durak ekleyin)'}
             </p>
             {unassignedCount > 0 && (
@@ -657,9 +657,12 @@ export function DispatchDetailPage() {
                               // Diğerleri gizlenmez (elle eklenen ekstra durak olabilir) ama
                               // ayrılır — yanlış müşterinin durağına atamak zorlaşsın.
                               const { own, other } = splitStops(dispatch.stops, i);
+                              // Rota numarası BİLEREK yok: tek bir yükün seçicisinde "1./2."
+                              // varış sırası gibi okunup "ilk gideceği yer mi?" sorusunu
+                              // doğuruyordu. Yük tek durakta iner; rota sırası Duraklar kartında.
                               const opt = (st: DispatchStop) => (
                                 <option key={st.id} value={st.id}>
-                                  {st.seq}. {stopLabel(st)}
+                                  {stopLabel(st)}
                                 </option>
                               );
                               if (own.length === 0) return dispatch.stops.map(opt);
