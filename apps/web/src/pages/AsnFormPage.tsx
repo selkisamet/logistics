@@ -277,15 +277,25 @@ export function AsnFormPage() {
             </div>
             <div className="space-y-1">
               <span className="text-sm font-medium text-slate-700">Boşaltma Yeri</span>
+              {/* TEK nokta: bir ön ihbar tek yere iner (yük bölünmüyor). Çoklu seçim, yükün
+                  inmeyeceği BOŞ duraklar üretiyordu — şoför oraya boşuna uğruyordu.
+                  MultiCombobox korunuyor çünkü "yazıp oluştur" yeteneği burada; seçim
+                  son seçilene indirgeniyor. */}
               <MultiCombobox
                 options={(dropLocations ?? []).map((l) => ({ value: l.id, label: l.name }))}
                 value={recipientSel}
-                onChange={setRecipientSel}
+                onChange={(v) => setRecipientSel(v.slice(-1))}
                 onCreate={recipientCustomerId ? createDrop : undefined}
                 disabled={!recipientCustomerId}
                 placeholder={recipientCustomerId ? 'Boşaltma yeri seç / yaz…' : 'Önce alıcı seçin'}
                 emptyHint="Yazıp “oluştur” ile ekleyin"
               />
+              {recipientSel.length > 1 && (
+                <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  ⚠ Bu ön ihbarda {recipientSel.length} teslim yeri kayıtlı. Artık bir ön ihbar tek
+                  noktaya iner — yeni bir yer seçerseniz diğerleri kaldırılır.
+                </p>
+              )}
             </div>
           </div>
 
@@ -293,6 +303,11 @@ export function AsnFormPage() {
           <p className="text-xs text-slate-500">
             Yükleme/boşaltma adresi seçilen <b>yerlerin</b> adresinden otomatik alınır; fişte öyle görünür.
             (Adresleri müşteri detayından güncelleyebilirsiniz.)
+          </p>
+          <p className="text-xs text-slate-500">
+            <b>Yükleme yeri</b> birden çok olabilir (göndericinin farklı depolarından toplanabilir).
+            <b> Boşaltma yeri tektir</b> — her teslim noktası için ayrı ön ihbar açın; hepsini aynı
+            araca yükleyebilirsiniz.
           </p>
 
           {/* Para birimi — satır birim fiyatları ve tesellüm fişindeki tutarlar bu cinsten.
