@@ -173,6 +173,20 @@ export function DispatchDetailPage() {
     onError: (e) => stopErr(e, 'Yeniden atanamadı'),
   });
 
+  /** Hiç yük atanmamış duraklar — şoför oraya boşuna uğrar, irsaliyede de satırı olmaz. */
+  const removeEmptyStopsMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      let last: Dispatch | null = null;
+      for (const sid of ids) last = await api.delete<Dispatch>(`/dispatches/${id}/stops/${sid}`);
+      return last!;
+    },
+    onSuccess: (d) => {
+      setDispatch(d);
+      toast('Boş duraklar kaldırıldı.');
+    },
+    onError: (e) => stopErr(e, 'Duraklar kaldırılamadı'),
+  });
+
   const editable = dispatch?.status === 'DRAFT';
 
   if (isLoading) return <Spinner />;
@@ -199,6 +213,9 @@ export function DispatchDetailPage() {
     return !!sc && sc !== i.recipientName;
   };
   const mismatchCount = dispatch.items.filter(isMismatched).length;
+  // Ön ihbarda birden çok teslim yeri seçilmişse hepsi durak olarak açılır ama yük yalnız
+  // birine iner → kalanlar BOŞ kalır. Sessiz bırakılırsa rotada gereksiz durak görünür.
+  const emptyStops = dispatch.stops.filter((st) => !dispatch.items.some((i) => i.stopId === st.id));
   // Ön ihbarında birden çok teslim yeri olan yükler bilinçli olarak ATANMAMIŞ bırakılır
   // (uygulama hangisine ineceğini bilemez) — operatör seçmezse irsaliyede ALICI boş kalır.
   const unassignedCount = dispatch.stops.length > 0
@@ -425,6 +442,19 @@ export function DispatchDetailPage() {
             <p className="text-xs text-slate-500">
               Rota sırası ve teslim takibi için. Alıcılar ön ihbardan geliyor.
             </p>
+            {editable && emptyStops.length > 0 && (
+              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                ⚠ {emptyStops.length} durağa yük atanmadı ({emptyStops.map((st) => st.name).join(', ')})
+                — şoför oraya boşuna uğrar.{' '}
+                <button
+                  onClick={() => removeEmptyStopsMut.mutate(emptyStops.map((st) => st.id))}
+                  disabled={removeEmptyStopsMut.isPending}
+                  className="font-semibold underline disabled:opacity-50"
+                >
+                  Boş durakları kaldır
+                </button>
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 gap-2">
             {dispatch.stops.length === 0 ? (
@@ -506,7 +536,14 @@ export function DispatchDetailPage() {
                     <p className="text-xs font-medium text-slate-600">🏢 {s.customerName}</p>
                   )}
                   {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
-                  <p className="text-xs text-slate-400">
+                  <p
+                    className={clsx(
+                      'text-xs',
+                      dispatch.items.some((i) => i.stopId === s.id)
+                        ? 'text-slate-400'
+                        : 'font-medium text-amber-700',
+                    )}
+                  >
                     {stopLoadText(dispatch.items, s.id)}
                     {s.phone ? ` · ${s.phone}` : ''}
                   </p>
