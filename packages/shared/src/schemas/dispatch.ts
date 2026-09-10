@@ -146,9 +146,11 @@ export const dispatchItemSchema = z.object({
   receiptLineId: z.string().nullable().optional(),
   packageId: z.string().nullable().optional(),
   packageCode: z.string().nullable().optional(),
-  customerName: z.string().nullable().optional(), // GÖNDERİCİ
+  customerName: z.string().nullable().optional(), // GÖNDERİCİ — ekranda kısa ad
+  customerLegalName: z.string().nullable().optional(), // GÖNDERİCİ — belgede tam ünvan
   warehouseName: z.string().nullable().optional(), // NEREDEN
-  recipientName: z.string().nullable().optional(),
+  recipientName: z.string().nullable().optional(), // ALICI — ekranda kısa ad
+  recipientLegalName: z.string().nullable().optional(), // ALICI — belgede tam ünvan
   /** Yükün ön ihbarında SEÇİLEN teslim yerleri — "İnecek durak" seçicisi bunlarla sınırlanır
    *  (başka müşterinin durağına atanıp irsaliyeye yanlış ALICI basılmasın). */
   recipientPoints: z
@@ -184,7 +186,8 @@ export const dispatchStopSchema = z.object({
   phone: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   deliveredAt: z.string().nullable().optional(),
-  customerName: z.string().nullable().optional(), // ALICI firma unvanı (belgeye bu yazılır)
+  customerName: z.string().nullable().optional(), // ALICI firma — ekranda kısa ad
+  customerLegalName: z.string().nullable().optional(), // ALICI firma — belgede tam ünvan
   packageCount: z.number().int().default(0),
   receiptCount: z.number().int().default(0),
   itemCount: z.number().int().optional().default(0),

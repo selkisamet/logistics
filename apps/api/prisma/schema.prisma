@@ -77,7 +77,10 @@ model User {
 model Customer {
   id          String   @id @default(cuid())
   code        String   @unique
+  // Görünen (kısa) ad — listeler, seçim kutuları, ekran başlıkları
   name        String
+  // Tam ünvan — YALNIZ belgelerde (tesellüm fişi, taşıma irsaliyesi). Boşsa `name` basılır.
+  legalName   String?
   contactName String?
   phone       String?
   email       String?

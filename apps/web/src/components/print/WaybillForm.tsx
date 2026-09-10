@@ -102,10 +102,17 @@ function destinationText(d: Dispatch): string {
  *  DİKKAT: durağın `name`'i boşaltma NOKTASI adı olabilir ("Gökbil Depo") — o firma değildir,
  *  bu yüzden en sonda, yalnızca firma bilinmiyorsa kullanılır. */
 function recipientOf(
-  item: { recipientName?: string | null },
-  stop: { customerName?: string | null; name: string; seq: number } | null,
+  item: { recipientName?: string | null; recipientLegalName?: string | null },
+  stop: { customerName?: string | null; customerLegalName?: string | null; name: string; seq: number } | null,
 ): string {
-  const name = stop?.customerName || item.recipientName || stop?.name || '';
+  // Belgede TAM ÜNVAN basılır (VUK 209 "kime gönderildiği"); yoksa kısa ada düşer.
+  const name =
+    stop?.customerLegalName ||
+    stop?.customerName ||
+    item.recipientLegalName ||
+    item.recipientName ||
+    stop?.name ||
+    '';
   // Durak sırası ALICI hücresinde önek olarak basılır → şoför rota sırasını belgeden okur.
   // (Ayrı sütun açmak matbu form genişliğini değiştirirdi.) Ad boşsa önek de yok:
   // "ALICI boş" uyarısı bozulmasın.
@@ -151,7 +158,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
       const key = `${i.receiptId}|${unit}|${recipient}`;
       const cur = byPkg.get(key) ?? {
         ref: i.receiptReference,
-        sender: i.customerName ?? '',
+        sender: i.customerLegalName || i.customerName || '',
         kind: i.description,
         note: i.waybillNo ?? '',
         unit,
@@ -186,7 +193,7 @@ export function buildWaybillLines(d: Dispatch): WaybillLine[] {
         unit: unitLabel(i.unit),
         weightKg: i.weightKg ?? null,
         kind: i.description,
-        sender: i.customerName ?? '',
+        sender: i.customerLegalName || i.customerName || '',
         recipient: recipientOf(i, g.stop),
         dispatchNote: i.waybillNo ?? '',
       });

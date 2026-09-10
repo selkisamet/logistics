@@ -980,7 +980,8 @@ function SlipForm({
           <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Gönderen / Sender</p>
           <FieldLine
             label="ADI, ÜNVANI"
-            value={`${receipt.customer?.name ?? ''}${
+            // Belgede TAM ÜNVAN; girilmemişse kısa ad
+            value={`${receipt.customer?.legalName || receipt.customer?.name || ''}${
               receipt.customer?.code ? ` (${receipt.customer.code})` : ''
             }`}
             lines={2}
@@ -1086,7 +1087,11 @@ function SlipForm({
       <div className="flex flex-1">
         <div className="w-[42%] border-r-2 border-sky-800 p-2">
           <p className="mb-1 text-[9px] font-bold uppercase text-sky-800">Alıcı / Delivery</p>
-          <FieldLine label="ADI, ÜNVANI" value={receipt.recipientCustomer?.name ?? ''} lines={2} />
+          <FieldLine
+            label="ADI, ÜNVANI"
+            value={receipt.recipientCustomer?.legalName || receipt.recipientCustomer?.name || ''}
+            lines={2}
+          />
           <FieldLine label="V. DAİRESİ" value={receipt.recipientCustomer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.recipientCustomer?.taxNumber || ''} />
           <FieldLine label="TEL" value={receipt.recipientCustomer?.phone || ''} />

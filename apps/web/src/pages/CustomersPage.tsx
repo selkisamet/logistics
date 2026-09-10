@@ -114,6 +114,7 @@ export function CustomerForm({
     defaultValues: initial
       ? {
           name: initial.name,
+          legalName: initial.legalName ?? '',
           contactName: initial.contactName ?? '',
           phone: initial.phone ?? '',
           email: initial.email ?? '',
@@ -140,9 +141,22 @@ export function CustomerForm({
 
   return (
     <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
+      {/* İKİ AD: ekranlarda kısa ad, belgelerde tam ünvan. Ünvan boşsa belgeye de kısa ad basılır. */}
       <Field label="Ad *" error={errors.name?.message}>
         <Input {...register('name')} placeholder="Örn. Arkem Kimya" />
       </Field>
+      <p className="-mt-2 text-xs text-slate-400">
+        Listelerde ve seçim kutularında bu görünür.
+      </p>
+      <Field label="Tam Ünvan" error={errors.legalName?.message}>
+        <Input
+          {...register('legalName')}
+          placeholder="Örn. Arkem Kimya Sanayi ve Ticaret A.Ş."
+        />
+      </Field>
+      <p className="-mt-2 text-xs text-slate-400">
+        Tesellüm fişi ve taşıma irsaliyesine bu basılır. Boş bırakırsanız yukarıdaki ad kullanılır.
+      </p>
       {!editing && (
         <p className="text-xs text-slate-400">Müşteri kodu otomatik atanır (MST0001, MST0002…).</p>
       )}

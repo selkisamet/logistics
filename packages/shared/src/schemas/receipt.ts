@@ -113,6 +113,7 @@ export const receiptSchema = z.object({
     .object({
       id: z.string(),
       name: z.string(),
+      legalName: z.string().nullable().optional(), // belgelerde basılan tam ünvan
       code: z.string(),
       address: z.string().nullable().optional(),
       phone: z.string().nullable().optional(),
@@ -142,6 +143,7 @@ export const receiptSchema = z.object({
     .object({
       id: z.string(),
       name: z.string(),
+      legalName: z.string().nullable().optional(), // belgelerde basılan tam ünvan
       code: z.string(),
       address: z.string().nullable().optional(),
       phone: z.string().nullable().optional(),

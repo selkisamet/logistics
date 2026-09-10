@@ -22,13 +22,13 @@ import {
 const RECEIPT_FOR_WAYBILL = {
   reference: true,
   waybillNo: true,
-  customer: { select: { name: true } },
+  customer: { select: { name: true, legalName: true } },
   warehouse: { select: { name: true } },
   lines: { select: { description: true } }, // MALIN CİNSİ sütunu
   shipment: {
     select: {
       vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
-      recipientCustomer: { select: { id: true, name: true } },
+      recipientCustomer: { select: { id: true, name: true, legalName: true } },
       recipients: { select: { customerLocationId: true, label: true, address: true } },
     },
   },
@@ -68,7 +68,7 @@ const DISPATCH_INCLUDE = {
       _count: { select: { items: true } },
       // ALICI = firma. `name` boşaltma NOKTASININ adı ("Gökbil Depo") olabilir;
       // irsaliyede "kime gönderildiği" firma unvanı olmalı (VUK 209).
-      customer: { select: { name: true } },
+      customer: { select: { name: true, legalName: true } },
     },
   },
 } satisfies Prisma.DispatchInclude;
@@ -930,9 +930,12 @@ function serializeDispatch(d: DispatchWithRelations) {
       receiptLineId: i.receiptLineId,
       packageId: i.packageId,
       packageCode: i.package?.code ?? null,
-      customerName: i.receipt.customer?.name ?? null, // GÖNDERİCİ
+      customerName: i.receipt.customer?.name ?? null, // GÖNDERİCİ — ekranda kısa ad
+      // Belgede tam ünvan; girilmemişse kısa ada düşer
+      customerLegalName: i.receipt.customer?.legalName || i.receipt.customer?.name || null,
       warehouseName: i.receipt.warehouse?.name ?? null, // NEREDEN
-      recipientName: recipientNameOf(i.receipt.shipment), // ön ihbardaki alıcı
+      recipientName: recipientNameOf(i.receipt.shipment), // ön ihbardaki alıcı (ekran)
+      recipientLegalName: recipientLegalNameOf(i.receipt.shipment), // belgedeki ALICI
       // Bu yükün ön ihbarında SEÇİLEN teslim yerleri — "İnecek durak" seçicisi bunlarla
       // sınırlanır (başka müşterinin durağına atanıp irsaliyeye yanlış ALICI basılmasın).
       recipientPoints: (i.receipt.shipment?.recipients ?? []).map((p) => ({
@@ -946,7 +949,8 @@ function serializeDispatch(d: DispatchWithRelations) {
       id: s.id,
       seq: s.seq,
       customerId: s.customerId,
-      customerName: s.customer?.name ?? null, // ALICI firma (belgede bu yazılır)
+      customerName: s.customer?.name ?? null, // ALICI firma — ekranda kısa ad
+      customerLegalName: s.customer?.legalName || s.customer?.name || null, // belgede tam ünvan
       customerLocationId: s.customerLocationId,
       name: s.name, // boşaltma noktası adı (ekranda gösterilir)
       address: s.address,
@@ -976,4 +980,16 @@ function recipientNameOf(
 ): string | null {
   if (!shipment) return null;
   return shipment.recipientCustomer?.name ?? shipment.recipients[0]?.label ?? null;
+}
+
+/** Belgeye basılacak ALICI: tam ünvan varsa o, yoksa kısa ad (aynı sırayla). */
+function recipientLegalNameOf(
+  shipment: {
+    recipientCustomer: { name: string; legalName: string | null } | null;
+    recipients: { label: string }[];
+  } | null,
+): string | null {
+  if (!shipment) return null;
+  const c = shipment.recipientCustomer;
+  return (c?.legalName || c?.name) ?? shipment.recipients[0]?.label ?? null;
 }

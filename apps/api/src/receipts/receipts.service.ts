@@ -18,6 +18,7 @@ const RECEIPT_INCLUDE = {
     select: {
       id: true,
       name: true,
+      legalName: true, // belgelerde basılan tam ünvan
       code: true,
       address: true,
       phone: true,
@@ -41,6 +42,7 @@ const RECEIPT_INCLUDE = {
         select: {
           id: true,
           name: true,
+          legalName: true, // belgelerde basılan tam ünvan
           code: true,
           address: true,
           phone: true,

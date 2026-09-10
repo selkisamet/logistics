@@ -3,7 +3,9 @@ import { paginationQuerySchema } from './common';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const createCustomerSchema = z.object({
-  name: upperStr(z.string().min(2, 'Müşteri adı gerekli')),
+  name: upperStr(z.string().min(2, 'Müşteri adı gerekli')), // görünen (kısa) ad
+  // Tam ünvan — YALNIZ belgelerde basılır; boşsa `name` kullanılır
+  legalName: upperOpt(),
   // Boş bırakılırsa sunucu otomatik atar (MST0001...). İstenirse elle de verilebilir.
   code: codeOpt(
     z
@@ -26,6 +28,7 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export const customerSchema = z.object({
   id: z.string(),
   name: z.string(),
+  legalName: z.string().nullable().optional(),
   code: z.string(),
   contactName: z.string().nullable(),
   phone: z.string().nullable(),
