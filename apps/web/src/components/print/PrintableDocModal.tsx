@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { useReactToPrint } from 'react-to-print';
 import { Button } from '../ui';
+import { Icon } from '../icons';
 
 /**
  * Matbu (önceden basılı) belgeler için ortak yazdırma kabuğu.
@@ -108,7 +109,9 @@ export function PrintableDocModal({
           <Button variant="secondary" onClick={onClose}>
             Kapat
           </Button>
-          <Button onClick={() => handlePrint()}>🖨️ Yazdır</Button>
+          <Button onClick={() => handlePrint()}>
+            <Icon name="printer" className="h-4 w-4" /> Yazdır
+          </Button>
         </div>
       </div>
 
