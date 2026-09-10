@@ -16,7 +16,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Icon } from './icons';
+import { Icon, type IconName } from './icons';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -579,6 +579,50 @@ export function MoneyInput({
         onChange(num);
       }}
     />
+  );
+}
+
+/**
+ * Satır içi mikro eylem: "Düzenle", "Sil", "Çıkar" gibi.
+ *
+ * Eskiden bunlar dolgusuz 12px düz metindi; masaüstünde sorun değildi ama telefonda
+ * parmakla isabet ettirmek zordu ve yan yana durdukları için yanlış olana basılıyordu.
+ * Artık dolgulu ve en az 34px yüksekliğinde, ikonlu.
+ *
+ * Dar ekranda YALNIZ İKON görünür (etiket `sm`den itibaren) — satırda yer açmak için;
+ * erişilebilirlik `aria-label`/`title` ile korunur.
+ */
+export function RowAction({
+  icon,
+  label,
+  tone = 'default',
+  className,
+  ...props
+}: {
+  icon: IconName;
+  label: string;
+  tone?: 'default' | 'brand' | 'danger';
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const tones = {
+    default: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+    brand: 'text-brand hover:bg-brand/10',
+    danger: 'text-red-600 hover:bg-red-50',
+  };
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={clsx(
+        'inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition disabled:opacity-40',
+        tones[tone],
+        className,
+      )}
+      {...props}
+    >
+      <Icon name={icon} className="h-4 w-4" />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 

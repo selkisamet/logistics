@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import type { Asn, Paginated, Receipt, StartReceiptInput } from '@lojistik/shared';
+import { Icon } from '../components/icons';
 import { api, ApiError } from '../lib/api';
 import { formatDate } from '../lib/format';
 import { Button, Card, Combobox, EmptyState, Field, Spinner } from '../components/ui';
@@ -37,10 +38,10 @@ export function ReceiptStartPage() {
 
       <div className="grid grid-cols-2 gap-2">
         <TabButton active={mode === 'asn'} onClick={() => setMode('asn')}>
-          📋 Ön İhbardan
+          <Icon name="clipboard" className="h-4 w-4" /> Ön İhbardan
         </TabButton>
         <TabButton active={mode === 'blind'} onClick={() => setMode('blind')}>
-          📦 Kör Kabul
+          <Icon name="package" className="h-4 w-4" /> Kör Kabul
         </TabButton>
       </div>
 

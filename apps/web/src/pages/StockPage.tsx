@@ -13,6 +13,7 @@ import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { formatCount, formatDate, daysSince } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
+import { Icon } from '../components/icons';
 import {
   Badge,
   Button,
@@ -180,7 +181,7 @@ export function StockPage() {
       qc.invalidateQueries({ queryKey: ['stock'] });
       qc.invalidateQueries({ queryKey: ['dispatches'] });
       clear();
-      toast(`🚚 ${d.reference} planına eklendi`);
+      toast(`${d.reference} planına eklendi`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yüklenemedi'),
   });
@@ -218,7 +219,7 @@ export function StockPage() {
       {/* Araç şeridi — önce aracı seç, sonra ona yükle. Seçilmezse eski akış (modal) sürer. */}
       {vehicleStats.length > 0 && (
         <div className="space-y-2">
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
             {vehicleStats.map(({ v, planned, draft }) => {
               const on = v.id === vehicleId;
               return (
@@ -233,7 +234,9 @@ export function StockPage() {
                     on ? 'border-brand bg-brand/5' : 'border-slate-200 bg-white hover:bg-slate-50',
                   )}
                 >
-                  <span className="block text-sm font-semibold text-slate-900">🚚 {v.plate}</span>
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                    <Icon name="truck" className="h-3.5 w-3.5" /> {v.plate}
+                  </span>
                   <span className="block text-[11px] text-slate-500">
                     {v.driverName || 'Şoför yok'}
                     {planned > 0 ? ` · ${formatCount(planned)} planlı` : ''}
@@ -324,7 +327,7 @@ export function StockPage() {
                     </div>
                   </div>
                   <p className="text-xs text-slate-500">
-                    📅 Giriş: {formatDate(r.completedAt)}
+                    Giriş: {formatDate(r.completedAt)}
                     {r.deliveryBy ? ` · Son teslim: ${formatDate(r.deliveryBy)}` : ''}
                   </p>
                 </Link>
@@ -332,11 +335,13 @@ export function StockPage() {
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                   {r.plannedVehicle ? (
                     <Badge className="bg-indigo-100 text-indigo-700">
-                      🚚 {r.plannedVehicle.plate}
+                      <Icon name="truck" className="h-3.5 w-3.5" /> {r.plannedVehicle.plate}
                       {r.plannedVehicle.trailerPlate ? ` / ${r.plannedVehicle.trailerPlate}` : ''}
                     </Badge>
                   ) : (
-                    <Badge className="bg-slate-100 text-slate-500">🚚 Araç belirsiz</Badge>
+                    <Badge className="inline-flex items-center gap-1 bg-slate-100 text-slate-500">
+                      <Icon name="truck" className="h-3.5 w-3.5" /> Araç belirsiz
+                    </Badge>
                   )}
                   <span className="text-sm font-medium text-slate-700">
                     {hasPkg ? (
@@ -392,7 +397,7 @@ export function StockPage() {
                     }
                     className="w-full rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
                   >
-                    🚚 Bu kabulün tamamını hemen sevk et
+                    Bu kabulün tamamını hemen sevk et
                   </button>
                 )}
               </Card>
@@ -427,10 +432,12 @@ export function StockPage() {
                   loading={loadToVehicleMut.isPending}
                   onClick={() => loadToVehicleMut.mutate()}
                 >
-                  🚚 {activeVehicle.v.plate} aracına yükle
+                  <Icon name="truck" className="h-4 w-4" /> {activeVehicle.v.plate} aracına yükle
                 </Button>
               ) : (
-                <Button onClick={() => setPlanOpen(true)}>🚚 Araca Yükle</Button>
+                <Button onClick={() => setPlanOpen(true)}>
+                  <Icon name="truck" className="h-4 w-4" /> Araca Yükle
+                </Button>
               )}
             </div>
           </div>
@@ -499,7 +506,7 @@ function LoadToVehicleModal({
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ['stock'] });
       qc.invalidateQueries({ queryKey: ['dispatches'] });
-      toast(`🚚 Yük ${d.reference} sefer planına eklendi`);
+      toast(`Yük ${d.reference} sefer planına eklendi`);
       onDone();
       onClose();
       navigate(`/sevkiyat/${d.id}`);
@@ -603,8 +610,8 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
       qc.invalidateQueries({ queryKey: ['dispatches'] });
       toast(
         target.hasPackages
-          ? `🚚 ${target.count} palet sevk edildi · ${d.reference}`
-          : `🚚 Sevk edildi · ${d.reference}`,
+          ? `${target.count} palet sevk edildi · ${d.reference}`
+          : `Sevk edildi · ${d.reference}`,
       );
       onClose();
     },
@@ -647,7 +654,7 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
             loading={mut.isPending}
             onClick={() => mut.mutate()}
           >
-            🚚 Sevk Et{target.hasPackages ? ` (${target.count})` : ''}
+            <Icon name="truck" className="h-4 w-4" /> Sevk Et{target.hasPackages ? ` (${target.count})` : ''}
           </Button>
         </div>
       </div>

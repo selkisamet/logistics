@@ -26,7 +26,18 @@ import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/forma
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
-import { Button, Card, Combobox, Field, Input, Select, Spinner, Badge } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Combobox,
+  Field,
+  Input,
+  RowAction,
+  Select,
+  Spinner,
+} from '../components/ui';
+import { Icon } from '../components/icons';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { WaybillCamera } from '../components/WaybillCamera';
@@ -114,7 +125,7 @@ export function ReceiptCountPage() {
       api.post<Package[]>(`/receipts/${id}/packages`, body),
     onSuccess: (pkgs) => {
       qc.invalidateQueries({ queryKey: ['receipts', id] });
-      toast(`🏷️ ${pkgs.length} etiket üretildi`);
+      toast(`${pkgs.length} etiket üretildi`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Etiket üretilemedi'),
   });
@@ -175,7 +186,7 @@ export function ReceiptCountPage() {
           </span>
         </div>
         <Button variant="secondary" className="w-full" onClick={() => setSlipOpen(true)}>
-          🖨️ Tesellüm Fişi
+          <Icon name="printer" className="h-4 w-4" /> Tesellüm Fişi
         </Button>
       </Card>
 
@@ -227,7 +238,7 @@ export function ReceiptCountPage() {
           <h3 className="font-semibold text-slate-900">QR Etiketler ({receipt.packages?.length ?? 0})</h3>
           {receipt.packages && receipt.packages.length > 0 && (
             <Button variant="secondary" onClick={() => setLabelsPrintOpen(true)}>
-              🖨️ Tümünü Yazdır
+              <Icon name="printer" className="h-4 w-4" /> Tümünü Yazdır
             </Button>
           )}
         </div>
@@ -308,7 +319,10 @@ export function ReceiptCountPage() {
                     <p className="mt-1 text-sm text-slate-700">{d.description}</p>
                   </div>
                   {editable && (
-                    <button
+                    <RowAction
+                      icon="trash"
+                      label="Sil"
+                      tone="danger"
                       onClick={async () => {
                         if (
                           await confirmDialog({
@@ -319,10 +333,7 @@ export function ReceiptCountPage() {
                         )
                           deleteDiscrepancyMut.mutate(d.id);
                       }}
-                      className="text-xs font-medium text-red-600"
-                    >
-                      Sil
-                    </button>
+                    />
                   )}
                 </div>
                 {d.attachments.length > 0 && (
@@ -515,7 +526,7 @@ function DocumentEditor({
               loading={ocrMut.isPending}
               onClick={openCamera}
             >
-              📷 İrsaliye No Oku
+              <Icon name="camera" className="h-4 w-4" /> İrsaliye No Oku
             </Button>
           </>
         )}
@@ -604,7 +615,7 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
               loading={uploadMut.isPending}
               onClick={() => fileRef.current?.click()}
             >
-              📷 Görüntü Ekle
+              <Icon name="camera" className="h-4 w-4" /> Görüntü Ekle
             </Button>
           </>
         )}
@@ -823,7 +834,9 @@ function LabelsPrintModal({
           <Button variant="secondary" onClick={onClose}>
             Kapat
           </Button>
-          <Button onClick={() => window.print()}>🖨️ Yazdır</Button>
+          <Button onClick={() => window.print()}>
+            <Icon name="printer" className="h-4 w-4" /> Yazdır
+          </Button>
         </div>
       </div>
       <div className="print-sheet grid flex-1 grid-cols-2 gap-4 overflow-y-auto p-4 sm:grid-cols-3">

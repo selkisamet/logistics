@@ -6,6 +6,7 @@ import { loginSchema, type LoginInput, type LoginResponse } from '@lojistik/shar
 import { api, ApiError } from '../lib/api';
 import { getApiBase, setApiBase, serverUrlConfigurable } from '../lib/config';
 import { useAuthStore } from '../stores/auth';
+import { Icon } from '../components/icons';
 import { Button, Field, Input } from '../components/ui';
 
 export function LoginPage() {
@@ -39,8 +40,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
       <div className="w-full max-w-sm space-y-6 rounded-2xl bg-white p-6 shadow-xl">
         <div className="text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brand text-2xl">
-            📦
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brand text-white">
+            <Icon name="package" className="h-7 w-7" />
           </div>
           <h1 className="text-xl font-bold text-slate-900">Tesellüm & Depo</h1>
           <p className="text-sm text-slate-500">Giriş yapın</p>

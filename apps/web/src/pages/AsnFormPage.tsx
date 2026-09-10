@@ -21,6 +21,7 @@ import {
   Field,
   Input,
   MoneyInput,
+  RowAction,
   Select,
   Combobox,
   MultiCombobox,
@@ -415,13 +416,7 @@ export function AsnFormPage() {
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-500">Kalem {i + 1}</span>
                 {fields.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => remove(i)}
-                    className="text-xs font-medium text-red-600"
-                  >
-                    Sil
-                  </button>
+                  <RowAction icon="trash" label="Sil" tone="danger" onClick={() => remove(i)} />
                 )}
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">

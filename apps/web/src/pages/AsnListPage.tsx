@@ -11,6 +11,7 @@ import {
 import { api } from '../lib/api';
 import { formatDate } from '../lib/format';
 import { Button, Card, EmptyState, Input, Spinner } from '../components/ui';
+import { Icon } from '../components/icons';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
 import { useAuthStore } from '../stores/auth';
 
@@ -100,7 +101,9 @@ function AsnCard({ asn }: { asn: Asn }) {
           <ShipmentStatusBadge status={asn.status} />
         </div>
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>📅 {formatDate(asn.expectedAt)}</span>
+          <span className="inline-flex items-center gap-1">
+            <Icon name="calendar" className="h-3.5 w-3.5" /> {formatDate(asn.expectedAt)}
+          </span>
           <span>
             {asn.lines.length} kalem · {totalReceived}/{totalExpected} adet
           </span>

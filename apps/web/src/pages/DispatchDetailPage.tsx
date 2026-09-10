@@ -29,8 +29,10 @@ import {
   Input,
   Modal,
   MoneyInput,
+  RowAction,
   Spinner,
 } from '../components/ui';
+import { Icon } from '../components/icons';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { WaybillModal } from '../components/print/WaybillForm';
@@ -107,7 +109,7 @@ export function DispatchDetailPage() {
       setDispatch(d);
       qc.invalidateQueries({ queryKey: ['dispatches'] });
       setVehicleModal(false);
-      toast('🚚 Araç güncellendi.');
+      toast('Araç güncellendi.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Araç değiştirilemedi'),
   });
@@ -120,7 +122,7 @@ export function DispatchDetailPage() {
     mutationFn: () => api.post<Dispatch>(`/dispatches/${id}/stops/suggest`),
     onSuccess: (d) => {
       setDispatch(d);
-      toast(`📍 ${d.stops.length} durak hazırlandı.`);
+      toast(`${d.stops.length} durak hazırlandı.`);
     },
     onError: (e) => stopErr(e, 'Duraklar oluşturulamadı'),
   });
@@ -272,12 +274,12 @@ export function DispatchDetailPage() {
               })()}
             </select>
           ) : (
-            <button
+            <RowAction
+              icon="x"
+              label="Çıkar"
+              tone="danger"
               onClick={() => removeItemMut.mutate(i.id)}
-              className="shrink-0 text-xs font-medium text-red-600"
-            >
-              Çıkar
-            </button>
+            />
           ))}
       </div>
     );
@@ -329,7 +331,7 @@ export function DispatchDetailPage() {
       {dispatch.status === 'DISPATCHED' && (
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" onClick={() => setVehicleModal(true)}>
-            🚚 Aracı Değiştir
+            <Icon name="truck" className="h-4 w-4" /> Aracı Değiştir
           </Button>
           <button
             onClick={async () => {
@@ -346,7 +348,7 @@ export function DispatchDetailPage() {
             }}
             className="ml-auto text-xs font-medium text-red-600 hover:underline"
           >
-            ↩ Sevkiyatı geri al
+            Sevkiyatı geri al
           </button>
         </div>
       )}
@@ -406,7 +408,7 @@ export function DispatchDetailPage() {
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => setScanning(true)}>
-            📷 QR Okut
+            <Icon name="qr" className="h-4 w-4" /> QR Okut
           </Button>
           <label
             className="flex items-center gap-1.5 text-xs text-slate-500"
@@ -450,7 +452,9 @@ export function DispatchDetailPage() {
             <Button variant="secondary" onClick={() => setWaybillEdit(true)}>
               Bilgileri Gir
             </Button>
-            <Button onClick={() => setWaybillModal(true)}>🖨️ İrsaliye</Button>
+            <Button onClick={() => setWaybillModal(true)}>
+              <Icon name="printer" className="h-4 w-4" /> İrsaliye
+            </Button>
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-slate-100 pt-2 text-sm">
@@ -611,13 +615,11 @@ export function DispatchDetailPage() {
                   <div className="flex shrink-0 gap-3">
                     {editable && (
                       <>
-                        <button
-                          onClick={() => setEditingStop(s)}
-                          className="text-xs font-medium text-slate-500"
-                        >
-                          Düzenle
-                        </button>
-                        <button
+                        <RowAction icon="edit" label="Düzenle" onClick={() => setEditingStop(s)} />
+                        <RowAction
+                          icon="trash"
+                          label="Sil"
+                          tone="danger"
                           onClick={async () => {
                             if (
                               await confirmDialog({
@@ -628,10 +630,7 @@ export function DispatchDetailPage() {
                             )
                               removeStopMut.mutate(s.id);
                           }}
-                          className="text-xs font-medium text-red-600"
-                        >
-                          Sil
-                        </button>
+                        />
                       </>
                     )}
                   </div>
@@ -671,7 +670,7 @@ export function DispatchDetailPage() {
               completeMut.mutate();
           }}
         >
-          🚚 Sevk Et ({loadSummary(dispatch.items)})
+          <Icon name="truck" className="h-4 w-4" /> Sevk Et ({loadSummary(dispatch.items)})
         </Button>
       )}
 
@@ -1217,5 +1216,9 @@ function PlannedTag({
     return <span className={clsx(base, 'bg-green-100 text-green-700')}>✓ {planned.plate}</span>;
   if (targetId)
     return <span className={clsx(base, 'bg-amber-100 text-amber-700')}>⚠ {planned.plate}</span>;
-  return <span className={clsx(base, 'bg-indigo-100 text-indigo-700')}>🚚 {planned.plate}</span>;
+  return (
+    <span className={clsx(base, 'inline-flex items-center gap-1 bg-indigo-100 text-indigo-700')}>
+      <Icon name="truck" className="h-3.5 w-3.5" /> {planned.plate}
+    </span>
+  );
 }

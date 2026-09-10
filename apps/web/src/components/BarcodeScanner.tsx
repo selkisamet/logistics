@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { Button, Input } from './ui';
+import { Icon } from './icons';
 
 type Status = 'starting' | 'ready' | 'error';
 
@@ -120,7 +121,7 @@ export function BarcodeScanner({
         )}
         {status === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-            <p className="text-4xl">📷✖</p>
+            <Icon name="camera" className="mx-auto h-10 w-10 text-slate-400" />
             <p className="text-sm text-amber-300">{errorMsg}</p>
             <Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}>
               Kamerayı tekrar dene

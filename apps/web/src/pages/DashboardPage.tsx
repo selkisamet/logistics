@@ -34,7 +34,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Merhaba, {user?.fullName} 👋</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Merhaba, {user?.fullName}</h2>
         <p className="text-sm text-slate-500">Günlük operasyon özeti</p>
       </div>
 

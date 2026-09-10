@@ -8,6 +8,7 @@ import { confirmDialog } from '../lib/dialog';
 import { formatDate, formatMoney, formatWeight } from '../lib/format';
 import { useVehicles } from '../lib/lookups';
 import { Button, Card, Combobox, Field, Spinner } from '../components/ui';
+import { Icon } from '../components/icons';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
 import { useAuthStore } from '../stores/auth';
 
@@ -156,7 +157,7 @@ export function AsnDetailPage() {
 
       {asn.status === 'EXPECTED' && (
         <Button className="w-full" loading={startMut.isPending} onClick={() => startMut.mutate()}>
-          📦 Mal Kabul Başlat
+          <Icon name="package" className="h-4 w-4" /> Mal Kabul Başlat
         </Button>
       )}
 
@@ -229,7 +230,9 @@ function PlannedVehicleEditor({ asn, canEdit }: { asn: Asn; canEdit: boolean }) 
       <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2">
         <div>
           <p className="text-xs text-slate-400">Planlanan araç</p>
-          <p className="text-sm font-medium text-slate-800">🚚 {current}</p>
+          <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+            <Icon name="truck" className="h-4 w-4" /> {current}
+          </p>
         </div>
         {canEdit && (
           <Button
