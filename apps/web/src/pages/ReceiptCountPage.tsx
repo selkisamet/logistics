@@ -30,6 +30,7 @@ import {
   Badge,
   Button,
   Card,
+  CollapsibleCard,
   Combobox,
   Field,
   Input,
@@ -190,52 +191,76 @@ export function ReceiptCountPage() {
         </Button>
       </Card>
 
-      <DocumentEditor
-        receiptId={receipt.id}
-        initialWaybill={receipt.waybillNo ?? ''}
-        initialOrder={receipt.orderNo ?? ''}
-        editable={editable}
-      />
-
-      <AttachmentsCard receipt={receipt} editable={editable} />
-
-      {editable && (
-        <Button
-          className="w-full"
-          variant="secondary"
-          onClick={() => {
-            setPrefill({});
-            setAddOpen(true);
-          }}
-        >
-          + Kalem Ekle
-        </Button>
-      )}
-
-
-      {/* Kalemler */}
-      <div className="space-y-2">
+      {/* ASIL İŞ: sayım. Sayfanın en üstünde ve tek açık bölüm — ikincil kartlar altta
+          katlanmış durur, böylece ekran açıldığında operatör doğrudan işine bakar. */}
+      <Card className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold text-slate-900">Kalemler ({receipt.lines.length})</h3>
+          {editable && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPrefill({});
+                setAddOpen(true);
+              }}
+            >
+              + Kalem
+            </Button>
+          )}
+        </div>
         {receipt.lines.length === 0 ? (
-          <Card className="text-center text-sm text-slate-500">
-            Henüz kalem yok. "+ Kalem Ekle" ile satır girin.
-          </Card>
+          <p className="py-2 text-center text-sm text-slate-400">
+            Henüz kalem yok. "+ Kalem" ile satır girin.
+          </p>
         ) : (
-          receipt.lines.map((line) => (
-            <LineRow
-              key={line.id}
-              line={line}
-              editable={editable}
-              onSetCount={setCount}
-              onReport={(type) => setDiscrepancyFor({ lineId: line.id, type })}
-            />
-          ))
+          <div className="space-y-2">
+            {receipt.lines.map((line) => (
+              <LineRow
+                key={line.id}
+                line={line}
+                editable={editable}
+                onSetCount={setCount}
+                onReport={(type) => setDiscrepancyFor({ lineId: line.id, type })}
+              />
+            ))}
+          </div>
         )}
-      </div>
+      </Card>
+
+      {/* Belge bilgileri — dolmamışsa açık gelir (girilmesi gereken bir iş), doluysa kapalı */}
+      <CollapsibleCard
+        title="Belge Bilgileri"
+        summary={
+          receipt.waybillNo || receipt.orderNo
+            ? [receipt.waybillNo && `İrs: ${receipt.waybillNo}`, receipt.orderNo && `Sip: ${receipt.orderNo}`]
+                .filter(Boolean)
+                .join(' · ')
+            : 'girilmedi'
+        }
+        defaultOpen={editable && !receipt.waybillNo && !receipt.orderNo}
+      >
+        <DocumentEditor
+          receiptId={receipt.id}
+          initialWaybill={receipt.waybillNo ?? ''}
+          initialOrder={receipt.orderNo ?? ''}
+          editable={editable}
+        />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="İrsaliye Görüntüleri"
+        summary={`${receipt.attachments?.length ?? 0} görüntü`}
+      >
+        <AttachmentsCard receipt={receipt} editable={editable} />
+      </CollapsibleCard>
 
       {/* QR etiketleri */}
-      <Card className="space-y-3">
+      <CollapsibleCard
+        title="QR Etiketler"
+        summary={`${receipt.packages?.length ?? 0} etiket`}
+      >
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">QR Etiketler ({receipt.packages?.length ?? 0})</h3>
+          <span className="text-xs text-slate-400">Palet/koli etiketi üret</span>
           {receipt.packages && receipt.packages.length > 0 && (
             <Button variant="secondary" onClick={() => setLabelsPrintOpen(true)}>
               <Icon name="printer" className="h-4 w-4" /> Tümünü Yazdır
@@ -292,20 +317,21 @@ export function ReceiptCountPage() {
         ) : (
           <p className="text-xs text-slate-400">Her koli/palet için QR etiket üretebilirsiniz.</p>
         )}
-      </Card>
+      </CollapsibleCard>
 
-      {/* Tutanaklar / Hasar */}
-      <Card className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">
-            Tutanaklar ({receipt.discrepancies?.length ?? 0})
-          </h3>
-          {editable && (
+      {/* Tutanak VARSA açık gelir: eksik/hasar operatörün görmesi gereken bir uyarıdır */}
+      <CollapsibleCard
+        title="Tutanaklar"
+        summary={`${receipt.discrepancies?.length ?? 0} kayıt`}
+        defaultOpen={(receipt.discrepancies?.length ?? 0) > 0}
+        action={
+          editable && (
             <Button variant="secondary" onClick={() => setDiscrepancyFor({})}>
               + Tutanak
             </Button>
-          )}
-        </div>
+          )
+        }
+      >
         {receipt.discrepancies && receipt.discrepancies.length > 0 ? (
           <div className="space-y-2">
             {receipt.discrepancies.map((d) => (
@@ -357,7 +383,7 @@ export function ReceiptCountPage() {
             Eksik, fazla veya hasar varsa fotoğraflı tutanak ekleyin.
           </p>
         )}
-      </Card>
+      </CollapsibleCard>
 
       {editable && (
         <div className="flex flex-col gap-2">
@@ -503,9 +529,9 @@ function DocumentEditor({
   if (!editable && !initialWaybill && !initialOrder) return null;
 
   return (
-    <Card className="space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-slate-700">Belge Bilgileri</span>
+        <span className="text-xs text-slate-400">İrsaliye ve sipariş numarası</span>
         {editable && (
           <>
             <input
@@ -557,7 +583,7 @@ function DocumentEditor({
       {cameraOpen && (
         <WaybillCamera onResult={fillFromOcr} onClose={() => setCameraOpen(false)} />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -589,11 +615,9 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
   if (!editable && attachments.length === 0) return null;
 
   return (
-    <Card className="space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-slate-700">
-          İrsaliye Görüntüleri ({attachments.length})
-        </span>
+        <span className="text-xs text-slate-400">Belge fotoğrafları</span>
         {editable && (
           <>
             <input
@@ -658,7 +682,7 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
           İrsaliyenin/belgenin fotoğrafını ekleyin (birden fazla eklenebilir).
         </p>
       )}
-    </Card>
+    </div>
   );
 }
 

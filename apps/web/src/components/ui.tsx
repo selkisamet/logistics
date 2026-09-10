@@ -584,6 +584,57 @@ export function MoneyInput({
 }
 
 /**
+ * Katlanabilir kart — bir ekranda İKİNCİL bölümleri kapalı tutmak için.
+ *
+ * Mal kabul ekranı 6 açık kartla açılıyordu (belge bilgileri, foto, kalemler, QR etiket,
+ * tutanak…) ve operatörün asıl işi olan SAYIM kalabalığın içinde kayboluyordu. İkincil
+ * bölümler artık kapalı başlar; başlıkta tek satırlık özet durur (ör. "3 etiket"), böylece
+ * içeri girmeden ne olduğu görülür.
+ */
+export function CollapsibleCard({
+  title,
+  summary,
+  defaultOpen = false,
+  action,
+  children,
+}: {
+  title: string;
+  summary?: ReactNode;
+  defaultOpen?: boolean;
+  /** Başlık satırında, açma/kapamadan bağımsız duran düğme (ör. "+ Ekle"). */
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="space-y-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="-my-1 flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
+        >
+          <Icon
+            name="chevron"
+            className={clsx(
+              'h-4 w-4 shrink-0 text-slate-400 transition-transform',
+              open && 'rotate-90',
+            )}
+          />
+          <span className="truncate font-semibold text-slate-900">{title}</span>
+          {summary != null && (
+            <span className="truncate text-xs text-slate-400">{summary}</span>
+          )}
+        </button>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      {open && children}
+    </Card>
+  );
+}
+
+/**
  * Liste kartı — ön ihbar / mal kabul / sevkiyat listelerinin ORTAK anatomisi.
  *
  * Üç sayfa da aynı düzeni ayrı ayrı yazmıştı; küçük farklar (hover gölgesi, taşma kırpması,
