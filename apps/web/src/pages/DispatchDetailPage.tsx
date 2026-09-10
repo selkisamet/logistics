@@ -47,9 +47,6 @@ export function DispatchDetailPage() {
   const [waybillModal, setWaybillModal] = useState(false);
   const [waybillEdit, setWaybillEdit] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
-  // Yük satırında durak seçici yalnız "Taşı" denince açılır — yük zaten durağının
-  // ALTINDA duruyor, sürekli açık bir açılır liste aynı bilgiyi tekrarlardı.
-  const [movingItem, setMovingItem] = useState<string | null>(null);
 
   const { data: dispatch, isLoading } = useQuery({
     queryKey: ['dispatches', id],
@@ -218,7 +215,8 @@ export function DispatchDetailPage() {
   /** Tek yük satırı. Bileşen DEĞİL düz fonksiyon: her render'da yeni bileşen tipi üretmek
    *  açık duran `select`'i yeniden monte edip odağı düşürürdü. */
   const loadRow = (i: DispatchItem, forcePicker = false) => {
-    const picking = forcePicker || movingItem === i.id;
+    // Seçici yalnız durağı ATANMAMIŞ yükte; atanmışta "Taşı" düğmesi kaldırıldı.
+    const picking = forcePicker;
     return (
       <div key={i.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
         <div className="min-w-0">
@@ -240,13 +238,10 @@ export function DispatchDetailPage() {
         {editable &&
           (picking && dispatch.stops.length > 0 ? (
             <select
-              autoFocus={!forcePicker}
               value={i.stopId ?? ''}
               onChange={(e) => {
                 assignMut.mutate({ stopId: e.target.value || 'yok', itemIds: [i.id] });
-                setMovingItem(null);
               }}
-              onBlur={() => setMovingItem(null)}
               className={clsx(
                 'shrink-0 rounded-lg border bg-white px-2 py-1 text-xs',
                 i.stopId ? 'border-slate-300 text-slate-700' : 'border-amber-400 text-amber-800',
@@ -274,22 +269,12 @@ export function DispatchDetailPage() {
               })()}
             </select>
           ) : (
-            <div className="flex shrink-0 gap-3">
-              {dispatch.stops.length > 1 && (
-                <button
-                  onClick={() => setMovingItem(i.id)}
-                  className="text-xs font-medium text-slate-500"
-                >
-                  Taşı
-                </button>
-              )}
-              <button
-                onClick={() => removeItemMut.mutate(i.id)}
-                className="text-xs font-medium text-red-600"
-              >
-                Çıkar
-              </button>
-            </div>
+            <button
+              onClick={() => removeItemMut.mutate(i.id)}
+              className="shrink-0 text-xs font-medium text-red-600"
+            >
+              Çıkar
+            </button>
           ))}
       </div>
     );
@@ -525,8 +510,18 @@ export function DispatchDetailPage() {
             )}
           </div>
           {editable && (
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <Button onClick={() => setLoadOpen(true)}>+ Yük</Button>
+              {dispatch.stops.length > 0 && (
+                <Button
+                  variant="secondary"
+                  loading={reassignMut.isPending}
+                  onClick={() => reassignMut.mutate()}
+                  title="Tüm yükleri ön ihbardaki alıcılara göre yeniden dağıtır"
+                >
+                  Yükleri Yeniden Ata
+                </Button>
+              )}
               {dispatch.stops.length === 0 && dispatch.items.length > 0 ? (
                 <Button
                   variant="secondary"
