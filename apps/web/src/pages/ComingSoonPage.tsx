@@ -1,4 +1,5 @@
 import { Card, Badge } from '../components/ui';
+import { Icon } from '../components/icons';
 
 export function ComingSoonPage({
   title,
@@ -11,7 +12,7 @@ export function ComingSoonPage({
 }) {
   return (
     <Card className="space-y-3 text-center">
-      <div className="text-4xl">🚧</div>
+      <Icon name="alert" className="mx-auto h-10 w-10 text-amber-500" />
       <h2 className="text-lg font-bold text-slate-900">{title}</h2>
       {phase && <Badge className="bg-amber-100 text-amber-700">{phase}</Badge>}
       {description && <p className="text-sm text-slate-600">{description}</p>}

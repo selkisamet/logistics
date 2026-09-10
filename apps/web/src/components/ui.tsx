@@ -1,5 +1,6 @@
 import { clsx } from 'clsx';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { formatPlate } from '../lib/plate';
 import { formatPhone } from '../lib/phone';
 import { formatMoneyInput, moneyToInput, parseMoneyInput } from '../lib/money';
@@ -579,6 +580,56 @@ export function MoneyInput({
         onChange(num);
       }}
     />
+  );
+}
+
+/**
+ * Liste kartı — ön ihbar / mal kabul / sevkiyat listelerinin ORTAK anatomisi.
+ *
+ * Üç sayfa da aynı düzeni ayrı ayrı yazmıştı; küçük farklar (hover gölgesi, taşma kırpması,
+ * boşluklar) sayfa değiştirince göze çarpıyordu. Tek yerde tanımlı:
+ *   başlık + alt başlık | durum rozeti
+ *   (isteğe bağlı ek satır)
+ *   sol alt bilgi | sağ alt bilgi
+ *
+ * `truncate` + `min-w-0` ŞART: uzun müşteri adı mobilde kartı yatay taşırıyordu.
+ */
+export function ListCard({
+  to,
+  title,
+  subtitle,
+  badge,
+  meta,
+  metaRight,
+  children,
+}: {
+  to: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  badge?: ReactNode;
+  meta?: ReactNode;
+  metaRight?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <Link to={to} className="block">
+      <Card className="space-y-2 transition hover:shadow-md">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-900">{title}</p>
+            {subtitle && <p className="truncate text-xs text-slate-500">{subtitle}</p>}
+          </div>
+          {badge && <div className="shrink-0">{badge}</div>}
+        </div>
+        {children}
+        {(meta || metaRight) && (
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">{meta}</span>
+            <span className="shrink-0">{metaRight}</span>
+          </div>
+        )}
+      </Card>
+    </Link>
   );
 }
 

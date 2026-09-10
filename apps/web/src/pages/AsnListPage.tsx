@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
@@ -10,7 +10,7 @@ import {
 } from '@lojistik/shared';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/format';
-import { Button, Card, EmptyState, Input, Spinner } from '../components/ui';
+import { Button, EmptyState, Input, ListCard, Spinner } from '../components/ui';
 import { Icon } from '../components/icons';
 import { ShipmentStatusBadge } from '../components/ShipmentStatusBadge';
 import { useAuthStore } from '../stores/auth';
@@ -89,26 +89,17 @@ function AsnCard({ asn }: { asn: Asn }) {
   const totalReceived = asn.lines.reduce((s, l) => s + l.receivedQty, 0);
 
   return (
-    <Link to={`/on-ihbar/${asn.id}`}>
-      <Card className="space-y-2">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="font-semibold text-slate-900">{asn.reference}</p>
-            <p className="text-xs text-slate-500">
-              {asn.customer?.name} · {asn.warehouse?.name}
-            </p>
-          </div>
-          <ShipmentStatusBadge status={asn.status} />
-        </div>
-        <div className="flex items-center justify-between text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <Icon name="calendar" className="h-3.5 w-3.5" /> {formatDate(asn.expectedAt)}
-          </span>
-          <span>
-            {asn.lines.length} kalem · {totalReceived}/{totalExpected} adet
-          </span>
-        </div>
-      </Card>
-    </Link>
+    <ListCard
+      to={`/on-ihbar/${asn.id}`}
+      title={asn.reference}
+      subtitle={`${asn.customer?.name ?? ''} · ${asn.warehouse?.name ?? ''}`}
+      badge={<ShipmentStatusBadge status={asn.status} />}
+      meta={
+        <>
+          <Icon name="calendar" className="h-3.5 w-3.5" /> {formatDate(asn.expectedAt)}
+        </>
+      }
+      metaRight={`${asn.lines.length} kalem · ${totalReceived}/${totalExpected} adet`}
+    />
   );
 }

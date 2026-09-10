@@ -677,7 +677,11 @@ function DueBadge({ date }: { date: string }) {
         : 'bg-slate-100 text-slate-600';
   const text =
     days < 0 ? `${Math.abs(days)} gün GECİKTİ` : days === 0 ? 'Bugün teslim' : `${days} gün kaldı`;
-  return <Badge className={cls}>⏳ {text}</Badge>;
+  return (
+    <Badge className={clsx(cls, 'inline-flex items-center gap-1')}>
+      <Icon name="calendar" className="h-3.5 w-3.5" /> {text}
+    </Badge>
+  );
 }
 
 function WaitBadge({ days }: { days: number }) {

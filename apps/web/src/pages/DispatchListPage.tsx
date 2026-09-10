@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
@@ -9,8 +9,9 @@ import {
   type DispatchStatus,
 } from '@lojistik/shared';
 import { api } from '../lib/api';
+import { Icon } from '../components/icons';
 import { formatDateTime } from '../lib/format';
-import { Button, Card, EmptyState, Spinner } from '../components/ui';
+import { Button, EmptyState, ListCard, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 
 const FILTERS: { value: DispatchStatus | 'ALL'; label: string }[] = [
@@ -68,51 +69,48 @@ export function DispatchListPage() {
             // Çok müşterili sefer: irsaliyede hepsi görünür, listede de belli olsun
             const senders = [...new Set(items.map((i) => i.customerName).filter(Boolean))];
             return (
-              <Link key={d.id} to={`/sevkiyat/${d.id}`}>
-                <Card className="space-y-2">
-                  {/* Seferin kimliği ARAÇ; altında kısa rota özeti */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-900">
-                        {d.vehicle?.plate ?? d.vehiclePlate ?? 'Araç atanmadı'}
-                        {d.destination && (
-                          <span className="ml-2 truncate text-sm font-normal text-slate-500">
-                            {d.destination}
-                          </span>
-                        )}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
-                        {d.reference}
-                        {d.stops?.length
-                          // Listede tek satır: YER adları (kısa ve ayırt edici; aynı firmanın
-                          // birden çok lokasyonu olabildiği için firma adı tekrar edebilirdi)
-                          ? ` · ${d.stops.map((s) => s.name).join(' → ')}`
-                          : ''}
-                      </p>
-                    </div>
-                    <DispatchStatusBadge status={d.status} />
-                  </div>
-                  {senders.length > 0 && (
-                    <p className="truncate text-xs text-slate-600">
-                      {senders.length > 1 && (
-                        <span className="mr-1 rounded bg-indigo-100 px-1.5 py-0.5 font-medium text-indigo-700">
-                          {senders.length} müşteri
-                        </span>
-                      )}
-                      {senders.join(', ')}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>🕒 {formatDateTime(d.dispatchedAt ?? d.createdAt)}</span>
-                    <span>
-                      {kap ? `${kap} kap` : ''}
-                      {kap && adet ? ' · ' : ''}
-                      {adet ? `${adet} adet` : ''}
-                      {!kap && !adet ? 'yük yok' : ''}
-                    </span>
-                  </div>
-                </Card>
-              </Link>
+              <ListCard
+                key={d.id}
+                to={`/sevkiyat/${d.id}`}
+                // Seferin kimliği ARAÇ; hedef adı yanında soluk
+                title={
+                  <>
+                    {d.vehicle?.plate ?? d.vehiclePlate ?? 'Araç atanmadı'}
+                    {d.destination && (
+                      <span className="ml-2 text-sm font-normal text-slate-500">
+                        {d.destination}
+                      </span>
+                    )}
+                  </>
+                }
+                subtitle={`${d.reference}${
+                  // Listede tek satır: YER adları (kısa ve ayırt edici; aynı firmanın birden
+                  // çok lokasyonu olabildiği için firma adı tekrar edebilirdi)
+                  d.stops?.length ? ` · ${d.stops.map((s) => s.name).join(' → ')}` : ''
+                }`}
+                badge={<DispatchStatusBadge status={d.status} />}
+                meta={
+                  <>
+                    <Icon name="calendar" className="h-3.5 w-3.5" />{' '}
+                    {formatDateTime(d.dispatchedAt ?? d.createdAt)}
+                  </>
+                }
+                metaRight={
+                  [kap ? `${kap} kap` : '', adet ? `${adet} adet` : ''].filter(Boolean).join(' · ') ||
+                  'yük yok'
+                }
+              >
+                {senders.length > 0 && (
+                  <p className="truncate text-xs text-slate-600">
+                    {senders.length > 1 && (
+                      <span className="mr-1 rounded bg-indigo-100 px-1.5 py-0.5 font-medium text-indigo-700">
+                        {senders.length} müşteri
+                      </span>
+                    )}
+                    {senders.join(', ')}
+                  </p>
+                )}
+              </ListCard>
             );
           })}
         </div>

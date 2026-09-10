@@ -248,7 +248,7 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
             <div>⚠ Taşıyıcı vergi dairesi/VKN girilmemiş (yasal zorunlu) — company.ts'e ekleyin.</div>
           )}
           <div>
-            📎 173 GT: Bu irsaliyeye <b>tesellüm fişi örnekleri</b> ve göndericilerin{' '}
+            173 GT: Bu irsaliyeye <b>tesellüm fişi örnekleri</b> ve göndericilerin{' '}
             <b>sevk irsaliyeleri</b> eklenmelidir.
           </div>
         </>

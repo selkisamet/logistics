@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
@@ -9,8 +9,9 @@ import {
   type ReceiptStatus,
 } from '@lojistik/shared';
 import { api } from '../lib/api';
+import { Icon } from '../components/icons';
 import { formatDateTime } from '../lib/format';
-import { Button, Card, EmptyState, Spinner } from '../components/ui';
+import { Button, EmptyState, ListCard, Spinner } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 
 const FILTERS: { value: ReceiptStatus | 'ALL'; label: string }[] = [
@@ -65,27 +66,21 @@ export function ReceiptListPage() {
             const counted = r.lines.reduce((s, l) => s + l.countedQty, 0);
             const expected = r.lines.reduce((s, l) => s + (l.expectedQty ?? 0), 0);
             return (
-              <Link key={r.id} to={`/mal-kabul/${r.id}`}>
-                <Card className="space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-900">{r.reference}</p>
-                      <p className="text-xs text-slate-500">
-                        {r.customer?.name}
-                        {r.asnReference ? ` · Öİ: ${r.asnReference}` : ' · Kör kabul'}
-                      </p>
-                    </div>
-                    <ReceiptStatusBadge status={r.status} />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>🕒 {formatDateTime(r.startedAt)}</span>
-                    <span>
-                      {counted}
-                      {expected ? `/${expected}` : ''} adet · {r.lines.length} kalem
-                    </span>
-                  </div>
-                </Card>
-              </Link>
+              <ListCard
+                key={r.id}
+                to={`/mal-kabul/${r.id}`}
+                title={r.reference}
+                subtitle={`${r.customer?.name ?? ''}${
+                  r.asnReference ? ` · Öİ: ${r.asnReference}` : ' · Kör kabul'
+                }`}
+                badge={<ReceiptStatusBadge status={r.status} />}
+                meta={
+                  <>
+                    <Icon name="calendar" className="h-3.5 w-3.5" /> {formatDateTime(r.startedAt)}
+                  </>
+                }
+                metaRight={`${counted}${expected ? `/${expected}` : ''} adet · ${r.lines.length} kalem`}
+              />
             );
           })}
         </div>

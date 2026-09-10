@@ -488,7 +488,7 @@ function DocumentEditor({
     if (res.orderNo) setOrder(res.orderNo);
     toast(
       res.waybillNo || res.orderNo
-        ? "📄 Okundu — kontrol edip Kaydet'e basın"
+        ? "Okundu — kontrol edip Kaydet'e basın"
         : 'Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.',
     );
   }
@@ -573,7 +573,7 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
       uploadFiles<Receipt>(`/receipts/${receipt.id}/attachments`, files),
     onSuccess: (r) => {
       qc.setQueryData(['receipts', receipt.id], r);
-      toast(`📎 ${(r.attachments?.length ?? 0) - attachments.length} görüntü eklendi`);
+      toast(`${(r.attachments?.length ?? 0) - attachments.length} görüntü eklendi`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yüklenemedi'),
   });

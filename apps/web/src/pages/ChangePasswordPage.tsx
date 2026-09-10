@@ -22,7 +22,7 @@ export function ChangePasswordPage() {
     try {
       await api.post('/auth/change-password', values);
       reset();
-      toast('🔑 Şifre güncellendi');
+      toast('Şifre güncellendi');
       navigate(-1);
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Güncellenemedi');
