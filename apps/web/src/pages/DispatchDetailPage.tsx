@@ -220,14 +220,18 @@ export function DispatchDetailPage() {
     return (
       <div key={i.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
         <div className="min-w-0">
-          <p className="truncate text-sm text-slate-900">
-            <span className="font-medium">{i.customerName ?? '—'}</span>
-            <span className="mx-1.5 text-slate-400">&middot;</span>
+          {/* Önce MAL (yüklenen şey), altında etiketli GÖNDERİCİ. Eskiden satır gönderici
+              adıyla başlıyordu; durak başlığındaki alıcı da firma adı olduğu için ikisi
+              karışıyordu — "kim gönderici kim alıcı" belli olmuyordu. */}
+          <p className="truncate text-sm font-medium text-slate-900">
             {i.kind === 'PACKAGE'
               ? `${i.packageCode} (${PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})`
-              : `${i.description} ${i.qty} ${i.unit}`}
+              : `${i.description} · ${i.qty} ${i.unit}`}
           </p>
           <p className="truncate text-xs text-slate-400">
+            <span>Gönderici:</span>{' '}
+            <span className="font-medium text-slate-600">{i.customerName ?? '—'}</span>
+            {' · '}
             <Link to={`/mal-kabul/${i.receiptId}`} className="hover:text-brand hover:underline">
               {i.receiptReference}
             </Link>
@@ -573,16 +577,28 @@ export function DispatchDetailPage() {
                       </button>
                     </div>
                     <div className="min-w-0">
-                      {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA */}
-                      <p className="text-sm font-medium text-slate-900">
-                        {s.name}
-                      </p>
-                      {s.customerName && s.customerName !== s.name && (
-                        <p className="text-xs font-medium text-slate-600">{s.customerName}</p>
+                      {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA.
+                          İkisi de firma adı gibi göründüğü için "Alıcı:" etiketi ŞART:
+                          etiketsizken yükteki gönderici ile durak alıcısı ayırt edilemiyordu. */}
+                      {s.customerName && s.customerName !== s.name ? (
+                        <>
+                          <p className="text-sm font-medium text-slate-900">{s.name}</p>
+                          <p className="text-xs">
+                            <span className="text-slate-400">Alıcı:</span>{' '}
+                            <span className="font-semibold text-slate-700">{s.customerName}</span>
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm">
+                          <span className="text-xs text-slate-400">Alıcı: </span>
+                          <span className="font-medium text-slate-900">
+                            {s.customerName || s.name}
+                          </span>
+                        </p>
                       )}
                       {(s.address || s.phone) && (
                         <p className="text-xs text-slate-500">
-                          {[s.address, s.phone].filter(Boolean).join(' - ')}
+                          {[s.address, s.phone].filter(Boolean).join(' · ')}
                         </p>
                       )}
                     </div>
