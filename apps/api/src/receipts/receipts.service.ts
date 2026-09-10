@@ -266,8 +266,9 @@ export class ReceiptsService {
           description: input.description,
           unit: input.unit,
           barcode: input.barcode ?? existing.barcode,
-          // kg gönderilmediyse mevcut değeri koru (sayım butonları kg taşımıyor)
+          // kg/fiyat gönderilmediyse mevcut değeri koru (sayım butonları bunları taşımıyor)
           weightKg: input.weightKg === undefined ? undefined : input.weightKg,
+          unitPrice: input.unitPrice === undefined ? undefined : input.unitPrice,
         },
       });
     } else {
@@ -280,6 +281,7 @@ export class ReceiptsService {
           unit: input.unit,
           barcode: input.barcode,
           weightKg: input.weightKg ?? null,
+          unitPrice: input.unitPrice ?? null,
           shipmentLineId: input.asnLineId,
           expectedQty: null, // ön ihbarda olmayan ekstra kalem
         },

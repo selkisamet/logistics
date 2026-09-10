@@ -12,7 +12,9 @@ import {
   PACKAGE_TYPES,
   DISCREPANCY_TYPE_LABELS,
   VAT_RATE,
+  CURRENCY_SYMBOLS,
   trUpper,
+  type Currency,
   type Receipt,
   type ReceiptLine,
   type UpsertReceiptLineInput,
@@ -447,6 +449,7 @@ export function ReceiptCountPage() {
       {addOpen && (
         <AddLineModal
           prefill={prefill}
+          currency={receipt.currency}
           onClose={() => setAddOpen(false)}
           onSubmit={(input) => {
             upsertMut.mutate(input);
@@ -769,10 +772,12 @@ function LineRow({
 
 function AddLineModal({
   prefill,
+  currency,
   onClose,
   onSubmit,
 }: {
   prefill: { sku?: string; barcode?: string; description?: string; qty?: number };
+  currency?: string;
   onClose: () => void;
   onSubmit: (input: UpsertReceiptLineInput) => void;
 }) {
@@ -823,10 +828,19 @@ function AddLineModal({
               </Select>
             </Field>
           </div>
-          {/* Kalemin TOPLAM kilosu — fişteki KG, irsaliyedeki KİLO sütununa basılır */}
-          <Field label="Kilo (kg)" error={errors.weightKg?.message}>
-            <Input type="number" min={0} step="0.001" placeholder="0" {...register('weightKg')} />
-          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Kalemin TOPLAM kilosu — fişteki KG, irsaliyedeki KİLO sütununa basılır */}
+            <Field label="Kilo (kg)" error={errors.weightKg?.message}>
+              <Input type="number" min={0} step="0.001" placeholder="0" {...register('weightKg')} />
+            </Field>
+            {/* Birim fiyat — ön ihbarda kalem girilmediyse fiyatın girilebileceği tek yer */}
+            <Field
+              label={`Birim Fiyat (${CURRENCY_SYMBOLS[(currency ?? 'TRY') as Currency] ?? '₺'})`}
+              error={errors.unitPrice?.message}
+            >
+              <Input type="number" min={0} step="0.01" placeholder="0" {...register('unitPrice')} />
+            </Field>
+          </div>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Vazgeç

@@ -87,7 +87,7 @@ export class AsnService {
       showAmountOnSlip: input.showAmountOnSlip ?? false,
       vatIncluded: input.vatIncluded ?? false,
       status: ShipmentStatus.EXPECTED,
-      lines: { create: input.lines.map(toLineData) },
+      lines: { create: (input.lines ?? []).map(toLineData) },
       sources: {
         create: sources.map(({ customerLocationId, label, address }) => ({
           customerLocationId,

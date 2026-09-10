@@ -85,7 +85,10 @@ export const createAsnSchema = z.object({
   showAmountOnSlip: z.boolean().optional().default(false),
   vatIncluded: z.boolean().optional().default(false),
   currency: z.enum(CURRENCIES).optional().default('TRY'),
-  lines: z.array(expectedLineSchema).min(1, 'En az bir satır ekleyin'),
+  // Yükün ne olduğu ön ihbar anında çoğu zaman BİLİNMEZ (irsaliye mal gelince elde
+  // olur) — bu yüzden kalemler ZORUNLU DEĞİL. Boş bırakılırsa mal kabul boş açılır ve
+  // operatör sayarken girer.
+  lines: z.array(expectedLineSchema).optional().default([]),
 });
 export type CreateAsnInput = z.infer<typeof createAsnSchema>;
 

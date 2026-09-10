@@ -52,6 +52,12 @@ export const upsertReceiptLineSchema = z.object({
   countedQty: z.coerce.number().int().min(0),
   unit: z.string().default('ADET'),
   barcode: z.string().optional(),
+  // Birim fiyat — ön ihbarda kalem girilmediyse fiyatın girilebileceği TEK yer burasıdır
+  // (fişteki ÜCRET sütunu ve Ara/KDV/Genel Toplam bundan hesaplanır).
+  unitPrice: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().nonnegative('Fiyat negatif olamaz').optional(),
+  ),
   // kalemin toplam ağırlığı (kg) — boş input '' → undefined
   weightKg: z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? undefined : v),

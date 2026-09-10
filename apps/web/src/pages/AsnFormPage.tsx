@@ -18,6 +18,7 @@ import { toast } from '../lib/toast';
 import {
   Button,
   Card,
+  CollapsibleCard,
   Field,
   Input,
   MoneyInput,
@@ -79,7 +80,7 @@ export function AsnFormPage() {
   } = useForm<CreateAsnInput>({
     resolver: zodResolver(createAsnSchema),
     defaultValues: {
-      lines: [{ ...emptyLine }],
+      lines: [], // opsiyonel: bilinmiyorsa mal kabulde girilir
       expectedAt: new Date().toISOString().slice(0, 10), // bugün (yyyy-mm-dd)
       paymentType: 'RECIPIENT', // varsayılan: alıcı ödemeli
       showAmountOnSlip: false,
@@ -402,13 +403,27 @@ export function AsnFormPage() {
           </Field>
         </Card>
 
-        <Card className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">Kalemler</h3>
+        {/* Kalemler OPSİYONEL ve KAPALI başlar: yükün ne olduğu ön ihbar anında çoğu zaman
+            bilinmiyor (irsaliye mal gelince elde oluyor). Biliniyorsa buradan girilir ve mal
+            kabule kopyalanır; bilinmiyorsa mal kabulde sayarken girilir. */}
+        <CollapsibleCard
+          title="Kalemler (opsiyonel)"
+          summary={
+            fields.length === 0
+              ? 'mal kabulde girilecek'
+              : `${fields.length} kalem`
+          }
+          defaultOpen={fields.length > 0}
+          action={
             <Button type="button" variant="secondary" onClick={() => append({ ...emptyLine })}>
               + Satır
             </Button>
-          </div>
+          }
+        >
+          <p className="text-xs text-slate-400">
+            Yükün ne olduğu şimdiden belliyse girin — mal kabule hazır gelir. Belli değilse boş
+            bırakın, mal gelince sayarken girilir.
+          </p>
           {errors.lines?.message && <p className="text-sm text-red-600">{errors.lines.message}</p>}
 
           {fields.map((field, i) => (
@@ -465,7 +480,7 @@ export function AsnFormPage() {
               </div>
             </div>
           ))}
-        </Card>
+        </CollapsibleCard>
 
         {serverError && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{serverError}</p>
