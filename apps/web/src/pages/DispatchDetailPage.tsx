@@ -220,19 +220,18 @@ export function DispatchDetailPage() {
     return (
       <div key={i.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
         <div className="min-w-0">
-          {/* Önce MAL (yüklenen şey), altında etiketli GÖNDERİCİ. Eskiden satır gönderici
-              adıyla başlıyordu; durak başlığındaki alıcı da firma adı olduğu için ikisi
-              karışıyordu — "kim gönderici kim alıcı" belli olmuyordu. */}
-          <p className="truncate text-sm font-medium text-slate-900">
+          {/* GÖNDERİCİ önce (blok altındaki ALICI ile aynı okuma yönü), altında mal + referans.
+              Etiketler ŞART: ikisi de firma adı, etiketsizken hangisi gönderici belli olmuyordu. */}
+          <p className="truncate text-sm">
+            <span className="text-xs text-slate-400">Gönderici: </span>
+            <span className="font-semibold text-slate-900">{i.customerName ?? '—'}</span>
+          </p>
+          <p className="truncate text-xs text-slate-500">
             {i.kind === 'PACKAGE'
               ? `${i.packageCode} (${PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})`
               : `${i.description} · ${i.qty} ${i.unit}`}
-          </p>
-          <p className="truncate text-xs text-slate-400">
-            <span>Gönderici:</span>{' '}
-            <span className="font-medium text-slate-600">{i.customerName ?? '—'}</span>
             {' · '}
-            <Link to={`/mal-kabul/${i.receiptId}`} className="hover:text-brand hover:underline">
+            <Link to={`/mal-kabul/${i.receiptId}`} className="text-slate-400 hover:text-brand hover:underline">
               {i.receiptReference}
             </Link>
             {i.waybillNo ? ` · Sevk İrs: ${i.waybillNo}` : ''}
@@ -552,7 +551,19 @@ export function DispatchDetailPage() {
             {/* Duraklar rota sırasında; her birinin altında o durakta inen yükler */}
             {dispatch.stops.map((s, idx) => (
               <div key={s.id} className="overflow-hidden rounded-lg border border-slate-200">
-                <div className="flex items-start justify-between gap-3 bg-slate-50 p-2">
+                {/* GÖNDERİCİ üstte, ALICI altta — tesellüm fişi/irsaliye ile aynı okuma yönü.
+                    Yükler (her biri kendi göndericisiyle) üst bölümde, indikleri durak
+                    (alıcı) alt bölümde. */}
+                <div className="divide-y divide-slate-100">
+                  {itemsOfStop(s.id).length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs font-medium text-amber-700">
+                      Bu durağa yük atanmadı
+                    </p>
+                  ) : (
+                    itemsOfStop(s.id).map((i) => loadRow(i))
+                  )}
+                </div>
+                <div className="flex items-start justify-between gap-3 border-t border-slate-200 bg-slate-50 p-2">
                   <div className="flex min-w-0 gap-2">
                     {/* Rota sırası: yukarı/aşağı ok (dokunmatikte sürükle-bırak yerine) */}
                     <div className="flex shrink-0 flex-col items-center">
@@ -577,30 +588,24 @@ export function DispatchDetailPage() {
                       </button>
                     </div>
                     <div className="min-w-0">
-                      {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA.
-                          İkisi de firma adı gibi göründüğü için "Alıcı:" etiketi ŞART:
-                          etiketsizken yükteki gönderici ile durak alıcısı ayırt edilemiyordu. */}
-                      {s.customerName && s.customerName !== s.name ? (
-                        <>
-                          <p className="text-sm font-medium text-slate-900">{s.name}</p>
-                          <p className="text-xs">
-                            <span className="text-slate-400">Alıcı:</span>{' '}
-                            <span className="font-semibold text-slate-700">{s.customerName}</span>
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-sm">
-                          <span className="text-xs text-slate-400">Alıcı: </span>
-                          <span className="font-medium text-slate-900">
-                            {s.customerName || s.name}
-                          </span>
-                        </p>
-                      )}
-                      {(s.address || s.phone) && (
-                        <p className="text-xs text-slate-500">
-                          {[s.address, s.phone].filter(Boolean).join(' · ')}
-                        </p>
-                      )}
+                      {/* ALICI firma öne çıkar (belgeye basılan budur), altında inecek yer +
+                          adres/telefon. "Alıcı:" etiketi ŞART: üstteki gönderici de firma adı,
+                          etiketsizken hangisinin ne olduğu ayırt edilemiyordu. */}
+                      <p className="truncate text-sm">
+                        <span className="text-xs text-slate-400">Alıcı: </span>
+                        <span className="font-semibold text-slate-900">
+                          {s.customerName || s.name}
+                        </span>
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {[
+                          s.customerName && s.customerName !== s.name ? s.name : null,
+                          s.address,
+                          s.phone,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-3">
@@ -630,15 +635,6 @@ export function DispatchDetailPage() {
                       </>
                     )}
                   </div>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {itemsOfStop(s.id).length === 0 ? (
-                    <p className="px-2 py-1.5 text-xs font-medium text-amber-700">
-                      Bu durağa yük atanmadı
-                    </p>
-                  ) : (
-                    itemsOfStop(s.id).map((i) => loadRow(i))
-                  )}
                 </div>
               </div>
             ))}
