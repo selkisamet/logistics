@@ -132,14 +132,6 @@ export function DispatchDetailPage() {
     onSuccess: setDispatch,
     onError: (e) => stopErr(e, 'Durak silinemedi'),
   });
-  const deliverMut = useMutation({
-    mutationFn: ({ stopId, delivered }: { stopId: string; delivered: boolean }) =>
-      delivered
-        ? api.post<Dispatch>(`/dispatches/${id}/stops/${stopId}/deliver`)
-        : api.delete<Dispatch>(`/dispatches/${id}/stops/${stopId}/deliver`),
-    onSuccess: setDispatch,
-    onError: (e) => stopErr(e, 'Teslim durumu değiştirilemedi'),
-  });
   // Rota sırası — sürücü bu sırayla gider, irsaliyedeki satır grupları da bu sıraya göre dizilir
   const reorderMut = useMutation({
     mutationFn: (stopIds: string[]) =>
@@ -494,34 +486,34 @@ export function DispatchDetailPage() {
         </div>
       </Card>
 
-      {/* ROTA ve YUK TEK KARTTA. Eskiden "Duraklar" ve "Yuklenen Yuk" ayri kartlardi ve
-          AYNI bilgiyi iki yonden anlatiyordu (durak "5 adet - 1 gonderici" derken, yuk karti
-          da "Inecek durak: Gokbil Depo" diyordu). Artik her yuk inecegi duragin ALTINDA;
+      {/* ROTA ve YÜK TEK KARTTA. Eskiden "Duraklar" ve "Yüklenen Yük" ayrı kartlardı ve
+          AYNI bilgiyi iki yönden anlatıyordu (durak "5 adet · 1 gönderici" derken, yük kartı
+          da "İnecek durak: Gökbil Depo" diyordu). Artık her yük ineceği durağın ALTINDA;
           "nereden nereye" tek yerde okunuyor. */}
       <Card className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-semibold text-slate-900">Rota ve Yuk</h3>
+            <h3 className="font-semibold text-slate-900">Rota ve Yük</h3>
             <p className="text-xs text-slate-500">
-              {dispatch.stops.length > 0 ? `${dispatch.stops.length} durak - ` : ''}
+              {dispatch.stops.length > 0 ? `${dispatch.stops.length} durak · ` : ''}
               {loadSummary(dispatch.items)}
-              {dispatch.stops.length > 0 ? ' - her yuk tek durakta iner' : ''}
+              {dispatch.stops.length > 0 ? ' · her yük tek durakta iner' : ''}
             </p>
             {editable && emptyStops.length > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                UYARI: {emptyStops.length} duraga yuk atanmadi - sofor oraya bosuna ugrar.{' '}
+                ⚠ {emptyStops.length} durağa yük atanmadı — şoför oraya boşuna uğrar.{' '}
                 <button
                   onClick={() => removeEmptyStopsMut.mutate(emptyStops.map((st) => st.id))}
                   disabled={removeEmptyStopsMut.isPending}
                   className="font-semibold underline disabled:opacity-50"
                 >
-                  Bos duraklari kaldir
+                  Boş durakları kaldır
                 </button>
               </p>
             )}
             {mismatchCount > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                UYARI: {mismatchCount} yuk, on ihbardaki alicisindan farkli durakta -{' '}
+                ⚠ {mismatchCount} yük, ön ihbardaki alıcısından farklı durakta —{' '}
                 <button
                   onClick={() => reassignMut.mutate()}
                   disabled={reassignMut.isPending}
@@ -534,14 +526,14 @@ export function DispatchDetailPage() {
           </div>
           {editable && (
             <div className="flex shrink-0 gap-2">
-              <Button onClick={() => setLoadOpen(true)}>+ Yuk</Button>
+              <Button onClick={() => setLoadOpen(true)}>+ Yük</Button>
               {dispatch.stops.length === 0 && dispatch.items.length > 0 ? (
                 <Button
                   variant="secondary"
                   loading={suggestMut.isPending}
                   onClick={() => suggestMut.mutate()}
                 >
-                  Duraklari Olustur
+                  Durakları Oluştur
                 </Button>
               ) : (
                 <Button variant="secondary" onClick={() => setAddingStop(true)}>
@@ -554,22 +546,22 @@ export function DispatchDetailPage() {
 
         {dispatch.items.length === 0 ? (
           <p className="text-xs text-slate-400">
-            "+ Yuk" ile depodan urun/palet secin ya da palet QR okutun.
+            "+ Yük" ile depodan ürün/palet seçin ya da palet QR okutun.
           </p>
         ) : (
           <div className="space-y-2">
-            {/* Duraklar rota sirasinda; her birinin altinda o durakta inen yukler */}
+            {/* Duraklar rota sırasında; her birinin altında o durakta inen yükler */}
             {dispatch.stops.map((s, idx) => (
               <div key={s.id} className="overflow-hidden rounded-lg border border-slate-200">
                 <div className="flex items-start justify-between gap-3 bg-slate-50 p-2">
                   <div className="flex min-w-0 gap-2">
-                    {/* Rota sirasi: yukari/asagi ok (dokunmatikte surukle-birak yerine) */}
+                    {/* Rota sırası: yukarı/aşağı ok (dokunmatikte sürükle-bırak yerine) */}
                     <div className="flex shrink-0 flex-col items-center">
                       <button
                         onClick={() => moveStop(idx, -1)}
                         disabled={idx === 0 || reorderMut.isPending}
                         className="text-xs leading-none text-slate-400 disabled:opacity-25"
-                        aria-label="Yukari tasi"
+                        aria-label="Yukarı taşı"
                       >
                         &#9650;
                       </button>
@@ -580,20 +572,15 @@ export function DispatchDetailPage() {
                         onClick={() => moveStop(idx, 1)}
                         disabled={idx === dispatch.stops.length - 1 || reorderMut.isPending}
                         className="text-xs leading-none text-slate-400 disabled:opacity-25"
-                        aria-label="Asagi tasi"
+                        aria-label="Aşağı taşı"
                       >
                         &#9660;
                       </button>
                     </div>
                     <div className="min-w-0">
-                      {/* Ekranda YER once (operatorun sorusu "nereye"), altinda ALICI FIRMA */}
+                      {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA */}
                       <p className="text-sm font-medium text-slate-900">
                         {s.name}
-                        {s.deliveredAt && (
-                          <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Teslim edildi
-                          </span>
-                        )}
                       </p>
                       {s.customerName && s.customerName !== s.name && (
                         <p className="text-xs font-medium text-slate-600">{s.customerName}</p>
@@ -606,25 +593,19 @@ export function DispatchDetailPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-3">
-                    <button
-                      onClick={() => deliverMut.mutate({ stopId: s.id, delivered: !s.deliveredAt })}
-                      className="text-xs font-medium text-brand"
-                    >
-                      {s.deliveredAt ? 'Geri al' : 'Teslim'}
-                    </button>
                     {editable && (
                       <>
                         <button
                           onClick={() => setEditingStop(s)}
                           className="text-xs font-medium text-slate-500"
                         >
-                          Duzenle
+                          Düzenle
                         </button>
                         <button
                           onClick={async () => {
                             if (
                               await confirmDialog({
-                                message: `"${s.name}" duragi silinsin mi? Yukler sevkiyatta kalir, atamasi duser.`,
+                                message: `"${s.name}" durağı silinsin mi? Yükler sevkiyatta kalır, ataması düşer.`,
                                 confirmText: 'Sil',
                                 danger: true,
                               })
@@ -642,7 +623,7 @@ export function DispatchDetailPage() {
                 <div className="divide-y divide-slate-100">
                   {itemsOfStop(s.id).length === 0 ? (
                     <p className="px-2 py-1.5 text-xs font-medium text-amber-700">
-                      Bu duraga yuk atanmadi
+                      Bu durağa yük atanmadı
                     </p>
                   ) : (
                     itemsOfStop(s.id).map((i) => loadRow(i))
@@ -651,13 +632,13 @@ export function DispatchDetailPage() {
               </div>
             ))}
 
-            {/* Duragi secilmemis yukler - irsaliyede ALICI bos basilacagi icin ayri ve uyarili */}
+            {/* Durağı seçilmemiş yükler — irsaliyede ALICI boş basılacağı için ayrı ve uyarılı */}
             {unassignedItems.length > 0 && (
               <div className="overflow-hidden rounded-lg border border-amber-300">
                 <p className="bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
                   {dispatch.stops.length > 0
-                    ? `Inecegi durak secilmemis ${unassignedItems.length} yuk - secmezseniz irsaliyede ALICI bos basilir`
-                    : 'Durak eklenmedi - alici on ihbardan basilir, rota sirasi olusmaz'}
+                    ? `İneceği durak seçilmemiş ${unassignedItems.length} yük — seçmezseniz irsaliyede ALICI boş basılır`
+                    : 'Durak eklenmedi — alıcı ön ihbardan basılır, rota sırası oluşmaz'}
                 </p>
                 <div className="divide-y divide-slate-100">
                   {unassignedItems.map((i) => loadRow(i, true))}
