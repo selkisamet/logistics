@@ -231,7 +231,7 @@ export function DispatchDetailPage() {
       <div key={i.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
         <div className="min-w-0">
           <p className="truncate text-sm text-slate-900">
-            <span className="font-medium">{i.customerName ?? '\u2014'}</span>
+            <span className="font-medium">{i.customerName ?? '—'}</span>
             <span className="mx-1.5 text-slate-400">&middot;</span>
             {i.kind === 'PACKAGE'
               ? `${i.packageCode} (${PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})`
@@ -241,8 +241,8 @@ export function DispatchDetailPage() {
             <Link to={`/mal-kabul/${i.receiptId}`} className="hover:text-brand hover:underline">
               {i.receiptReference}
             </Link>
-            {i.waybillNo ? ` \u00b7 Sevk \u0130rs: ${i.waybillNo}` : ''}
-            {isMismatched(i) ? ` \u00b7 \u26a0 \u00f6n ihbarda al\u0131c\u0131: ${i.recipientName}` : ''}
+            {i.waybillNo ? ` · Sevk İrs: ${i.waybillNo}` : ''}
+            {isMismatched(i) ? ` · ⚠ ön ihbarda alıcı: ${i.recipientName}` : ''}
           </p>
         </div>
         {editable &&
@@ -260,7 +260,7 @@ export function DispatchDetailPage() {
                 i.stopId ? 'border-slate-300 text-slate-700' : 'border-amber-400 text-amber-800',
               )}
             >
-              <option value="">Se\u00e7ilmedi</option>
+              <option value="">Seçilmedi</option>
               {(() => {
                 // Yükün ön ihbarında seçilen teslim yerleri ÖNCE ve ayrı grupta; diğerleri
                 // gizlenmez (elle eklenen ekstra durak olabilir) ama ayrılır.
@@ -273,9 +273,9 @@ export function DispatchDetailPage() {
                 if (own.length === 0) return dispatch.stops.map(opt);
                 return (
                   <>
-                    <optgroup label="Bu \u00f6n ihbar\u0131n teslim yerleri">{own.map(opt)}</optgroup>
+                    <optgroup label="Bu ön ihbarın teslim yerleri">{own.map(opt)}</optgroup>
                     {other.length > 0 && (
-                      <optgroup label="Di\u011fer duraklar">{other.map(opt)}</optgroup>
+                      <optgroup label="Diğer duraklar">{other.map(opt)}</optgroup>
                     )}
                   </>
                 );
@@ -288,14 +288,14 @@ export function DispatchDetailPage() {
                   onClick={() => setMovingItem(i.id)}
                   className="text-xs font-medium text-slate-500"
                 >
-                  Ta\u015f\u0131
+                  Taşı
                 </button>
               )}
               <button
                 onClick={() => removeItemMut.mutate(i.id)}
                 className="text-xs font-medium text-red-600"
               >
-                \u00c7\u0131kar
+                Çıkar
               </button>
             </div>
           ))}
@@ -333,9 +333,9 @@ export function DispatchDetailPage() {
           <span className="font-medium text-slate-800">{departure || 'Depo'}</span>
           <span className="mx-1 text-slate-400">&rarr;</span>
           {dispatch.stops.length > 0
-            ? dispatch.stops.map((s) => s.name).join(' \u00b7 ')
+            ? dispatch.stops.map((s) => s.name).join(' · ')
             : recipientList.length
-              ? recipientList.join(' \u00b7 ')
+              ? recipientList.join(' · ')
               : 'durak belirtilmedi'}
         </p>
 
