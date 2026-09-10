@@ -47,6 +47,9 @@ export function DispatchDetailPage() {
   const [waybillModal, setWaybillModal] = useState(false);
   const [waybillEdit, setWaybillEdit] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
+  // Yük satırında durak seçici yalnız "Taşı" denince açılır — yük zaten durağının
+  // ALTINDA duruyor, sürekli açık bir açılır liste aynı bilgiyi tekrarlardı.
+  const [movingItem, setMovingItem] = useState<string | null>(null);
 
   const { data: dispatch, isLoading } = useQuery({
     queryKey: ['dispatches', id],
@@ -216,11 +219,89 @@ export function DispatchDetailPage() {
   // Ön ihbarda birden çok teslim yeri seçilmişse hepsi durak olarak açılır ama yük yalnız
   // birine iner → kalanlar BOŞ kalır. Sessiz bırakılırsa rotada gereksiz durak görünür.
   const emptyStops = dispatch.stops.filter((st) => !dispatch.items.some((i) => i.stopId === st.id));
-  // Ön ihbarında birden çok teslim yeri olan yükler bilinçli olarak ATANMAMIŞ bırakılır
-  // (uygulama hangisine ineceğini bilemez) — operatör seçmezse irsaliyede ALICI boş kalır.
-  const unassignedCount = dispatch.stops.length > 0
-    ? dispatch.items.filter((i) => !i.stopId).length
-    : 0;
+
+  const itemsOfStop = (stopId: string) => dispatch.items.filter((i) => i.stopId === stopId);
+  const unassignedItems = dispatch.items.filter((i) => !i.stopId);
+
+  /** Tek yük satırı. Bileşen DEĞİL düz fonksiyon: her render'da yeni bileşen tipi üretmek
+   *  açık duran `select`'i yeniden monte edip odağı düşürürdü. */
+  const loadRow = (i: DispatchItem, forcePicker = false) => {
+    const picking = forcePicker || movingItem === i.id;
+    return (
+      <div key={i.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <div className="min-w-0">
+          <p className="truncate text-sm text-slate-900">
+            <span className="font-medium">{i.customerName ?? '\u2014'}</span>
+            <span className="mx-1.5 text-slate-400">&middot;</span>
+            {i.kind === 'PACKAGE'
+              ? `${i.packageCode} (${PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})`
+              : `${i.description} ${i.qty} ${i.unit}`}
+          </p>
+          <p className="truncate text-xs text-slate-400">
+            <Link to={`/mal-kabul/${i.receiptId}`} className="hover:text-brand hover:underline">
+              {i.receiptReference}
+            </Link>
+            {i.waybillNo ? ` \u00b7 Sevk \u0130rs: ${i.waybillNo}` : ''}
+            {isMismatched(i) ? ` \u00b7 \u26a0 \u00f6n ihbarda al\u0131c\u0131: ${i.recipientName}` : ''}
+          </p>
+        </div>
+        {editable &&
+          (picking && dispatch.stops.length > 0 ? (
+            <select
+              autoFocus={!forcePicker}
+              value={i.stopId ?? ''}
+              onChange={(e) => {
+                assignMut.mutate({ stopId: e.target.value || 'yok', itemIds: [i.id] });
+                setMovingItem(null);
+              }}
+              onBlur={() => setMovingItem(null)}
+              className={clsx(
+                'shrink-0 rounded-lg border bg-white px-2 py-1 text-xs',
+                i.stopId ? 'border-slate-300 text-slate-700' : 'border-amber-400 text-amber-800',
+              )}
+            >
+              <option value="">Se\u00e7ilmedi</option>
+              {(() => {
+                // Yükün ön ihbarında seçilen teslim yerleri ÖNCE ve ayrı grupta; diğerleri
+                // gizlenmez (elle eklenen ekstra durak olabilir) ama ayrılır.
+                const { own, other } = splitStops(dispatch.stops, i);
+                const opt = (st: DispatchStop) => (
+                  <option key={st.id} value={st.id}>
+                    {stopLabel(st)}
+                  </option>
+                );
+                if (own.length === 0) return dispatch.stops.map(opt);
+                return (
+                  <>
+                    <optgroup label="Bu \u00f6n ihbar\u0131n teslim yerleri">{own.map(opt)}</optgroup>
+                    {other.length > 0 && (
+                      <optgroup label="Di\u011fer duraklar">{other.map(opt)}</optgroup>
+                    )}
+                  </>
+                );
+              })()}
+            </select>
+          ) : (
+            <div className="flex shrink-0 gap-3">
+              {dispatch.stops.length > 1 && (
+                <button
+                  onClick={() => setMovingItem(i.id)}
+                  className="text-xs font-medium text-slate-500"
+                >
+                  Ta\u015f\u0131
+                </button>
+              )}
+              <button
+                onClick={() => removeItemMut.mutate(i.id)}
+                className="text-xs font-medium text-red-600"
+              >
+                \u00c7\u0131kar
+              </button>
+            </div>
+          ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -246,35 +327,17 @@ export function DispatchDetailPage() {
           <DispatchStatusBadge status={dispatch.status} />
         </div>
 
-        {/* ROTA: çıkış deposu → duraklar (sırayla) */}
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Rota</p>
-          <p className="mt-0.5 text-sm text-slate-800">
-            <span className="font-semibold">{departure || 'Depo'}</span>
-            {dispatch.stops.length > 0 ? (
-              dispatch.stops.map((s) => (
-                <span key={s.id}>
-                  <span className="mx-1 text-slate-400">→</span>
-                  <span className={s.deliveredAt ? 'text-green-700 line-through' : ''}>
-                    {s.seq}. {stopLabel(s)}
-                  </span>
-                </span>
-              ))
-            ) : (
-              <>
-                <span className="mx-1 text-slate-400">→</span>
-                <span className="text-slate-500">
-                  {recipientList.length ? recipientList.join(' · ') : 'durak belirtilmedi'}
-                </span>
-              </>
-            )}
-          </p>
-          {dispatch.stops.length > 0 && (
-            <p className="mt-0.5 text-xs text-slate-400">
-              {dispatch.stops.length} durak · {loadSummary(dispatch.items)}
-            </p>
-          )}
-        </div>
+        {/* Rota ÖZETİ tek satır: ayrıntısı (duraklar + altlarındaki yükler) aşağıdaki
+            "Rota ve Yük" kartında. Eskiden buradaki kutu aynı listeyi tekrar ediyordu. */}
+        <p className="text-sm text-slate-600">
+          <span className="font-medium text-slate-800">{departure || 'Depo'}</span>
+          <span className="mx-1 text-slate-400">&rarr;</span>
+          {dispatch.stops.length > 0
+            ? dispatch.stops.map((s) => s.name).join(' \u00b7 ')
+            : recipientList.length
+              ? recipientList.join(' \u00b7 ')
+              : 'durak belirtilmedi'}
+        </p>
 
         {dispatch.notes && (
           <p className="rounded-lg bg-slate-50 p-2 text-sm text-slate-600">{dispatch.notes}</p>
@@ -358,20 +421,23 @@ export function DispatchDetailPage() {
         />
       )}
 
-      {/* Taslak aksiyonları — asıl yol "Depodan Yük Ekle" (Yüklenen Yük kartında).
+      {/* Taslak aksiyonları — asıl yol "+ Yük" (Rota ve Yük kartında).
           QR okutma etiketli paletler için ikincil kısayol; ayarı da butonun yanında. */}
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => setScanning(true)}>
             📷 QR Okut
           </Button>
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          <label
+            className="flex items-center gap-1.5 text-xs text-slate-500"
+            title="Okutulan paletin ait olduğu mal kabuldeki depoda duran TÜM paletleri ekler"
+          >
             <input
               type="checkbox"
               checked={scanMode === 'lot'}
               onChange={(e) => setScanMode(e.target.checked ? 'lot' : 'single')}
             />
-            QR okutunca paletin girişindeki <b>tüm</b> paletleri ekle
+            Girişin tümünü ekle
           </label>
           <button
             onClick={async () => {
@@ -428,308 +494,176 @@ export function DispatchDetailPage() {
         </div>
       </Card>
 
-      {/* Duraklar — OPSİYONEL. Alıcı bilgisi ön ihbardan geldiği için irsaliye duraksız da
-          doğru basılır; duraklar rota sırası ve teslim takibi içindir. */}
-      <Card className="space-y-2">
+      {/* ROTA ve YUK TEK KARTTA. Eskiden "Duraklar" ve "Yuklenen Yuk" ayri kartlardi ve
+          AYNI bilgiyi iki yonden anlatiyordu (durak "5 adet - 1 gonderici" derken, yuk karti
+          da "Inecek durak: Gokbil Depo" diyordu). Artik her yuk inecegi duragin ALTINDA;
+          "nereden nereye" tek yerde okunuyor. */}
+      <Card className="space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-slate-900">
-              Duraklar ({dispatch.stops.length})
-              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
-                opsiyonel
-              </span>
-            </h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-slate-900">Rota ve Yuk</h3>
             <p className="text-xs text-slate-500">
-              Rota sırası ve teslim takibi için. Alıcılar ön ihbardan geliyor.
+              {dispatch.stops.length > 0 ? `${dispatch.stops.length} durak - ` : ''}
+              {loadSummary(dispatch.items)}
+              {dispatch.stops.length > 0 ? ' - her yuk tek durakta iner' : ''}
             </p>
             {editable && emptyStops.length > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                ⚠ {emptyStops.length} durağa yük atanmadı ({emptyStops.map((st) => st.name).join(', ')})
-                — şoför oraya boşuna uğrar.{' '}
+                UYARI: {emptyStops.length} duraga yuk atanmadi - sofor oraya bosuna ugrar.{' '}
                 <button
                   onClick={() => removeEmptyStopsMut.mutate(emptyStops.map((st) => st.id))}
                   disabled={removeEmptyStopsMut.isPending}
                   className="font-semibold underline disabled:opacity-50"
                 >
-                  Boş durakları kaldır
+                  Bos duraklari kaldir
                 </button>
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            {dispatch.stops.length === 0 ? (
-              <Button
-                variant="secondary"
-                loading={suggestMut.isPending}
-                onClick={() => suggestMut.mutate()}
-              >
-                Kabullerden Öner
-              </Button>
-            ) : (
-              // Atamalar bozulduysa tek tıkla ön ihbardaki alıcılara göre kurtar
-              <Button
-                variant="secondary"
-                loading={reassignMut.isPending}
-                onClick={async () => {
-                  if (
-                    await confirmDialog({
-                      title: 'Yükleri yeniden ata',
-                      message:
-                        'Tüm yüklerin durak ataması silinip ön ihbardaki alıcılara göre yeniden kurulacak. Elle yaptığınız atamalar kaybolur. Devam edilsin mi?',
-                      confirmText: 'Yeniden Ata',
-                    })
-                  )
-                    reassignMut.mutate();
-                }}
-              >
-                Yükleri Yeniden Ata
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => setAddingStop(true)}>
-              + Durak
-            </Button>
-          </div>
-        </div>
-        {dispatch.stops.length === 0 ? (
-          <p className="text-xs text-slate-400">
-            Durak yok — irsaliyede alıcı olarak ön ihbardaki alıcı yazılır. Rota sırası/teslim takibi
-            istiyorsanız "Kabullerden Öner" ile hazırlayabilirsiniz.
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {dispatch.stops.map((s, idx) => (
-              <div key={s.id} className="flex items-start justify-between gap-3 py-2">
-                {/* Rota sırası: ▲▼ (dokunmatikte sürükle-bırak yerine — telefonda güvenilir) */}
-                <div className="flex shrink-0 flex-col items-center">
-                  <button
-                    onClick={() => moveStop(idx, -1)}
-                    disabled={idx === 0 || reorderMut.isPending}
-                    className="text-xs leading-none text-slate-400 disabled:opacity-25"
-                    aria-label="Yukarı taşı"
-                  >
-                    ▲
-                  </button>
-                  <span className="my-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                    {s.seq}
-                  </span>
-                  <button
-                    onClick={() => moveStop(idx, 1)}
-                    disabled={idx === dispatch.stops.length - 1 || reorderMut.isPending}
-                    className="text-xs leading-none text-slate-400 disabled:opacity-25"
-                    aria-label="Aşağı taşı"
-                  >
-                    ▼
-                  </button>
-                </div>
-                <div className="min-w-0 flex-1">
-                  {/* Ekranda YER önce (operatörün sorusu "nereye"), altında ALICI FİRMA.
-                      İkisi birlikte gösterilir: aynı firmanın birden çok lokasyonu olabilir. */}
-                  <p className="text-sm font-medium text-slate-900">
-                    {s.name}
-                    {s.deliveredAt && (
-                      <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        ✓ Teslim
-                      </span>
-                    )}
-                  </p>
-                  {s.customerName && s.customerName !== s.name && (
-                    <p className="text-xs font-medium text-slate-600">🏢 {s.customerName}</p>
-                  )}
-                  {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
-                  <p
-                    className={clsx(
-                      'text-xs',
-                      dispatch.items.some((i) => i.stopId === s.id)
-                        ? 'text-slate-400'
-                        : 'font-medium text-amber-700',
-                    )}
-                  >
-                    {stopLoadText(dispatch.items, s.id)}
-                    {s.phone ? ` · ${s.phone}` : ''}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-3">
-                  <button
-                    onClick={() =>
-                      deliverMut.mutate({ stopId: s.id, delivered: !s.deliveredAt })
-                    }
-                    className="text-xs font-medium text-brand"
-                  >
-                    {s.deliveredAt ? 'Geri al' : 'Teslim'}
-                  </button>
-                  <button
-                    onClick={() => setEditingStop(s)}
-                    className="text-xs font-medium text-slate-500"
-                  >
-                    Düzenle
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (
-                        await confirmDialog({
-                          message: `"${s.name}" durağı silinsin mi? Yükler sevkiyatta kalır, ataması düşer.`,
-                          confirmText: 'Sil',
-                          danger: true,
-                        })
-                      )
-                        removeStopMut.mutate(s.id);
-                    }}
-                    className="text-xs font-medium text-red-600"
-                  >
-                    Sil
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Yüklenen yük — defterden (kap + kalem satırları), kabule göre gruplu */}
-      <Card className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-slate-900">Yüklenen Yük ({dispatch.items.length})</h3>
-            <p className="text-xs text-slate-500">
-              {loadSummary(dispatch.items)}
-              {dispatch.stops.length > 0
-                ? ' · durak sırasına göre dizili · her yük tek durakta iner'
-                : ' · yükleme sırasına göre (teslim sırası için durak ekleyin)'}
-            </p>
-            {unassignedCount > 0 && (
-              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                ⚠ {unassignedCount} yükün ineceği durak seçilmedi. Ön ihbarda birden fazla teslim
-                yeri varsa hangisine ineceğini uygulama bilemez — aşağıdan seçin, yoksa irsaliyede
-                ALICI boş basılır.
               </p>
             )}
             {mismatchCount > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                ⚠ {mismatchCount} yük, ön ihbardaki alıcısından farklı bir durağa atanmış — irsaliyede
-                yanlış ALICI basılır. "Yükleri Yeniden Ata" ile düzeltebilirsiniz.
+                UYARI: {mismatchCount} yuk, on ihbardaki alicisindan farkli durakta -{' '}
+                <button
+                  onClick={() => reassignMut.mutate()}
+                  disabled={reassignMut.isPending}
+                  className="font-semibold underline disabled:opacity-50"
+                >
+                  yeniden ata
+                </button>
               </p>
             )}
           </div>
           {editable && (
-            <Button className="shrink-0" onClick={() => setLoadOpen(true)}>
-              + Depodan Yük Ekle
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              <Button onClick={() => setLoadOpen(true)}>+ Yuk</Button>
+              {dispatch.stops.length === 0 && dispatch.items.length > 0 ? (
+                <Button
+                  variant="secondary"
+                  loading={suggestMut.isPending}
+                  onClick={() => suggestMut.mutate()}
+                >
+                  Duraklari Olustur
+                </Button>
+              ) : (
+                <Button variant="secondary" onClick={() => setAddingStop(true)}>
+                  + Durak
+                </Button>
+              )}
+            </div>
           )}
         </div>
+
         {dispatch.items.length === 0 ? (
           <p className="text-xs text-slate-400">
-            "Depodan Yük Ekle" ile ürün/palet seçin ya da palet QR okutun.
+            "+ Yuk" ile depodan urun/palet secin ya da palet QR okutun.
           </p>
         ) : (
-          <div className="space-y-3">
-            {sortByStop(groupByReceipt(dispatch.items), dispatch.stops).map((g) => (
-              <div key={g.receiptId}>
-                {/* Gönderici → Alıcı tek satırda: alıcı ön ihbardan gelir, irsaliyeye o yazılır */}
-                <Link to={`/mal-kabul/${g.receiptId}`} className="group block">
-                  <p className="text-sm font-semibold text-slate-800 group-hover:text-brand">
-                    {g.customerName ?? '—'}
-                    {g.recipientName && (
-                      <>
-                        <span className="mx-1.5 text-slate-400">→</span>
-                        {g.recipientName}
-                      </>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {g.receiptReference}
-                    {g.waybillNo ? ` · Sevk İrs: ${g.waybillNo}` : ''}
-                  </p>
-                </Link>
-                <div className="divide-y divide-slate-100">
-                  {g.items.map((i) => (
-                    <div key={i.id} className="flex items-center justify-between gap-2 py-1.5">
-                      <div className="min-w-0">
-                        <p className="text-sm text-slate-900">
-                          {i.kind === 'PACKAGE' ? (
-                            <>
-                              <span className="font-medium">{i.packageCode}</span>{' '}
-                              <span className="text-slate-500">
-                                ({PACKAGE_TYPE_LABELS[i.unit as PackageType] ?? i.unit})
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              {i.description}{' '}
-                              <span className="font-medium">
-                                {i.qty} {i.unit}
-                              </span>
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      {/* Bu yük hangi durakta inecek — irsaliyedeki ALICI ve sıra bundan gelir */}
-                      {dispatch.stops.length > 0 && (
-                        <label className="flex shrink-0 items-center gap-1.5">
-                          <span className="text-xs text-slate-400">İnecek durak:</span>
-                          <select
-                            value={i.stopId ?? ''}
-                            onChange={(e) =>
-                              assignMut.mutate({
-                                stopId: e.target.value || 'yok',
-                                itemIds: [i.id],
-                              })
-                            }
-                            className={clsx(
-                              'rounded-lg border bg-white px-2 py-1 text-xs',
-                              isMismatched(i)
-                                ? 'border-amber-500 bg-amber-50 font-medium text-amber-800'
-                                : i.stopId
-                                  ? 'border-slate-300 text-slate-700'
-                                  : 'border-amber-300 text-amber-700',
-                            )}
-                            title={
-                              isMismatched(i)
-                                ? `Uyumsuz: bu yük ${i.recipientName} alıcısına gidiyor`
-                                : undefined
-                            }
-                          >
-                            <option value="">Seçilmedi</option>
-                            {(() => {
-                              // Yükün ön ihbarında seçilen teslim yerleri ÖNCE ve ayrı grupta.
-                              // Diğerleri gizlenmez (elle eklenen ekstra durak olabilir) ama
-                              // ayrılır — yanlış müşterinin durağına atamak zorlaşsın.
-                              const { own, other } = splitStops(dispatch.stops, i);
-                              // Rota numarası BİLEREK yok: tek bir yükün seçicisinde "1./2."
-                              // varış sırası gibi okunup "ilk gideceği yer mi?" sorusunu
-                              // doğuruyordu. Yük tek durakta iner; rota sırası Duraklar kartında.
-                              const opt = (st: DispatchStop) => (
-                                <option key={st.id} value={st.id}>
-                                  {stopLabel(st)}
-                                </option>
-                              );
-                              if (own.length === 0) return dispatch.stops.map(opt);
-                              return (
-                                <>
-                                  <optgroup label="Bu ön ihbarın teslim yerleri">
-                                    {own.map(opt)}
-                                  </optgroup>
-                                  {other.length > 0 && (
-                                    <optgroup label="Diğer duraklar">{other.map(opt)}</optgroup>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </select>
-                        </label>
+          <div className="space-y-2">
+            {/* Duraklar rota sirasinda; her birinin altinda o durakta inen yukler */}
+            {dispatch.stops.map((s, idx) => (
+              <div key={s.id} className="overflow-hidden rounded-lg border border-slate-200">
+                <div className="flex items-start justify-between gap-3 bg-slate-50 p-2">
+                  <div className="flex min-w-0 gap-2">
+                    {/* Rota sirasi: yukari/asagi ok (dokunmatikte surukle-birak yerine) */}
+                    <div className="flex shrink-0 flex-col items-center">
+                      <button
+                        onClick={() => moveStop(idx, -1)}
+                        disabled={idx === 0 || reorderMut.isPending}
+                        className="text-xs leading-none text-slate-400 disabled:opacity-25"
+                        aria-label="Yukari tasi"
+                      >
+                        &#9650;
+                      </button>
+                      <span className="my-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600">
+                        {s.seq}
+                      </span>
+                      <button
+                        onClick={() => moveStop(idx, 1)}
+                        disabled={idx === dispatch.stops.length - 1 || reorderMut.isPending}
+                        className="text-xs leading-none text-slate-400 disabled:opacity-25"
+                        aria-label="Asagi tasi"
+                      >
+                        &#9660;
+                      </button>
+                    </div>
+                    <div className="min-w-0">
+                      {/* Ekranda YER once (operatorun sorusu "nereye"), altinda ALICI FIRMA */}
+                      <p className="text-sm font-medium text-slate-900">
+                        {s.name}
+                        {s.deliveredAt && (
+                          <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            Teslim edildi
+                          </span>
+                        )}
+                      </p>
+                      {s.customerName && s.customerName !== s.name && (
+                        <p className="text-xs font-medium text-slate-600">{s.customerName}</p>
                       )}
-                      {editable && (
-                        <button
-                          onClick={() => removeItemMut.mutate(i.id)}
-                          className="shrink-0 text-xs font-medium text-red-600"
-                        >
-                          Çıkar
-                        </button>
+                      {(s.address || s.phone) && (
+                        <p className="text-xs text-slate-500">
+                          {[s.address, s.phone].filter(Boolean).join(' - ')}
+                        </p>
                       )}
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex shrink-0 gap-3">
+                    <button
+                      onClick={() => deliverMut.mutate({ stopId: s.id, delivered: !s.deliveredAt })}
+                      className="text-xs font-medium text-brand"
+                    >
+                      {s.deliveredAt ? 'Geri al' : 'Teslim'}
+                    </button>
+                    {editable && (
+                      <>
+                        <button
+                          onClick={() => setEditingStop(s)}
+                          className="text-xs font-medium text-slate-500"
+                        >
+                          Duzenle
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (
+                              await confirmDialog({
+                                message: `"${s.name}" duragi silinsin mi? Yukler sevkiyatta kalir, atamasi duser.`,
+                                confirmText: 'Sil',
+                                danger: true,
+                              })
+                            )
+                              removeStopMut.mutate(s.id);
+                          }}
+                          className="text-xs font-medium text-red-600"
+                        >
+                          Sil
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {itemsOfStop(s.id).length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs font-medium text-amber-700">
+                      Bu duraga yuk atanmadi
+                    </p>
+                  ) : (
+                    itemsOfStop(s.id).map((i) => loadRow(i))
+                  )}
                 </div>
               </div>
             ))}
+
+            {/* Duragi secilmemis yukler - irsaliyede ALICI bos basilacagi icin ayri ve uyarili */}
+            {unassignedItems.length > 0 && (
+              <div className="overflow-hidden rounded-lg border border-amber-300">
+                <p className="bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+                  {dispatch.stops.length > 0
+                    ? `Inecegi durak secilmemis ${unassignedItems.length} yuk - secmezseniz irsaliyede ALICI bos basilir`
+                    : 'Durak eklenmedi - alici on ihbardan basilir, rota sirasi olusmaz'}
+                </p>
+                <div className="divide-y divide-slate-100">
+                  {unassignedItems.map((i) => loadRow(i, true))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -764,35 +698,6 @@ export function DispatchDetailPage() {
       )}
     </div>
   );
-}
-
-/** Sevk edilmiş sevkiyatta yanlış aracı/plakayı düzeltmek için araç seçme modalı. */
-/** Yük satırlarını kabule göre gruplar (belge ve liste görünümü için). */
-function groupByReceipt(items: DispatchItem[]) {
-  const map = new Map<
-    string,
-    {
-      receiptId: string;
-      receiptReference: string;
-      customerName?: string | null;
-      recipientName?: string | null;
-      waybillNo?: string | null;
-      items: DispatchItem[];
-    }
-  >();
-  for (const i of items) {
-    const g = map.get(i.receiptId) ?? {
-      receiptId: i.receiptId,
-      receiptReference: i.receiptReference,
-      customerName: i.customerName,
-      recipientName: i.recipientName,
-      waybillNo: i.waybillNo,
-      items: [],
-    };
-    g.items.push(i);
-    map.set(i.receiptId, g);
-  }
-  return [...map.values()];
 }
 
 /** "3 palet · 40 adet" gibi özet. */
@@ -832,31 +737,6 @@ function stopLabel(s: { name: string; customerName?: string | null }): string {
   const co = s.customerName?.trim();
   if (!co || co === s.name) return s.name;
   return `${s.name} — ${co}`;
-}
-
-/**
- * Yük listesini DURAK SIRASINA göre dizer (liste · rota · irsaliye aynı sırayı göstersin).
- * Durak yoksa yükleme sırası korunur; durağa atanmamışlar en sona gider.
- * Bu kart bir rota editörü DEĞİL — sıra Duraklar kartından yönetilir.
- */
-function sortByStop(groups: ReturnType<typeof groupByReceipt>, stops: DispatchStop[]) {
-  const seq = new Map(stops.map((s) => [s.id, s.seq]));
-  const LAST = Number.MAX_SAFE_INTEGER;
-  const seqOf = (stopId?: string | null) => (stopId ? (seq.get(stopId) ?? LAST) : LAST);
-  for (const g of groups) g.items.sort((a, b) => seqOf(a.stopId) - seqOf(b.stopId));
-  return [...groups].sort(
-    (a, b) =>
-      Math.min(...a.items.map((i) => seqOf(i.stopId))) -
-      Math.min(...b.items.map((i) => seqOf(i.stopId))),
-  );
-}
-
-/** Bir durakta inen yükün özeti — "0 palet" yerine gerçekte ne varsa onu yazar. */
-function stopLoadText(items: DispatchItem[], stopId: string) {
-  const mine = items.filter((i) => i.stopId === stopId);
-  if (mine.length === 0) return 'Yük atanmadı';
-  const senders = new Set(mine.map((i) => i.customerName).filter(Boolean));
-  return `${loadSummary(mine)} · ${senders.size} gönderici`;
 }
 
 /**
