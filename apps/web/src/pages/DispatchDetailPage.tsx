@@ -638,13 +638,28 @@ export function DispatchDetailPage() {
               </div>
             ))}
 
-            {/* Durağı seçilmemiş yükler — irsaliyede ALICI boş basılacağı için ayrı ve uyarılı */}
+            {/* Durağı seçilmemiş yükler.
+                Durak VARKEN atanmamış yük bir sorundur (irsaliyede ALICI boş basılır) → amber.
+                Hiç durak YOKKEN sorun değil: ALICI ön ihbardan doğru basılır, yalnız rota
+                sırası/teslim takibi oluşmaz → nötr ton, operatörü boşuna telaşlandırmasın. */}
             {unassignedItems.length > 0 && (
-              <div className="overflow-hidden rounded-lg border border-amber-300">
-                <p className="bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+              <div
+                className={clsx(
+                  'overflow-hidden rounded-lg border',
+                  dispatch.stops.length > 0 ? 'border-amber-300' : 'border-slate-200',
+                )}
+              >
+                <p
+                  className={clsx(
+                    'px-2 py-1.5 text-xs font-medium',
+                    dispatch.stops.length > 0
+                      ? 'bg-amber-50 text-amber-800'
+                      : 'bg-slate-50 text-slate-500',
+                  )}
+                >
                   {dispatch.stops.length > 0
                     ? `İneceği durak seçilmemiş ${unassignedItems.length} yük — seçmezseniz irsaliyede ALICI boş basılır`
-                    : 'Durak eklenmedi — alıcı ön ihbardan basılır, rota sırası oluşmaz'}
+                    : 'Durak yok — irsaliyede ALICI ön ihbardan doğru basılır; yalnız rota sırası ve teslim takibi oluşmaz'}
                 </p>
                 <div className="divide-y divide-slate-100">
                   {unassignedItems.map((i) => loadRow(i, true))}

@@ -254,7 +254,10 @@ export class DispatchService {
           receiptId: input.receiptId,
           palletCount: palletIds.length,
         });
-        return serializeDispatch(dispatch);
+        // Hızlı sevkte ekran hiç açılmıyor; durağı burada türetmezsek ön ihbardaki
+        // boşaltma yeri sevkiyata hiç yansımaz (sonradan eklenemez, kayıt DISPATCHED).
+        await this.autoSuggestStops(dispatch.id, userId);
+        return serializeDispatch(await this.getOrThrow(dispatch.id));
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
           lastErr = err;
@@ -355,6 +358,8 @@ export class DispatchService {
     this.ensureDraft(dispatch);
     const created = await this.prisma.$transaction((tx) => this.loadItems(id, entries, tx));
     await this.audit('dispatch.itemsAdded', id, userId, { count: created });
+    // Yeni yükün ineceği durak ön ihbardan biliniyor — operatör ayrıca düğmeye basmasın
+    await this.autoSuggestStops(id, userId);
     return this.findOne(id);
   }
 
@@ -487,6 +492,27 @@ export class DispatchService {
    * Sevkiyattaki kabullerin ön ihbar alıcılarından durakları otomatik türetir ve
    * palet/kabulleri o duraklara atar. Zaten var olan duraklar korunur (ada göre eşleşir).
    */
+  /**
+   * Yük eklendikten sonra durakları KENDİLİĞİNDEN türetir.
+   *
+   * Duraklar eskiden yalnız ekrandaki düğmeye basılınca oluşuyordu; hızlı sevkte o düğme
+   * hiç görünmüyor (kayıt anında DISPATCHED olduğu için düzenlenemez) ve ön ihbarda girilmiş
+   * boşaltma yeri sevkiyata hiç yansımıyordu — belgede ALICI ön ihbardan basıldığı için
+   * çıktı doğruydu ama rota sırası/teslim takibi oluşmuyor, ekranda da "Durak eklenmedi"
+   * uyarısı çıkıyordu.
+   *
+   * Beklenen hatalar (yük yok / kabulde alıcı bilgisi yok) YUTULUR: durak zaten OPSİYONEL,
+   * asıl işlemi (yükleme, sevk) bu yüzden başarısız saymak yanlış olur.
+   */
+  private async autoSuggestStops(id: string, userId: string) {
+    try {
+      await this.suggestStops(id, userId);
+    } catch (err) {
+      if (err instanceof BadRequestException) return; // alıcı bilgisi yok — durak zorunlu değil
+      throw err;
+    }
+  }
+
   async suggestStops(id: string, userId: string) {
     const dispatch = await this.getOrThrow(id);
     // Sevkiyattaki tüm kabuller — defterden (kap + kalem satırları birlikte)
