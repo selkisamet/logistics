@@ -239,6 +239,21 @@ export function DispatchDetailPage() {
             {i.waybillNo ? ` · Sevk İrs: ${i.waybillNo}` : ''}
             {isMismatched(i) ? ` · ⚠ ön ihbarda alıcı: ${i.recipientName}` : ''}
           </p>
+          {/* NEREDEN → NEREYE. Yükleme deposu her zaman yazılır (bir seferde farklı depolardan
+              yük olabilir). Teslim yeri YALNIZ durağa atanmamış yükte yazılır — atanmışsa
+              bloğun altındaki "Alıcı:" şeridi zaten söylüyor, tekrar olurdu. */}
+          <p className="flex items-center gap-1 truncate text-xs text-slate-400">
+            <Icon name="pin" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {i.warehouseName ?? 'Depo'}
+              {!i.stopId && (
+                <>
+                  <span className="mx-1">&rarr;</span>
+                  {deliveryTargetOf(i)}
+                </>
+              )}
+            </span>
+          </p>
         </div>
         {editable &&
           (picking && dispatch.stops.length > 0 ? (
@@ -717,6 +732,17 @@ function loadSummary(items: DispatchItem[]) {
  * yalnız firma yazsak iki durak ayırt edilemezdi. Belgede (irsaliye) ALICI olarak
  * yasal gereklilikten FİRMA basılır; ekranda ikisi birlikte gösterilir.
  */
+/**
+ * Durağa atanmamış yükün gideceği yer — ön ihbardan okunur.
+ * Önce seçilen boşaltma yeri/yerleri ("Akpa Kimya"), yoksa alıcı firma adı.
+ * İrsaliyede ALICI de bu zincirden basılır, ekranla belge aynı şeyi söylesin.
+ */
+function deliveryTargetOf(i: DispatchItem): string {
+  const points = (i.recipientPoints ?? []).map((p) => p.label).filter(Boolean);
+  if (points.length) return points.join(' · ');
+  return i.recipientName || 'alıcı belirtilmemiş';
+}
+
 /**
  * Durakları ikiye ayırır: yükün ÖN İHBARINDA seçilen teslim yerleri ve diğerleri.
  * Eşleşme önce lokasyon id'siyle (kesin), yoksa adla yapılır — `suggestStops` durağı
