@@ -406,9 +406,13 @@ export function StockPage() {
         </div>
       )}
 
-      {/* Yük planı çubuğu — seçim yapılınca altta sabitlenir */}
+      {/* Yük planı çubuğu — seçim yapılınca altta sabitlenir.
+          Alt dolgu ARBITRARY değer: `.safe-bottom` sınıfı `@tailwind utilities`'ten sonra
+          tanımlı olduğu için `p-3`'ün padding-bottom'unu eziyordu ve masaüstünde
+          env(safe-area-inset-bottom)=0px → düğme ekranın en altına yapışıyordu.
+          Burada tek bildirimde hem taban boşluk hem telefon güvenli alanı veriliyor. */}
       {entries.length > 0 && (
-        <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:pl-64">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-4px_16px_-8px_rgba(15,23,42,0.25)] backdrop-blur lg:pl-64">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
             <div className="text-sm">
               <span className="font-semibold text-slate-900">

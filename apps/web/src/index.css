@@ -27,7 +27,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Güvenli alan (telefon çentik/altbar) için padding */
+/* Güvenli alan (telefon çentik/altbar) için padding.
+   ⚠ TUZAK: bu kural `@tailwind utilities`'ten SONRA geldiği için `p-3`/`pb-4` gibi
+   yardımcıların padding-bottom'unu EZER. Masaüstünde env(safe-area-inset-bottom)=0px
+   olduğundan eleman ekranın dibine yapışır (sabit alt çubukta düğme kenara değiyordu).
+   Yalnız KENDİ alt dolgusu olmayan elemanlarda kullanın (ör. alt sekme çubuğu).
+   Dolgu da gerekiyorsa tek bildirimde verin:
+     pb-[calc(env(safe-area-inset-bottom)+1rem)] */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
