@@ -18,7 +18,7 @@ export const COMPANY = {
   branches: [
     {
       name: 'Tuzla',
-      address: 'Anadolu Mah. Adak Sok. B1 No:1A Depo No: 14/15 Tuzla/İstanbul',
+      address: 'Orhanlı Mah. Demirciler Sok. No:5 Bodrum Katı Tuzla/İstanbul',
       phone: '0216 394 48 33',
       email: 'sevkiyat@endernakliyat.com.tr',
     },
