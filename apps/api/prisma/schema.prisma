@@ -485,6 +485,24 @@ model Attachment {
   @@index([receiptId])
 }
 
+/**
+ * Matbu TAŞIMA İRSALİYESİ serisi — seri harfi + sıradaki numara.
+ *
+ * Numarayı ANLAŞMALI MATBAA basar (164 GT); uygulama numara ÜRETMEZ, matbaanın bastığı
+ * sırayı TAKİP eder. Operatör her sevkiyatta elle yazmasın diye sıradaki numara burada
+ * tutulur ve sevk anında (kâğıdın fiilen kullanıldığı an) tüketilir.
+ *
+ * TEK SATIR beklenir (`@@unique` alanı yok; servis ilk kaydı kullanır/oluşturur).
+ * Form zayi olursa `nextNo` elle ileri alınır — atlanan numara böylece kayda geçer.
+ */
+model WaybillSeries {
+  id        String   @id @default(cuid())
+  serial    String // matbu seri harfi, ör. "A"
+  nextNo    Int // sıradaki sıra no, ör. 23213522
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
 // İzlenebilirlik / denetim kaydı
 model AuditEvent {
   id         String   @id @default(cuid())

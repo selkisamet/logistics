@@ -19,6 +19,7 @@ import { DispatchDetailPage } from './pages/DispatchDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { UsersPage } from './pages/UsersPage';
 import { VehiclesPage } from './pages/VehiclesPage';
+import { WaybillSeriesPage } from './pages/WaybillSeriesPage';
 import { UserRole } from '@lojistik/shared';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 
@@ -48,6 +49,7 @@ export default function App() {
           </Route>
           <Route path="/depolar" element={<WarehousesPage />} />
           <Route path="/araclar" element={<VehiclesPage />} />
+          <Route path="/irsaliye-serisi" element={<WaybillSeriesPage />} />
         </Route>
       </Route>
       <Route path="*" element={<ComingSoonPage title="Sayfa bulunamadı" />} />

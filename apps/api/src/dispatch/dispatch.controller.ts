@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -22,6 +23,8 @@ import {
   addDispatchItemsSchema,
   updateWaybillSchema,
   dispatchListQuerySchema,
+  waybillSeriesSchema,
+  UserRole,
   type CreateDispatchInput,
   type AddDispatchPackageInput,
   type BulkAddDispatchPackagesInput,
@@ -34,14 +37,18 @@ import {
   type AddDispatchItemsInput,
   type UpdateWaybillInput,
   type DispatchListQuery,
+  type WaybillSeriesInput,
   type AuthUser,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { DispatchService } from './dispatch.service';
 
-@UseGuards(JwtAuthGuard)
+// RolesGuard yalnız @Roles işaretli rotaları kısıtlar; diğer rotalar eskisi gibi açık.
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('dispatches')
 export class DispatchController {
   constructor(private readonly dispatchService: DispatchService) {}
@@ -49,6 +56,21 @@ export class DispatchController {
   @Get()
   findAll(@Query(new ZodValidationPipe(dispatchListQuerySchema)) query: DispatchListQuery) {
     return this.dispatchService.findAll(query);
+  }
+
+  // ---- Matbu irsaliye serisi ----
+  // ':id' rotasından ÖNCE tanımlı olmalı; yoksa "waybill-series" bir sevkiyat id'si sanılır.
+
+  @Get('waybill-series')
+  getSeries() {
+    return this.dispatchService.getSeries();
+  }
+
+  /** Seri tanımı/düzeltmesi: yönetici ve sorumlu. Form zayi olursa sıradaki no ileri alınır. */
+  @Put('waybill-series')
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  setSeries(@Body(new ZodValidationPipe(waybillSeriesSchema)) body: WaybillSeriesInput) {
+    return this.dispatchService.setSeries(body);
   }
 
   @Get(':id')

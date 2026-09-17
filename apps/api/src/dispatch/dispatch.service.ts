@@ -15,6 +15,8 @@ import {
   type QuickDispatchInput,
   type UpdateDispatchStopInput,
   type UpdateWaybillInput,
+  type WaybillSeriesInput,
+  type WaybillSeriesState,
 } from '@lojistik/shared';
 
 /** Taşıma irsaliyesi satırı için kabulden gereken alanlar: kim gönderdi (customer),
@@ -228,6 +230,8 @@ export class DispatchService {
     for (let i = 0; i < 5; i++) {
       try {
         const dispatch = await this.prisma.$transaction(async (tx) => {
+          // Hızlı sevkte kâğıt anında kullanılıyor → matbu numara da burada tüketilir
+          const waybill = await this.consumeWaybillNo(tx, { waybillSerial: null, waybillNo: null });
           const created = await tx.dispatch.create({
             data: {
               reference: datedReference('SVK'),
@@ -236,6 +240,8 @@ export class DispatchService {
               vehicleId,
               dispatchedAt: now,
               dispatchedById: userId,
+              ...(waybill ?? {}),
+              waybillDate: now,
               freightAmount: DEFAULT_FREIGHT_AMOUNT,
               freightVatIncluded: true,
             },
@@ -363,6 +369,47 @@ export class DispatchService {
     return this.findOne(id);
   }
 
+  // ---- Matbu irsaliye serisi ----
+
+  /** Tek satırlık seri kaydı; yoksa null (tanımlanmamış). */
+  async getSeries(): Promise<WaybillSeriesState> {
+    const row = await this.prisma.waybillSeries.findFirst({ orderBy: { createdAt: 'asc' } });
+    return {
+      serial: row?.serial ?? null,
+      nextNo: row?.nextNo ?? null,
+      configured: !!row,
+    };
+  }
+
+  /** Seriyi tanımlar/günceller. Form zayi olursa `nextNo` buradan ileri alınır. */
+  async setSeries(input: WaybillSeriesInput): Promise<WaybillSeriesState> {
+    const row = await this.prisma.waybillSeries.findFirst({ orderBy: { createdAt: 'asc' } });
+    const saved = row
+      ? await this.prisma.waybillSeries.update({ where: { id: row.id }, data: input })
+      : await this.prisma.waybillSeries.create({ data: input });
+    return { serial: saved.serial, nextNo: saved.nextNo, configured: true };
+  }
+
+  /**
+   * Sevk anında bir numara tüketir — kâğıdın fiilen kullanıldığı an burasıdır.
+   * Taslak iptal edilirse numara yanmasın diye oluşturmada DEĞİL burada verilir.
+   *
+   * Aynı transaction içinde `nextNo` artırılır; iki sevk aynı anda tamamlansa bile
+   * ikisi aynı numarayı alamaz. Seri tanımlı değilse ya da sevkiyatta zaten numara
+   * varsa (elle girilmiş) dokunulmaz.
+   */
+  private async consumeWaybillNo(
+    tx: Prisma.TransactionClient,
+    current: { waybillSerial: string | null; waybillNo: string | null },
+  ): Promise<{ waybillSerial: string; waybillNo: string } | null> {
+    if (current.waybillNo) return null; // elle girilmiş — ezme
+    const row = await tx.waybillSeries.findFirst({ orderBy: { createdAt: 'asc' } });
+    if (!row) return null; // seri tanımlı değil
+    const taken = row.nextNo;
+    await tx.waybillSeries.update({ where: { id: row.id }, data: { nextNo: taken + 1 } });
+    return { waybillSerial: row.serial, waybillNo: String(taken) };
+  }
+
   async complete(id: string, userId: string) {
     const dispatch = await this.getOrThrow(id);
     this.ensureDraft(dispatch);
@@ -371,15 +418,36 @@ export class DispatchService {
     }
 
     const now = new Date();
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma
+      .$transaction(async (tx) => {
       // Ayna: paletlerin sevk zamanı
       await tx.package.updateMany({ where: { dispatchId: id }, data: { dispatchedAt: now } });
+      // Matbu irsaliye numarasını burada tüket (kâğıt bu anda kullanılıyor)
+      const waybill = await this.consumeWaybillNo(tx, dispatch);
       return tx.dispatch.update({
         where: { id },
-        data: { status: DispatchStatus.DISPATCHED, dispatchedAt: now, dispatchedById: userId },
+        data: {
+          status: DispatchStatus.DISPATCHED,
+          dispatchedAt: now,
+          dispatchedById: userId,
+          ...(waybill ?? {}),
+          // Belge tarihi boşsa sevk günü yazılır — matbu forma elle yazdırmayalım
+          ...(dispatch.waybillDate ? {} : { waybillDate: now }),
+        },
         include: DISPATCH_INCLUDE,
       });
-    });
+      })
+      .catch((err) => {
+        // Otomatik numara, daha önce ELLE girilmiş bir numarayla çakıştı (@@unique seri+no).
+        // Transaction geri alındığı için sayaç da artmadı; operatöre çözüm yolunu söyle.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          throw new BadRequestException(
+            'Sıradaki irsaliye numarası başka bir sevkiyatta zaten kullanılmış. ' +
+              'İrsaliye Serisi ayarından sıradaki numarayı ileri alıp tekrar deneyin.',
+          );
+        }
+        throw err;
+      });
     await this.audit('dispatch.completed', id, userId, { itemCount: updated.items.length });
     return serializeDispatch(updated);
   }

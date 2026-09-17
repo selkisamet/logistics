@@ -14,6 +14,7 @@ import {
   type PackageType,
   type AddDispatchPackageInput,
   type VehicleSummary,
+  type WaybillSeriesState,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
@@ -1090,8 +1091,13 @@ function WaybillInfoModal({
   onSaved: (d: Dispatch) => void;
 }) {
   const [destination, setDestination] = useState(dispatch.destination ?? '');
-  const [serial, setSerial] = useState(dispatch.waybillSerial ?? '');
-  const [no, setNo] = useState(dispatch.waybillNo ?? '');
+  // Seri/sıra no ELLE GİRİLMEZ: sevk anında matbu seriden otomatik atanır.
+  // Henüz sevk edilmemişse bir sonraki numarayı göstermek için seriyi oku.
+  const { data: series } = useQuery({
+    queryKey: ['waybill-series'],
+    queryFn: () => api.get<WaybillSeriesState>('/dispatches/waybill-series'),
+    enabled: !dispatch.waybillNo,
+  });
   const [date, setDate] = useState(dispatch.waybillDate?.slice(0, 10) ?? '');
   // Tutar girilmemiş eski kayıtlarda da varsayılanla başla (yeni sevkiyatlar zaten
   // sunucuda DEFAULT_FREIGHT_AMOUNT ile açılıyor).
@@ -1107,8 +1113,6 @@ function WaybillInfoModal({
     mutationFn: () =>
       api.patch<Dispatch>(`/dispatches/${dispatch.id}/waybill`, {
         destination,
-        waybillSerial: serial,
-        waybillNo: no,
         waybillDate: date || undefined,
         freightAmount: amount ?? '',
         freightVatIncluded: vatIncluded,
@@ -1123,7 +1127,7 @@ function WaybillInfoModal({
   return (
     <Modal
       title="Taşıma İrsaliyesi Bilgileri"
-      description="Elinizdeki matbu formun üzerindeki numarayı girin"
+      description="Gideceği yer, tarih ve taşıma ücreti"
       onClose={onClose}
     >
       <div className="space-y-3">
@@ -1139,15 +1143,28 @@ function WaybillInfoModal({
           satırlarında yazıyor. Çok noktalı seferde boş bırakırsanız belgeye{' '}
           <b>"MUHTELİF (N durak)"</b> basılır.
         </p>
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="Seri">
-            <Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="A" />
-          </Field>
-          <div className="col-span-2">
-            <Field label="Sıra No">
-              <Input value={no} onChange={(e) => setNo(e.target.value)} placeholder="012345" />
-            </Field>
-          </div>
+        {/* Seri/sıra no SALT OKUNUR: matbaanın bastığı sıra takip edilir, sevkte atanır */}
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-400">Seri / Sıra No</p>
+          {dispatch.waybillNo ? (
+            <p className="text-lg font-bold tracking-wide text-slate-900">
+              {dispatch.waybillSerial} - {dispatch.waybillNo}
+            </p>
+          ) : series?.configured ? (
+            <p className="text-sm text-slate-600">
+              Sevk edildiğinde otomatik atanır:{' '}
+              <b className="text-slate-900">
+                {series.serial} - {series.nextNo}
+              </b>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-700">
+              İrsaliye serisi tanımlı değil —{' '}
+              <Link to="/irsaliye-serisi" className="font-semibold underline">
+                seriyi tanımlayın
+              </Link>
+            </p>
+          )}
         </div>
         <Field label="Düzenleme Tarihi">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -1168,8 +1185,8 @@ function WaybillInfoModal({
           Girilen ücret KDV dahil
         </label>
         <p className="text-xs text-slate-400">
-          Seri/sıra numarasını anlaşmalı matbaa basar; buradaki değer yalnızca kâğıt belgeyle dijital
-          kaydı eşleştirir.
+          Seri/sıra numarasını anlaşmalı matbaa basar; uygulama sırayı takip eder. Form zayi olursa
+          İrsaliye Serisi ayarından sıradaki numarayı ileri alın.
         </p>
         <div className="flex gap-2 pt-1">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>

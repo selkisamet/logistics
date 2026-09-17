@@ -176,6 +176,25 @@ export const updateWaybillSchema = z.object({
 });
 export type UpdateWaybillInput = z.infer<typeof updateWaybillSchema>;
 
+/**
+ * Matbu taşıma irsaliyesi serisi. Numarayı anlaşmalı matbaa basar (164 GT) — uygulama
+ * ÜRETMEZ, matbaanın bastığı sırayı takip eder. Sevk anında bir numara tüketilir.
+ * Form zayi olursa `nextNo` ileri alınır; atlanan numara böylece kayda geçer.
+ */
+export const waybillSeriesSchema = z.object({
+  serial: upperStr(z.string().min(1, 'Seri gerekli').max(4, 'Seri en fazla 4 karakter')),
+  nextNo: z.coerce.number().int().positive('Sıra no pozitif olmalı'),
+});
+export type WaybillSeriesInput = z.infer<typeof waybillSeriesSchema>;
+
+export const waybillSeriesStateSchema = z.object({
+  serial: z.string().nullable(),
+  nextNo: z.number().int().nullable(),
+  /** Tanımlı değilse sevk sırasında numara atanmaz; operatör elle girer. */
+  configured: z.boolean(),
+});
+export type WaybillSeriesState = z.infer<typeof waybillSeriesStateSchema>;
+
 export const dispatchStopSchema = z.object({
   id: z.string(),
   seq: z.number().int(),

@@ -25,6 +25,12 @@ const GROUPS: { title?: string; items: NavItem[] }[] = [
       { to: '/musteriler', label: 'Müşteriler', icon: 'building' },
       { to: '/depolar', label: 'Depolar', icon: 'warehouse' },
       { to: '/araclar', label: 'Araçlar', icon: 'van' },
+      {
+        to: '/irsaliye-serisi',
+        label: 'İrsaliye Serisi',
+        icon: 'clipboard',
+        roles: [UserRole.ADMIN, UserRole.SUPERVISOR],
+      },
     ],
   },
   {
