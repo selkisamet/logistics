@@ -94,7 +94,6 @@ export function AsnFormPage() {
   const customerId = watch('customerId'); // gönderici müşteri
   const recipientCustomerId = watch('recipientCustomerId'); // alıcı müşteri
   const currency = watch('currency') ?? 'TRY'; // satır fiyat etiketleri buna göre
-  const paymentType = watch('paymentType');
   const { data: locations } = useCustomerLocations(customerId); // göndericinin yükleme yerleri
   const { data: dropLocations } = useCustomerLocations(recipientCustomerId); // alıcının boşaltma yerleri
 
@@ -345,18 +344,11 @@ export function AsnFormPage() {
                 <label className="inline-flex items-center gap-1.5">
                   <input type="checkbox" {...register('vatIncluded')} /> Fiyatlar KDV dahil (değilse %20 eklenir)
                 </label>
-                <label
-                  className={
-                    'inline-flex items-center gap-1.5 ' +
-                    (paymentType !== 'SENDER' ? 'text-slate-400' : '')
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    disabled={paymentType !== 'SENDER'}
-                    {...register('showAmountOnSlip')}
-                  />{' '}
-                  Ücreti fişte göster (gönderici ödemeli)
+                {/* Ücretin fişte basılıp basılmayacağının TEK anahtarı; varsayılan KAPALI.
+                    Ödeme tipinden bağımsız: eskiden yalnız "gönderici ödemeli"de seçilebiliyordu
+                    ve alıcı ödemelide (varsayılan) ücret kutucuktan bağımsız hep basılıyordu. */}
+                <label className="inline-flex items-center gap-1.5">
+                  <input type="checkbox" {...register('showAmountOnSlip')} /> Ücreti fişte göster
                 </label>
               </div>
             </div>

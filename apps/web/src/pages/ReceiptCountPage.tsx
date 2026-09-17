@@ -952,10 +952,14 @@ function SlipForm({
   const slipUrl = origin ? `${origin}/mal-kabul/${receipt.id}` : receipt.reference;
   const logoUrl = origin ? `${origin}${COMPANY.logoPath}` : COMPANY.logoPath;
 
-  // Ücret: alıcı ödemeli→görünür; gönderici ödemeli→yalnız "göster" işaretliyse görünür.
-  const showAmount =
-    receipt.paymentType === 'RECIPIENT' ||
-    (receipt.paymentType === 'SENDER' && !!receipt.showAmountOnSlip);
+  /**
+   * Ücret fişte YALNIZ ön ihbarda işaretlenmişse basılır — varsayılan GİZLİ.
+   *
+   * Eski koşul `paymentType === 'RECIPIENT' || (SENDER && showAmountOnSlip)` idi; ödeme
+   * varsayılanı "Alıcı ödemeli" olduğu için ücret kutucuktan BAĞIMSIZ hep basılıyordu ve
+   * kutucuk o durumda pasif olduğu için kapatılamıyordu. Artık tek anahtar var.
+   */
+  const showAmount = !!receipt.showAmountOnSlip;
   const lineAmount = (l: ReceiptLine) => (l.unitPrice != null ? l.countedQty * l.unitPrice : null);
   const hasPrice = receipt.lines.some((l) => l.unitPrice != null);
   const subtotal = receipt.lines.reduce((s, l) => s + (lineAmount(l) ?? 0), 0);
