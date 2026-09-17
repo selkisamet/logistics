@@ -82,7 +82,7 @@ export function AsnFormPage() {
     defaultValues: {
       lines: [], // opsiyonel: bilinmiyorsa mal kabulde girilir
       expectedAt: new Date().toISOString().slice(0, 10), // bugün (yyyy-mm-dd)
-      paymentType: 'RECIPIENT', // varsayılan: alıcı ödemeli
+      paymentType: 'SENDER', // varsayılan: gönderici ödemeli
       showAmountOnSlip: false,
       vatIncluded: false,
       currency: 'TRY',
@@ -121,7 +121,7 @@ export function AsnFormPage() {
       expectedAt: existing.expectedAt ? existing.expectedAt.slice(0, 10) : undefined,
       deliveryBy: existing.deliveryBy ? existing.deliveryBy.slice(0, 10) : undefined,
       notes: existing.notes ?? undefined,
-      paymentType: existing.paymentType ?? 'RECIPIENT',
+      paymentType: existing.paymentType ?? 'SENDER',
       showAmountOnSlip: existing.showAmountOnSlip ?? false,
       vatIncluded: existing.vatIncluded ?? false,
       currency: existing.currency ?? 'TRY',
@@ -330,11 +330,12 @@ export function AsnFormPage() {
             <div className="space-y-1">
               <span className="text-sm font-medium text-slate-700">Ödeme</span>
               <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700">
-                <label className="inline-flex items-center gap-1.5">
-                  <input type="radio" value="RECIPIENT" {...register('paymentType')} /> Alıcı ödemeli
-                </label>
+                {/* Gönderici solda, alıcı sağda — formdaki Gönderici/Alıcı sırasıyla aynı */}
                 <label className="inline-flex items-center gap-1.5">
                   <input type="radio" value="SENDER" {...register('paymentType')} /> Gönderici ödemeli
+                </label>
+                <label className="inline-flex items-center gap-1.5">
+                  <input type="radio" value="RECIPIENT" {...register('paymentType')} /> Alıcı ödemeli
                 </label>
               </div>
             </div>
