@@ -6,6 +6,7 @@ import { UserRole } from '@lojistik/shared';
 import { Toaster } from './Toaster';
 import { Dialog } from './Dialog';
 import { Icon, type IconName } from './icons';
+import { SETTINGS_ITEMS } from '../lib/settings';
 
 type NavItem = { to: string; label: string; icon: IconName; roles?: UserRole[] };
 
@@ -25,24 +26,15 @@ const GROUPS: { title?: string; items: NavItem[] }[] = [
       { to: '/musteriler', label: 'Müşteriler', icon: 'building' },
       { to: '/depolar', label: 'Depolar', icon: 'warehouse' },
       { to: '/araclar', label: 'Araçlar', icon: 'van' },
-      {
-        to: '/irsaliye-serisi',
-        label: 'İrsaliye Serisi',
-        icon: 'clipboard',
-        roles: [UserRole.ADMIN, UserRole.SUPERVISOR],
-      },
     ],
   },
-  {
-    title: 'Hesap',
-    items: [
-      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'users', roles: [UserRole.ADMIN] },
-      { to: '/sifre-degistir', label: 'Şifre Değiştir', icon: 'key' },
-    ],
-  },
+  // Seyrek kullanılan "bir kez kur unut" modülleri sol menüye TEK TEK eklenmez —
+  // hepsi Ayarlar altında toplanır (bkz. lib/settings.ts). Menü operasyonel akışta kalır.
+  { items: [{ to: '/ayarlar', label: 'Ayarlar', icon: 'settings' }] },
 ];
 
-const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
+// Ayar sayfaları menüde görünmez ama başlıkları doğru yazılmalı (ör. /kullanicilar)
+const ALL_ITEMS = [...GROUPS.flatMap((g) => g.items), ...SETTINGS_ITEMS];
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Yönetici',

@@ -20,6 +20,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { UsersPage } from './pages/UsersPage';
 import { VehiclesPage } from './pages/VehiclesPage';
 import { WaybillSeriesPage } from './pages/WaybillSeriesPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { UserRole } from '@lojistik/shared';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 
@@ -49,6 +50,7 @@ export default function App() {
           </Route>
           <Route path="/depolar" element={<WarehousesPage />} />
           <Route path="/araclar" element={<VehiclesPage />} />
+          <Route path="/ayarlar" element={<SettingsPage />} />
           <Route path="/irsaliye-serisi" element={<WaybillSeriesPage />} />
         </Route>
       </Route>
