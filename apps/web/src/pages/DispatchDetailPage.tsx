@@ -499,13 +499,8 @@ export function DispatchDetailPage() {
 
       {/* Taşıma İrsaliyesi — matbu belge bilgileri + ücret */}
       <Card className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-slate-900">Taşıma İrsaliyesi</h3>
-            <p className="text-xs text-slate-500">
-              Matbu belgenin seri/sıra numarası ve taşıma ücreti (yasal zorunlu alanlar).
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-semibold text-slate-900">Taşıma İrsaliyesi</h3>
           <div className="flex shrink-0 gap-2">
             <Button variant="secondary" onClick={() => setWaybillEdit(true)}>
               Bilgileri Gir
