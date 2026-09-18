@@ -3,6 +3,24 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   DEFAULT_FREIGHT_AMOUNT,
   PACKAGE_TYPE_LABELS,
   type Dispatch,
@@ -139,6 +157,30 @@ export function DispatchDetailPage() {
     onSuccess: setDispatch,
     onError: (e) => stopErr(e, 'Sıra değiştirilemedi'),
   });
+  /**
+   * Sürükle-bırak sensörleri.
+   * - Pointer: 5px hareket etmeden sürükleme başlamaz (tıklamayı yutmasın).
+   * - Touch: 200ms BASILI TUTMA şartı — yoksa listeyi parmakla kaydırmak imkânsız olurdu.
+   * - Keyboard: boşluk/ok tuşlarıyla; erişilebilirlik ve fare kullanamayanlar için.
+   */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  /** Bırakıldığında yeni sırayı sunucuya yaz (aynı yere bırakıldıysa istek atma). */
+  const onStopDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const ids = (dispatch?.stops ?? []).map((s) => s.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    reorderMut.mutate(ids);
+  };
+
   const moveStop = (index: number, dir: -1 | 1) => {
     const ids = (dispatch?.stops ?? []).map((s) => s.id);
     const to = index + dir;
@@ -568,9 +610,29 @@ export function DispatchDetailPage() {
           </p>
         ) : (
           <div className="space-y-2">
-            {/* Duraklar rota sırasında; her birinin altında o durakta inen yükler */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+              onDragEnd={onStopDragEnd}
+            >
+              <SortableContext
+                items={dispatch.stops.map((s) => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+            {/* Duraklar rota sırasında; her birinin altında o durakta inen yükler.
+                Sıra SÜRÜKLE-BIRAK ile değişir (sıra rozetinden tutulur); ▲▼ okları yedek
+                olarak kalır — dokunmatikte uzun basıp sürüklemek her zaman kolay değil. */}
             {dispatch.stops.map((s, idx) => (
-              <div key={s.id} className="overflow-hidden rounded-lg border border-slate-200">
+              <SortableStop key={s.id} id={s.id} disabled={!editable || reorderMut.isPending}>
+                {({ handleProps, dragging }) => (
+              <div
+                className={clsx(
+                  'overflow-hidden rounded-lg border bg-white',
+                  dragging ? 'border-brand shadow-lg' : 'border-slate-200',
+                )}
+              >
                 {/* GÖNDERİCİ üstte, ALICI altta — tesellüm fişi/irsaliye ile aynı okuma yönü.
                     Yükler (her biri kendi göndericisiyle) üst bölümde, indikleri durak
                     (alıcı) alt bölümde. */}
@@ -585,7 +647,7 @@ export function DispatchDetailPage() {
                 </div>
                 <div className="flex items-start justify-between gap-3 border-t border-slate-200 bg-slate-50 p-2">
                   <div className="flex min-w-0 gap-2">
-                    {/* Rota sırası: yukarı/aşağı ok (dokunmatikte sürükle-bırak yerine) */}
+                    {/* Sıra rozeti = SÜRÜKLEME TUTAMAĞI; ▲▼ yedek (dokunmatikte kesin çözüm) */}
                     <div className="flex shrink-0 flex-col items-center">
                       <button
                         onClick={() => moveStop(idx, -1)}
@@ -595,7 +657,14 @@ export function DispatchDetailPage() {
                       >
                         &#9650;
                       </button>
-                      <span className="my-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600">
+                      <span
+                        {...handleProps}
+                        title="Sürükleyerek sırayı değiştirin"
+                        className={clsx(
+                          'my-0.5 inline-flex h-6 w-6 touch-none select-none items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200',
+                          editable && 'cursor-grab active:cursor-grabbing hover:ring-brand',
+                        )}
+                      >
                         {s.seq}
                       </span>
                       <button
@@ -652,7 +721,12 @@ export function DispatchDetailPage() {
                   </div>
                 </div>
               </div>
+                )}
+              </SortableStop>
             ))}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {/* Durağı seçilmemiş yükler.
                 Durak VARKEN atanmamış yük bir sorundur (irsaliyede ALICI boş basılır) → amber.
@@ -733,6 +807,43 @@ function loadSummary(items: DispatchItem[]) {
  * yalnız firma yazsak iki durak ayırt edilemezdi. Belgede (irsaliye) ALICI olarak
  * yasal gereklilikten FİRMA basılır; ekranda ikisi birlikte gösterilir.
  */
+/**
+ * Sürüklenebilir durak sarmalayıcısı.
+ *
+ * Tutamağı (`handleProps`) render-prop ile içeriye verir: tüm blok değil, YALNIZ sıra
+ * rozeti sürüklenir — blokta "Düzenle/Sil/Çıkar" düğmeleri var, blok geneli sürüklenebilir
+ * olsaydı onlara basmak zorlaşırdı.
+ */
+function SortableStop({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled?: boolean;
+  children: (p: {
+    handleProps: Record<string, unknown>;
+    dragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={clsx(isDragging && 'relative z-10 opacity-90')}
+    >
+      {children({
+        handleProps: disabled ? {} : { ...attributes, ...listeners },
+        dragging: isDragging,
+      })}
+    </div>
+  );
+}
+
 /**
  * Durağa atanmamış yükün gideceği yer — ön ihbardan okunur.
  * Önce seçilen boşaltma yeri/yerleri ("Akpa Kimya"), yoksa alıcı firma adı.
