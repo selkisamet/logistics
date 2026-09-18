@@ -18,7 +18,9 @@ const PRIMARY: NavItem[] = [
   { to: '/sevkiyat', label: 'Sevkiyat', icon: 'truck' },
 ];
 
-const GROUPS: { title?: string; items: NavItem[] }[] = [
+/** `pinned`: menünün ALTINA sabitlenir ve üstünde ayırıcı çizgi olur —
+ *  operasyonel akıştan ayrı bir bölüm olduğu görünsün. */
+const GROUPS: { title?: string; pinned?: boolean; items: NavItem[] }[] = [
   { items: PRIMARY },
   {
     title: 'Tanımlar',
@@ -30,7 +32,7 @@ const GROUPS: { title?: string; items: NavItem[] }[] = [
   },
   // Seyrek kullanılan "bir kez kur unut" modülleri sol menüye TEK TEK eklenmez —
   // hepsi Ayarlar altında toplanır (bkz. lib/settings.ts). Menü operasyonel akışta kalır.
-  { items: [{ to: '/ayarlar', label: 'Ayarlar', icon: 'settings' }] },
+  { title: 'Sistem', pinned: true, items: [{ to: '/ayarlar', label: 'Ayarlar', icon: 'settings' }] },
 ];
 
 // Ayar sayfaları menüde görünmez ama başlıkları doğru yazılmalı (ör. /kullanicilar)
@@ -161,7 +163,7 @@ function SidebarContent({
   groups,
   onNavigate,
 }: {
-  groups: { title?: string; items: NavItem[] }[];
+  groups: { title?: string; pinned?: boolean; items: NavItem[] }[];
   onNavigate?: () => void;
 }) {
   const { user, logout } = useAuthStore();
@@ -186,9 +188,17 @@ function SidebarContent({
       </div>
 
       {/* Menü */}
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
+      {/* space-y DEĞİL flex+gap: `space-y-*` kardeşlere margin-top verdiği için
+          sabitlenen grubun `mt-auto`su çalışmazdı. */}
+      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-2">
         {groups.map((group, i) => (
-          <div key={i} className="space-y-1">
+          <div
+            key={i}
+            className={clsx(
+              'space-y-1',
+              group.pinned && 'mt-auto border-t border-slate-200 pt-4',
+            )}
+          >
             {group.title && (
               <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {group.title}
