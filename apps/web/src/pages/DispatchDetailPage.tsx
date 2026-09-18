@@ -625,7 +625,7 @@ export function DispatchDetailPage() {
                 Sıra SÜRÜKLE-BIRAK ile değişir (sıra rozetinden tutulur); ▲▼ okları yedek
                 olarak kalır — dokunmatikte uzun basıp sürüklemek her zaman kolay değil. */}
             {dispatch.stops.map((s, idx) => (
-              <SortableStop key={s.id} id={s.id} disabled={!editable || reorderMut.isPending}>
+              <SortableStop key={s.id} id={s.id} disabled={reorderMut.isPending}>
                 {({ handleProps, dragging }) => (
               <div
                 className={clsx(
@@ -662,7 +662,7 @@ export function DispatchDetailPage() {
                         title="Sürükleyerek sırayı değiştirin"
                         className={clsx(
                           'my-0.5 inline-flex h-6 w-6 touch-none select-none items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200',
-                          editable && 'cursor-grab active:cursor-grabbing hover:ring-brand',
+                          'cursor-grab active:cursor-grabbing hover:ring-brand',
                         )}
                       >
                         {s.seq}
