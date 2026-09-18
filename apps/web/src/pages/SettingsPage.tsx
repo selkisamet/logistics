@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { USER_ROLE_LABELS } from '@lojistik/shared';
 import { Card, EmptyState } from '../components/ui';
 import { Icon } from '../components/icons';
 import { settingsFor } from '../lib/settings';
@@ -10,14 +11,19 @@ import { useAuthStore } from '../stores/auth';
  * için buraya değil oraya bir satır yazılır.
  */
 export function SettingsPage() {
-  const role = useAuthStore((s) => s.user?.role);
+  const user = useAuthStore((s) => s.user);
+  const role = user?.role;
   const groups = settingsFor(role);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-900">Ayarlar</h2>
-        <p className="text-sm text-slate-500">Uygulama ve hesap tanımları</p>
+        {/* Rol etiketi kenar çubuğundan buraya taşındı: hesap bloğu artık "Ayarlar" yazıyor */}
+        <p className="text-sm text-slate-500">
+          {user?.fullName}
+          {role ? ` · ${USER_ROLE_LABELS[role] ?? role}` : ''}
+        </p>
       </div>
 
       {groups.length === 0 ? (

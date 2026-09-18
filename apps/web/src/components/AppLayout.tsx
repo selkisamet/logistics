@@ -18,9 +18,7 @@ const PRIMARY: NavItem[] = [
   { to: '/sevkiyat', label: 'Sevkiyat', icon: 'truck' },
 ];
 
-/** `pinned`: menünün ALTINA sabitlenir ve üstünde ayırıcı çizgi olur —
- *  operasyonel akıştan ayrı bir bölüm olduğu görünsün. */
-const GROUPS: { title?: string; pinned?: boolean; items: NavItem[] }[] = [
+const GROUPS: { title?: string; items: NavItem[] }[] = [
   { items: PRIMARY },
   {
     title: 'Tanımlar',
@@ -30,19 +28,12 @@ const GROUPS: { title?: string; pinned?: boolean; items: NavItem[] }[] = [
       { to: '/araclar', label: 'Araçlar', icon: 'van' },
     ],
   },
-  // Seyrek kullanılan "bir kez kur unut" modülleri sol menüye TEK TEK eklenmez —
-  // hepsi Ayarlar altında toplanır (bkz. lib/settings.ts). Menü operasyonel akışta kalır.
-  { title: 'Sistem', pinned: true, items: [{ to: '/ayarlar', label: 'Ayarlar', icon: 'settings' }] },
+  // Ayarlar menüde DEĞİL, en alttaki hesap bloğunda (avatarın altında) — seyrek
+  // kullanılan modüller orada toplanır, menü operasyonel akışta kalır.
 ];
 
 // Ayar sayfaları menüde görünmez ama başlıkları doğru yazılmalı (ör. /kullanicilar)
 const ALL_ITEMS = [...GROUPS.flatMap((g) => g.items), ...SETTINGS_ITEMS];
-
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: 'Yönetici',
-  SUPERVISOR: 'Şef',
-  OPERATOR: 'Operatör',
-};
 
 function titleFor(path: string): string {
   if (path === '/') return 'Özet';
@@ -163,7 +154,7 @@ function SidebarContent({
   groups,
   onNavigate,
 }: {
-  groups: { title?: string; pinned?: boolean; items: NavItem[] }[];
+  groups: { title?: string; items: NavItem[] }[];
   onNavigate?: () => void;
 }) {
   const { user, logout } = useAuthStore();
@@ -192,13 +183,7 @@ function SidebarContent({
           sabitlenen grubun `mt-auto`su çalışmazdı. */}
       <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-2">
         {groups.map((group, i) => (
-          <div
-            key={i}
-            className={clsx(
-              'space-y-1',
-              group.pinned && 'mt-auto border-t border-slate-200 pt-4',
-            )}
-          >
+          <div key={i} className="space-y-1">
             {group.title && (
               <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {group.title}
@@ -227,18 +212,42 @@ function SidebarContent({
         ))}
       </nav>
 
-      {/* Kullanıcı */}
+      {/* Hesap bloğu = AYARLAR girişi.
+          Ayarlar menüde ayrı satır değil: seyrek kullanılan modüller hesabın altında
+          toplanır, sol menü operasyonel akışta kalır. Çıkış düğmesi bloğun KARDEŞİ —
+          NavLink'in içinde olsaydı çıkışa basınca ayrıca /ayarlar'a gidilirdi. */}
       <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 px-2 py-1.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand">
-            {initials(user?.fullName)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-800">{user?.fullName}</p>
-            <p className="truncate text-xs text-slate-400">
-              {user?.role ? (ROLE_LABEL[user.role] ?? user.role) : ''}
-            </p>
-          </div>
+        <div className="flex items-center gap-1">
+          <NavLink
+            to="/ayarlar"
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              clsx(
+                'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 transition',
+                isActive ? 'bg-brand/10' : 'hover:bg-slate-100',
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand">
+                  {initials(user?.fullName)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-slate-400">{user?.fullName}</p>
+                  <p
+                    className={clsx(
+                      'truncate text-sm font-semibold',
+                      isActive ? 'text-brand' : 'text-slate-800',
+                    )}
+                  >
+                    Ayarlar
+                  </p>
+                </div>
+                <Icon name="settings" className="h-4 w-4 shrink-0 text-slate-400" />
+              </>
+            )}
+          </NavLink>
           <button
             type="button"
             onClick={handleLogout}
