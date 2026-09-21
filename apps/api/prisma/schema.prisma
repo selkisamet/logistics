@@ -161,6 +161,8 @@ model Warehouse {
   locations Location[]
   shipments InboundShipment[]
   receipts  Receipt[]
+  // Ön ihbarda "yükleme yeri" olarak bizim depomuz seçilebilir (müşterinin deposu yerine)
+  shipmentSources ShipmentSource[]
 }
 
 model Location {
@@ -232,8 +234,12 @@ model ShipmentSource {
   id                 String            @id @default(cuid())
   shipmentId         String
   shipment           InboundShipment   @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  // Kaynak ÜÇ türden biri: göndericinin lokasyonu, BİZİM depomuz, ya da serbest metin (ikisi de null).
+  // İkisi birden dolu olamaz — hangi kayıttan geldiği tek olmalı.
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  warehouseId        String?
+  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id])
   label              String // görünen ad (kayıtlı depo adı kopyası veya elle girilen metin)
   address            String? // kayıtlı deponun adres kopyası (fişte yükleme noktası)
 

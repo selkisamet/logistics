@@ -53,11 +53,22 @@ export const expectedLineSchema = z.object({
 });
 export type ExpectedLineInput = z.infer<typeof expectedLineSchema>;
 
-/** Kaynak (pickup): kayıtlı müşteri deposu (customerLocationId) ya da serbest metin. */
-export const shipmentSourceInputSchema = z.object({
-  customerLocationId: z.string().optional(),
-  label: upperStr(z.string().min(1, 'Kaynak adı gerekli')),
-});
+/**
+ * Kaynak (pickup): göndericinin deposu (customerLocationId), BİZİM depomuz
+ * (warehouseId) ya da serbest metin. Yük her zaman müşteriden alınmıyor —
+ * bazı seferlerde kendi depomuzdan yükleniyor.
+ */
+export const shipmentSourceInputSchema = z
+  .object({
+    customerLocationId: z.string().optional(),
+    warehouseId: z.string().optional(),
+    label: upperStr(z.string().min(1, 'Kaynak adı gerekli')),
+  })
+  // İkisi birden gelirse etiket/adresin hangi kayıttan sabitleneceği belirsiz kalır
+  .refine((s) => !(s.customerLocationId && s.warehouseId), {
+    message: 'Yükleme yeri ya müşteri lokasyonu ya da kendi depomuz olabilir',
+    path: ['warehouseId'],
+  });
 export type ShipmentSourceInput = z.infer<typeof shipmentSourceInputSchema>;
 
 /** Boşaltma yeri: alıcı müşterinin lokasyonu (customerLocationId) ya da serbest metin. */
@@ -148,6 +159,8 @@ export const asnSchema = z.object({
       z.object({
         id: z.string(),
         customerLocationId: z.string().nullable(),
+        // Düzenleme formu seçimi geri kurabilsin diye çıktıda; belgeler label/address kullanır
+        warehouseId: z.string().nullable(),
         label: z.string(),
       }),
     )

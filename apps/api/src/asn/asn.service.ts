@@ -89,8 +89,9 @@ export class AsnService {
       status: ShipmentStatus.EXPECTED,
       lines: { create: (input.lines ?? []).map(toLineData) },
       sources: {
-        create: sources.map(({ customerLocationId, label, address }) => ({
+        create: sources.map(({ customerLocationId, warehouseId, label, address }) => ({
           customerLocationId,
+          warehouseId,
           label,
           address,
         })),
@@ -167,8 +168,9 @@ export class AsnService {
       if (sources) {
         await tx.shipmentSource.deleteMany({ where: { shipmentId: id } });
         await tx.shipmentSource.createMany({
-          data: sources.map(({ customerLocationId, label, address }) => ({
+          data: sources.map(({ customerLocationId, warehouseId, label, address }) => ({
             customerLocationId,
+            warehouseId,
             label,
             address,
             shipmentId: id,
@@ -259,11 +261,22 @@ export class AsnService {
     if (found) throw new ConflictException('Bu referans no zaten kullanılıyor');
   }
 
-  /** Kaynakları doğrular; kayıtlı depo seçildiyse etiket+adres depo kaydından sabitlenir. */
+  /**
+   * Kaynakları doğrular; kayıtlı bir yer seçildiyse etiket+adres o kayıttan sabitlenir.
+   * Yükleme yeri göndericinin deposu olabileceği gibi BİZİM depomuz da olabilir
+   * (mal bazen müşteriden alınmaz, kendi depomuzdan yüklenir).
+   */
   private async validateSources(
     customerId: string,
     sources: CreateAsnInput['sources'],
-  ): Promise<{ customerLocationId: string | null; label: string; address: string | null }[]> {
+  ): Promise<
+    {
+      customerLocationId: string | null;
+      warehouseId: string | null;
+      label: string;
+      address: string | null;
+    }[]
+  > {
     if (!sources || sources.length === 0) return [];
 
     const ids = sources.map((s) => s.customerLocationId).filter((x): x is string => !!x);
@@ -272,13 +285,29 @@ export class AsnService {
       : [];
     const byId = new Map(locations.map((l) => [l.id, l]));
 
+    const whIds = sources.map((s) => s.warehouseId).filter((x): x is string => !!x);
+    const warehouses = whIds.length
+      ? await this.prisma.warehouse.findMany({ where: { id: { in: whIds } } })
+      : [];
+    const whById = new Map(warehouses.map((w) => [w.id, w]));
+
     return sources.map((s) => {
       if (s.customerLocationId) {
         const loc = byId.get(s.customerLocationId);
         if (!loc) throw new BadRequestException('Geçersiz kaynak depo seçimi');
-        return { customerLocationId: loc.id, label: loc.name, address: loc.address };
+        return {
+          customerLocationId: loc.id,
+          warehouseId: null,
+          label: loc.name,
+          address: loc.address,
+        };
       }
-      return { customerLocationId: null, label: s.label, address: null };
+      if (s.warehouseId) {
+        const wh = whById.get(s.warehouseId);
+        if (!wh) throw new BadRequestException('Geçersiz depo seçimi');
+        return { customerLocationId: null, warehouseId: wh.id, label: wh.name, address: wh.address };
+      }
+      return { customerLocationId: null, warehouseId: null, label: s.label, address: null };
     });
   }
 
@@ -354,6 +383,7 @@ function serializeShipment(s: ShipmentWithRelations) {
     sources: s.sources.map((src) => ({
       id: src.id,
       customerLocationId: src.customerLocationId,
+      warehouseId: src.warehouseId,
       label: src.label,
     })),
     recipients: s.recipients.map((rec) => ({

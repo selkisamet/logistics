@@ -43,11 +43,23 @@ const toKap = (u: string | null | undefined): string => {
   return hit ?? 'Diğer';
 };
 
-/** ShipmentSource/Recipient seçimini geri (input'a) çevirir. __ft_ = eski serbest metin. */
-const selToInput = (o: ComboOption) => ({
-  customerLocationId: o.value.startsWith('__ft_') ? undefined : o.value,
-  label: o.label,
-});
+/** Kendi depomuz seçeneklerinin değer öneki — müşteri lokasyonu id'siyle karışmasın (ikisi de cuid). */
+const WH_PREFIX = 'wh:';
+
+/**
+ * ShipmentSource/Recipient seçimini geri (input'a) çevirir. __ft_ = eski serbest metin.
+ * `wh:` önekli değer BİZİM depomuzdur (yalnızca yükleme yerinde çıkar; boşaltma
+ * yerinde böyle bir seçenek üretilmediği için orada bu dal hiç çalışmaz).
+ */
+const selToInput = (o: ComboOption) => {
+  if (o.value.startsWith(WH_PREFIX)) {
+    return { warehouseId: o.value.slice(WH_PREFIX.length), label: o.label };
+  }
+  return {
+    customerLocationId: o.value.startsWith('__ft_') ? undefined : o.value,
+    label: o.label,
+  };
+};
 
 export function AsnFormPage() {
   const navigate = useNavigate();
@@ -136,7 +148,12 @@ export function AsnFormPage() {
       })),
     });
     setSourceSel(
-      existing.sources.map((s, i) => ({ value: s.customerLocationId || `__ft_${i}`, label: s.label })),
+      existing.sources.map((s, i) => ({
+        value: s.warehouseId
+          ? `${WH_PREFIX}${s.warehouseId}`
+          : s.customerLocationId || `__ft_${i}`,
+        label: s.label,
+      })),
     );
     setRecipientSel(
       existing.recipients.map((r, i) => ({
@@ -262,17 +279,27 @@ export function AsnFormPage() {
             </Field>
           </div>
 
-          {/* Yükleme Yeri (göndericinin) & Boşaltma Yeri (alıcının) — çoklu, listede yoksa oluştur */}
+          {/* Yükleme Yeri (göndericinin deposu YA DA bizimki) & Boşaltma Yeri (alıcının) */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
+              {/* Mal her zaman müşteriden alınmıyor; bazı seferlerde kendi depomuzdan
+                  yükleniyor. Bu yüzden liste iki kaynaktan beslenir — depolar `hint` ile
+                  ayrışır. Gönderici seçilmeden de depo seçilebilmeli, o yüzden `disabled`
+                  yalnızca ikisi de yoksa anlamlı olurdu; depolar hep var, hiç kilitlenmez. */}
               <MultiCombobox
-                options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
+                options={[
+                  ...(locations ?? []).map((l) => ({ value: l.id, label: l.name })),
+                  ...(warehouses ?? []).map((w) => ({
+                    value: `${WH_PREFIX}${w.id}`,
+                    label: w.name,
+                    hint: '· bizim depomuz',
+                  })),
+                ]}
                 value={sourceSel}
                 onChange={setSourceSel}
                 onCreate={customerId ? createSource : undefined}
-                disabled={!customerId}
-                placeholder={customerId ? 'Yükleme yeri seç / yaz…' : 'Önce gönderici seçin'}
+                placeholder="Yükleme yeri seç / yaz…"
                 emptyHint="Yazıp “oluştur” ile ekleyin"
               />
             </div>
@@ -299,17 +326,6 @@ export function AsnFormPage() {
               )}
             </div>
           </div>
-
-          {/* Yükleme/teslimat adresi seçilen kaynak/alıcıdan otomatik alınır. */}
-          <p className="text-xs text-slate-500">
-            Yükleme/boşaltma adresi seçilen <b>yerlerin</b> adresinden otomatik alınır; fişte öyle görünür.
-            (Adresleri müşteri detayından güncelleyebilirsiniz.)
-          </p>
-          <p className="text-xs text-slate-500">
-            <b>Yükleme yeri</b> birden çok olabilir (göndericinin farklı depolarından toplanabilir).
-            <b> Boşaltma yeri tektir</b> — her teslim noktası için ayrı ön ihbar açın; hepsini aynı
-            araca yükleyebilirsiniz.
-          </p>
 
           {/* Para birimi — satır birim fiyatları ve tesellüm fişindeki tutarlar bu cinsten.
               Kur dönüşümü YOK: hangi cinsten girildiyse belgede o cinsten basılır. */}
