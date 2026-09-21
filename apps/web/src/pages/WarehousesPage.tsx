@@ -8,11 +8,13 @@ import {
   type Warehouse,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
+import { toast } from '../lib/toast';
 import { Button, Card, EmptyState, Field, Input, Modal, Spinner } from '../components/ui';
 import { useAuthStore } from '../stores/auth';
 
 export function WarehousesPage() {
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Warehouse | null>(null);
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'ADMIN' || role === 'SUPERVISOR';
   const qc = useQueryClient();
@@ -42,7 +44,8 @@ export function WarehousesPage() {
         <div className="flex flex-col gap-4">
           {data.map((w) => (
             <Card key={w.id} className="flex items-center justify-between gap-2">
-              <div>
+              {/* min-w-0: uzun adres iki düğmeyi ekrandan taşırmasın */}
+              <div className="min-w-0">
                 <p className="font-semibold text-slate-900">
                   {w.name}
                   {w.isDefault && (
@@ -54,15 +57,24 @@ export function WarehousesPage() {
                 <p className="text-xs text-slate-500">{w.code}</p>
                 {w.address && <p className="text-xs text-slate-400">{w.address}</p>}
               </div>
-              {canEdit && !w.isDefault && (
-                <Button
-                  variant="secondary"
-                  className="shrink-0"
-                  loading={setDefaultMut.isPending && setDefaultMut.variables === w.id}
-                  onClick={() => setDefaultMut.mutate(w.id)}
-                >
-                  Varsayılan yap
-                </Button>
+              {canEdit && (
+                <div className="flex shrink-0 items-center gap-3">
+                  {!w.isDefault && (
+                    <Button
+                      variant="secondary"
+                      loading={setDefaultMut.isPending && setDefaultMut.variables === w.id}
+                      onClick={() => setDefaultMut.mutate(w.id)}
+                    >
+                      Varsayılan yap
+                    </Button>
+                  )}
+                  <button
+                    onClick={() => setEditing(w)}
+                    className="text-sm font-medium text-brand"
+                  >
+                    Düzenle
+                  </button>
+                </div>
               )}
             </Card>
           ))}
@@ -74,24 +86,51 @@ export function WarehousesPage() {
           <WarehouseForm onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
         </Modal>
       )}
+      {editing && (
+        <Modal title="Depoyu Düzenle" description={editing.code} onClose={() => setEditing(null)}>
+          <WarehouseForm
+            warehouse={editing}
+            onDone={() => setEditing(null)}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
 
-function WarehouseForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function WarehouseForm({
+  warehouse,
+  onDone,
+  onCancel,
+}: {
+  warehouse?: Warehouse;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const qc = useQueryClient();
+  const editing = !!warehouse;
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreateWarehouseInput>({ resolver: zodResolver(createWarehouseSchema) });
+  } = useForm<CreateWarehouseInput>({
+    resolver: zodResolver(createWarehouseSchema),
+    defaultValues: warehouse
+      ? { name: warehouse.name, code: warehouse.code, address: warehouse.address ?? '' }
+      : undefined,
+  });
 
   const mutation = useMutation({
-    mutationFn: (input: CreateWarehouseInput) => api.post<Warehouse>('/warehouses', input),
+    mutationFn: (input: CreateWarehouseInput) =>
+      editing
+        ? api.patch<Warehouse>(`/warehouses/${warehouse!.id}`, input)
+        : api.post<Warehouse>('/warehouses', input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['warehouses'] });
+      toast(editing ? 'Depo güncellendi' : 'Depo eklendi');
       reset();
       onDone();
     },
@@ -103,7 +142,14 @@ function WarehouseForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
       <Field label="Ad *" error={errors.name?.message}>
         <Input {...register('name')} placeholder="Örn. Merkez Depo" />
       </Field>
-      <p className="text-xs text-slate-400">Depo kodu addan otomatik üretilir (örn. MERKEZ_DEPO).</p>
+      {/* Kod yalnız DÜZENLERKEN görünür: yeni depoda addan üretilir, ama ad sonradan
+          değişince kod eskisi kalır (kod sabit kimliktir, kendiliğinden yenilenmez)
+          — düzelme imkânı burada. */}
+      {editing && (
+        <Field label="Kod" error={errors.code?.message}>
+          <Input {...register('code')} />
+        </Field>
+      )}
       <Field label="Adres" error={errors.address?.message}>
         <Input {...register('address')} />
       </Field>
@@ -113,7 +159,7 @@ function WarehouseForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
           Vazgeç
         </Button>
         <Button type="submit" className="flex-1" loading={isSubmitting || mutation.isPending}>
-          Kaydet
+          {editing ? 'Güncelle' : 'Kaydet'}
         </Button>
       </div>
     </form>
