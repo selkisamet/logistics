@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import type { WaybillExtraction } from '@lojistik/shared';
 import { ApiError, uploadSingle } from '../lib/api';
+import { OCR_PROFILE } from '../lib/image';
 
 /**
  * Native (Capacitor) kamera: CameraX tabanlı camera-preview eklentisiyle ARKA kamerayı
@@ -64,7 +65,7 @@ export function WaybillCamera({
       const shot = await CameraPreview.capture({ quality: 90 });
       const blob = await (await fetch(`data:image/jpeg;base64,${shot.value}`)).blob();
       const file = new File([blob], 'irsaliye.jpg', { type: 'image/jpeg' });
-      const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file);
+      const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE);
       if (res.waybillNo || res.orderNo) {
         onResult(res);
         onClose();

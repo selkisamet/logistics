@@ -23,6 +23,7 @@ import {
   type WaybillExtraction,
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadFiles, uploadSingle } from '../lib/api';
+import { OCR_PROFILE } from '../lib/image';
 import { isNativeApp } from '../lib/config';
 import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/format';
 import { COMPANY } from '../lib/company';
@@ -507,7 +508,8 @@ function DocumentEditor({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const ocrMut = useMutation({
-    mutationFn: (file: File) => uploadSingle<WaybillExtraction>('/ocr/waybill', file),
+    mutationFn: (file: File) =>
+      uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE),
     onSuccess: (res) => fillFromOcr(res),
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Okunamadı'),
   });

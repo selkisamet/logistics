@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/auth';
 import { getApiBase } from './config';
+import { compressImage, compressImages, type CompressProfile } from './image';
 
 export class ApiError extends Error {
   status: number;
@@ -63,15 +64,20 @@ export function assetUrl(path: string): string {
   return path.startsWith('http') ? path : `${getApiBase()}${path}`;
 }
 
-/** Tek dosyayı belirtilen alan adıyla yükler — multipart/form-data. */
+/**
+ * Tek dosyayı belirtilen alan adıyla yükler — multipart/form-data.
+ * Görseller sunucuya SIKIŞTIRILMIŞ gider ([lib/image.ts](./image.ts)); burası ve
+ * `uploadFiles` uygulamadaki tek yükleme hunisi olduğu için her yol kapsanır.
+ */
 export async function uploadSingle<T>(
   path: string,
   file: File,
   field = 'file',
+  profile?: CompressProfile,
 ): Promise<T> {
   const token = useAuthStore.getState().token;
   const fd = new FormData();
-  fd.append(field, file);
+  fd.append(field, await compressImage(file, profile));
 
   const res = await fetch(`${getApiBase()}/api${path}`, {
     method: 'POST',
@@ -93,11 +99,15 @@ export async function uploadSingle<T>(
   return (await res.json()) as T;
 }
 
-/** Çoklu dosya (foto) yükler — multipart/form-data. */
-export async function uploadFiles<T>(path: string, files: File[]): Promise<T> {
+/** Çoklu dosya (foto) yükler — multipart/form-data. Görseller sıkıştırılarak gider. */
+export async function uploadFiles<T>(
+  path: string,
+  files: File[],
+  profile?: CompressProfile,
+): Promise<T> {
   const token = useAuthStore.getState().token;
   const fd = new FormData();
-  files.forEach((f) => fd.append('files', f));
+  (await compressImages(files, profile)).forEach((f) => fd.append('files', f));
 
   const res = await fetch(`${getApiBase()}/api${path}`, {
     method: 'POST',
