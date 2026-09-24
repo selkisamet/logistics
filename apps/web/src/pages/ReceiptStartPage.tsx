@@ -5,7 +5,6 @@ import {
   DISCREPANCY_TYPE_LABELS,
   DISCREPANCY_TYPES,
   KAP_TYPES,
-  PACKAGE_TYPE_LABELS,
   type DiscrepancyType,
   type Receipt,
   type StartReceiptInput,
@@ -18,12 +17,6 @@ import { Icon } from '../components/icons';
 import { NativeCamera } from '../components/WaybillCamera';
 import { useCustomers, useWarehouses } from '../lib/lookups';
 
-/** Kap etiketinden (Palet/Varil…) QR üretimi için gereken enum'u bulur. */
-function packageTypeOf(label: string): string {
-  const hit = Object.entries(PACKAGE_TYPE_LABELS).find(([, v]) => v === label);
-  return hit?.[0] ?? 'OTHER';
-}
-
 /**
  * Mal Kabul Başlat — uygulamanın GİRİŞ NOKTASI ve teslim alma anının TEK ekranı.
  *
@@ -31,9 +24,8 @@ function packageTypeOf(label: string): string {
  * Şoför beklediği için ekran tek geçişte bitmeli: gönderici, irsaliye fotoğrafı,
  * gelen kap sayısı ve gerekirse tutanak burada girilir.
  *
- * Foto/kap/tutanak bir mal kabul kaydına bağlanır, yani kayıt oluşmadan
- * gönderilemezler — bu yüzden ekranda BİRİKTİRİLİR ve "Başlat"ta sırayla
- * gönderilir. Kayıt önden açılsaydı, vazgeçen her denemeden boş kayıt kalırdı.
+ * Kap ve tutanak kayıt gövdesiyle birlikte gider; sunucu üçünü AYNI
+ * transaction'da oluşturur. Fotoğraf multipart olduğu için tek ayrı istek.
  *
  * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez, **sipariş no**'yu
  * OCR irsaliye fotoğrafından okur, ticari alanlar (fiyat, ödeme, termin) ofisin işi.
@@ -83,63 +75,29 @@ export function ReceiptStartPage() {
   }, [warehouses]);
 
   /**
-   * Kaydı açar, sonra biriken ekleri sırayla gönderir.
-   * Ek adımların biri patlarsa kayıt yine de açılmıştır — kullanıcıyı geri
-   * döndürmek yerine detay sayfasına götürüp neyin eksik kaldığını söyleriz,
-   * orada tamamlayabilir.
+   * Kaydı açar. Kap ve tutanak GÖVDEYLE BİRLİKTE gider, sunucuda aynı
+   * transaction'da oluşur — eskiden art arda istek zincirleniyordu ve biri
+   * sessizce düşünce ortada kalemsiz kayıt kalıyordu.
+   *
+   * Fotoğraf multipart olduğu için ayrı istek olmak zorunda; başarısız olursa
+   * kullanıcıyı geri döndürmek yerine uyarıp detaya götürürüz, orada ekler.
    */
   const startMut = useMutation({
     mutationFn: async (input: StartReceiptInput) => {
       const receipt = await api.post<Receipt>('/receipts/start', input);
-      const failed: string[] = [];
-
+      let photoError: string | null = null;
       if (photos.length) {
         try {
           await uploadFiles(`/receipts/${receipt.id}/attachments`, photos);
-        } catch {
-          failed.push('fotoğraflar');
+        } catch (err) {
+          photoError = err instanceof ApiError ? err.message : 'Fotoğraflar yüklenemedi';
         }
       }
-
-      const count = Number(kapCount);
-      if (count > 0) {
-        try {
-          if (makeLabels) {
-            await api.post(`/receipts/${receipt.id}/packages`, {
-              type: packageTypeOf(kap),
-              count,
-            });
-          } else {
-            // QR istenmedi: kalem olarak yazılır. Malın cinsi girilmediyse kap
-            // adıyla açılır — depocu irsaliyeyi okuyunca detayda düzeltir.
-            await api.patch(`/receipts/${receipt.id}/lines`, {
-              description: goods.trim() || kap,
-              countedQty: count,
-              unit: kap,
-            });
-          }
-        } catch {
-          failed.push(makeLabels ? 'QR etiketleri' : 'kalem');
-        }
-      }
-
-      if (noteOpen && noteText.trim()) {
-        try {
-          await api.post('/discrepancies', {
-            receiptId: receipt.id,
-            type: noteType,
-            description: noteText.trim(),
-          });
-        } catch {
-          failed.push('tutanak');
-        }
-      }
-
-      return { receipt, failed };
+      return { receipt, photoError };
     },
-    onSuccess: ({ receipt, failed }) => {
+    onSuccess: ({ receipt, photoError }) => {
       qc.invalidateQueries({ queryKey: ['receipts'] });
-      if (failed.length) toast.error(`Kayıt açıldı ama ${failed.join(', ')} eklenemedi.`);
+      if (photoError) toast.error(`Kayıt açıldı ama fotoğraf eklenemedi: ${photoError}`);
       navigate(`/mal-kabul/${receipt.id}`, { replace: true });
     },
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Başlatılamadı'),
@@ -358,11 +316,20 @@ export function ReceiptStartPage() {
           loading={startMut.isPending}
           onClick={() => {
             setServerError(null);
+            const count = Number(kapCount);
             startMut.mutate({
               customerId,
               warehouseId,
               recipientCustomerId: recipientCustomerId || undefined,
               waybillNo: waybillNo || undefined,
+              kap:
+                count > 0
+                  ? { type: kap, count, description: goods.trim() || undefined, makeLabels }
+                  : undefined,
+              discrepancy:
+                noteOpen && noteText.trim()
+                  ? { type: noteType, description: noteText.trim() }
+                  : undefined,
             });
           }}
         >

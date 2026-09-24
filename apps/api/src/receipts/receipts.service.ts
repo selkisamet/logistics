@@ -5,8 +5,11 @@ import { paginate } from '../common/pagination';
 import { datedReference, randomCode } from '../common/codes';
 import { attachmentUrl } from '../common/upload';
 import {
+  PACKAGE_TYPE_LABELS,
+  PackageType,
   ReceiptStatus,
   ShipmentStatus,
+  trUpper,
   type CreatePackageInput,
   type ReceiptListQuery,
   type ReceiptRecipientInput,
@@ -159,6 +162,10 @@ export class ReceiptsService {
    * çünkü gelen irsaliyede nihai firma her zaman yazmıyor — ofis sonradan
    * `updateCommercial` ile tamamlar. Yükleme yeri de orada girilir: depocu
    * malın nereden yüklendiğini bilmez.
+   *
+   * Gelen kap ve tutanak kayıtla AYNI transaction'da oluşur. Tarayıcıdan arka
+   * arkaya istek zincirlemek yarım kalmış kayıt üretebiliyordu (kayıt açılır,
+   * kalem eklenmez); burada ya hepsi olur ya hiçbiri.
    */
   async start(input: StartReceiptInput, userId: string) {
     const [customer, warehouse] = await Promise.all([
@@ -169,6 +176,29 @@ export class ReceiptsService {
     if (!warehouse) throw new BadRequestException('Geçersiz depo');
 
     const recipientId = await this.validateRecipientCustomer(input.recipientCustomerId);
+    const kap = input.kap;
+
+    // QR istendiyse kap bazlı (palet başına etiket), istenmediyse kalem bazlı tek
+    // satır. Tek-granülerlik kuralı: ikisi bir arada çift sayım yapardı.
+    const packages: Prisma.PackageCreateWithoutReceiptInput[] | undefined =
+      kap && kap.makeLabels
+        ? Array.from({ length: kap.count }, () => ({
+            code: `PKG-${randomCode(8)}`,
+            type: packageTypeOf(kap.type),
+          }))
+        : undefined;
+    const lines: Prisma.ReceiptLineCreateWithoutReceiptInput[] | undefined =
+      kap && !kap.makeLabels
+        ? [
+            {
+              sku: '',
+              description: kap.description || trUpper(kap.type),
+              countedQty: kap.count,
+              unit: kap.type,
+              expectedQty: null,
+            },
+          ]
+        : undefined;
 
     const receipt = await this.createWithUniqueRef((reference) =>
       this.prisma.receipt.create({
@@ -181,11 +211,24 @@ export class ReceiptsService {
           waybillNo: input.waybillNo,
           notes: input.notes,
           startedById: userId,
+          lines: lines ? { create: lines } : undefined,
+          packages: packages ? { create: packages } : undefined,
+          discrepancies: input.discrepancy
+            ? {
+                create: {
+                  type: input.discrepancy.type,
+                  description: input.discrepancy.description,
+                  createdById: userId,
+                },
+              }
+            : undefined,
         },
         include: RECEIPT_INCLUDE,
       }),
     );
-    await this.audit('receipt.started', 'Receipt', receipt.id, userId, {});
+    await this.audit('receipt.started', 'Receipt', receipt.id, userId, {
+      kap: kap ? `${kap.count} ${kap.type}${kap.makeLabels ? ' (QR)' : ''}` : null,
+    });
     return serializeReceipt(receipt);
   }
 
@@ -569,6 +612,12 @@ export class ReceiptsService {
       data: { action, entityType, entityId, userId, metadata },
     });
   }
+}
+
+/** Kap ETİKETİNDEN (Palet/Varil…) QR paletinin enum tipini bulur. */
+function packageTypeOf(label: string): PackageType {
+  const hit = Object.entries(PACKAGE_TYPE_LABELS).find(([, v]) => v === label);
+  return (hit?.[0] as PackageType) ?? PackageType.OTHER;
 }
 
 /** Nokta listesinin adreslerini tek satıra toplar (fişteki tek satırlık adres alanı için). */

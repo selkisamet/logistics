@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { RECEIPT_STATUSES, ReceiptStatus, PACKAGE_TYPES, PackageType } from '../enums';
+import {
+  RECEIPT_STATUSES,
+  ReceiptStatus,
+  PACKAGE_TYPES,
+  PackageType,
+  DISCREPANCY_TYPES,
+  DiscrepancyType,
+} from '../enums';
 import { paginationQuerySchema } from './common';
 import { discrepancySchema, attachmentSchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
@@ -74,6 +81,29 @@ export const startReceiptSchema = z.object({
   recipientCustomerId: z.string().optional(), // ALICI — depocu bilmiyorsa boş
   waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su
   notes: upperOpt(),
+
+  // "5 palet geldi" — kayıtla AYNI transaction'da işlenir. Tarayıcıdan arka arkaya
+  // istek zincirlemek yerine buradan gitmesi, yarım kalmış kaydı imkânsız kılar.
+  kap: z
+    .object({
+      /** Kap tipi ETİKETİ (Palet/Varil…) — `KAP_TYPES` değerlerinden. */
+      type: z.string().min(1),
+      count: z.coerce.number().int().positive(),
+      /** Malın cinsi; boşsa kap adı kullanılır (depocu irsaliyeyi okuyunca düzeltir). */
+      description: upperOpt(),
+      /** true → her kap için benzersiz QR etiketi (kap bazlı sevk),
+       *  false → tek kalem satırı (kalem bazlı sevk). Tek-granülerlik kuralı. */
+      makeLabels: z.boolean().optional().default(false),
+    })
+    .optional(),
+
+  /** Teslim alırken görülen hasar/eksik — aracı bekletmeden yazılsın. */
+  discrepancy: z
+    .object({
+      type: z.enum(DISCREPANCY_TYPES as [DiscrepancyType, ...DiscrepancyType[]]),
+      description: upperStr(z.string().min(1, 'Tutanak açıklaması gerekli')),
+    })
+    .optional(),
 });
 export type StartReceiptInput = z.infer<typeof startReceiptSchema>;
 
