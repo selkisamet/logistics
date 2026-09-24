@@ -50,7 +50,7 @@ import {
 import { Icon } from '../components/icons';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
-import { WaybillCamera } from '../components/WaybillCamera';
+import { NativeCamera, WaybillCamera } from '../components/WaybillCamera';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
 
@@ -276,7 +276,10 @@ export function ReceiptCountPage() {
 
       <CollapsibleCard
         title="İrsaliye Görüntüleri"
-        summary={`${receipt.attachments?.length ?? 0} görüntü`}
+        summary={
+          receipt.attachments?.length ? `${receipt.attachments.length} görüntü` : 'foto eklenmedi'
+        }
+        defaultOpen={editable && (receipt.attachments?.length ?? 0) === 0}
       >
         <AttachmentsCard receipt={receipt} editable={editable} />
       </CollapsibleCard>
@@ -823,6 +826,12 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Silinemedi'),
   });
 
+  // APK içinde <input capture> arka kamerayı açtıramıyor ve odaklamıyor (bulanık
+  // foto) — native'de CameraX'li önizlemeye düşeriz, tarayıcıda dosya/kamera
+  // diyaloğu zaten yeterli. Aynı ayrım "İrsaliye No Oku"da da var.
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const native = isNativeApp();
+
   // Tamamlanmış ve hiç görüntü yoksa gizle
   if (!editable && attachments.length === 0) return null;
 
@@ -849,13 +858,25 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
               type="button"
               variant="secondary"
               loading={uploadMut.isPending}
-              onClick={() => fileRef.current?.click()}
+              onClick={() => (native ? setCameraOpen(true) : fileRef.current?.click())}
             >
               <Icon name="camera" className="h-4 w-4" /> Görüntü Ekle
             </Button>
           </>
         )}
       </div>
+      {cameraOpen && (
+        <NativeCamera
+          title="İrsaliye Fotoğrafı"
+          guide="İrsaliyenin tamamı kadrajda olsun"
+          busyLabel="Yükleniyor…"
+          onClose={() => setCameraOpen(false)}
+          onCapture={async (file) => {
+            await uploadMut.mutateAsync([file]);
+            return null;
+          }}
+        />
+      )}
       {attachments.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {attachments.map((a) => (

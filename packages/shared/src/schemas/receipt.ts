@@ -60,18 +60,19 @@ export type ReceiptRecipientInput = z.infer<typeof receiptRecipientInputSchema>;
  * Akış ön ihbarla değil burada başlar: araç depoya gelir, irsaliyesini getirir,
  * depocu kontrol edip malı indirir. Malın geleceği çoğu zaman önceden bilinmiyor.
  *
- * Depocu yalnız fiziksel/belgesel bilgiyi girer. ALICI **opsiyoneldir** — gelen
- * irsaliyede nihai firma her zaman yazmıyor; ofis sonradan tamamlar. Ticari
- * alanlar (para birimi, ödeme tipi, termin...) burada YOK, onlar
- * `updateReceiptCommercialSchema` ile ofis tarafından girilir.
+ * Depocu yalnız BİLDİĞİ şeyi girer. ALICI **opsiyoneldir** — gelen irsaliyede
+ * nihai firma her zaman yazmıyor; ofis sonradan tamamlar.
+ *
+ * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez (ofis
+ * `updateReceiptCommercialSchema` ile girer), **sipariş no**'yu OCR irsaliye
+ * fotoğrafından okuyup Belge Bilgileri'ne (`updateReceiptSchema`) yazar, ticari
+ * alanlar (para birimi, ödeme tipi, termin...) da ofisin işi.
  */
 export const startReceiptSchema = z.object({
   customerId: z.string().min(1, 'Gönderici seçilmeli'),
   warehouseId: z.string().min(1, 'Hedef depo seçilmeli'),
   recipientCustomerId: z.string().optional(), // ALICI — depocu bilmiyorsa boş
-  sources: z.array(receiptSourceInputSchema).optional().default([]), // yükleme yerleri
   waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su
-  orderNo: codeOpt(),
   notes: upperOpt(),
 });
 export type StartReceiptInput = z.infer<typeof startReceiptSchema>;

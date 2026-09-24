@@ -6,16 +6,30 @@ import { ApiError, uploadSingle } from '../lib/api';
 import { OCR_PROFILE } from '../lib/image';
 
 /**
- * Native (Capacitor) kamera: CameraX tabanlı camera-preview eklentisiyle ARKA kamerayı
- * açar (gerçek otomatik odak → net). Tam ekran native önizleme WebView'ın ARKASINDA
- * render edilir; bu yüzden kamera açıkken arka planı şeffaf yaparız. Çekilen foto OCR'a
- * (/ocr/waybill) gider, numara input'a yazılır. Sayfa YENİLENMEZ.
+ * Native (Capacitor) kamera kabuğu: CameraX tabanlı camera-preview eklentisiyle ARKA
+ * kamerayı açar (gerçek otomatik odak → net). Tam ekran native önizleme WebView'ın
+ * ARKASINDA render edilir; bu yüzden kamera açıkken arka planı şeffaf yaparız.
+ * Sayfa YENİLENMEZ.
+ *
+ * Çekilen kareyle ne yapılacağını `onCapture` belirler — iki kullanıcısı var:
+ * irsaliye numarası okuma (OCR) ve mal kabule belge fotoğrafı ekleme. Tarayıcıda
+ * `<input capture>` yeterli, ama APK içinde arka kamerayı açtıramıyor ve
+ * odaklamıyor; bu kabuk tam o yüzden yazıldı.
  */
-export function WaybillCamera({
-  onResult,
+export function NativeCamera({
+  title,
+  guide,
+  busyLabel,
+  onCapture,
   onClose,
 }: {
-  onResult: (res: WaybillExtraction) => void;
+  title: string;
+  /** Ortadaki yönlendirme yazısı. */
+  guide: string;
+  /** Çekim sonrası bekleme yazısı. */
+  busyLabel: string;
+  /** Kareyi işler. Gösterilecek bir uyarı dönerse kamera AÇIK kalır; null dönerse kapanır. */
+  onCapture: (file: File) => Promise<string | null>;
   onClose: () => void;
 }) {
   const [ready, setReady] = useState(false);
@@ -65,15 +79,11 @@ export function WaybillCamera({
       const shot = await CameraPreview.capture({ quality: 90 });
       const blob = await (await fetch(`data:image/jpeg;base64,${shot.value}`)).blob();
       const file = new File([blob], 'irsaliye.jpg', { type: 'image/jpeg' });
-      const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE);
-      if (res.waybillNo || res.orderNo) {
-        onResult(res);
-        onClose();
-      } else {
-        setHint('Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.');
-      }
+      const warn = await onCapture(file);
+      if (warn) setHint(warn);
+      else onClose();
     } catch (err) {
-      setHint(err instanceof ApiError ? err.message : 'Okunamadı, tekrar deneyin.');
+      setHint(err instanceof ApiError ? err.message : 'İşlenemedi, tekrar deneyin.');
     } finally {
       setBusy(false);
     }
@@ -85,7 +95,7 @@ export function WaybillCamera({
     <div className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] flex-col">
       {/* Üst: başlık + belirgin yuvarlak kapatma */}
       <div className="flex shrink-0 items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-4 text-white">
-        <span className="mt-1 font-semibold drop-shadow">İrsaliye Numarasını Oku</span>
+        <span className="mt-1 font-semibold drop-shadow">{title}</span>
         <button
           onClick={onClose}
           aria-label="Kapat"
@@ -99,7 +109,7 @@ export function WaybillCamera({
       <div className="relative min-h-0 flex-1">
         {ready && !busy && (
           <div className="pointer-events-none absolute inset-x-0 top-2 px-6 text-center text-sm text-white/90 drop-shadow">
-            İrsaliye No'yu ortala, net olunca çek
+            {guide}
           </div>
         )}
         {!ready && !hint && (
@@ -111,7 +121,7 @@ export function WaybillCamera({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3 rounded-2xl bg-black/65 px-7 py-5 text-white">
               <span className="h-11 w-11 animate-spin rounded-full border-4 border-white/25 border-t-white" />
-              <span className="text-sm">Okunuyor…</span>
+              <span className="text-sm">{busyLabel}</span>
             </div>
           </div>
         )}
@@ -133,5 +143,34 @@ export function WaybillCamera({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * İrsaliye numarası okuyucu — kareyi OCR'a gönderir, numara input'a yazılır.
+ * Numara okunamazsa kamera açık kalır ki kullanıcı hemen tekrar çekebilsin.
+ */
+export function WaybillCamera({
+  onResult,
+  onClose,
+}: {
+  onResult: (res: WaybillExtraction) => void;
+  onClose: () => void;
+}) {
+  return (
+    <NativeCamera
+      title="İrsaliye Numarasını Oku"
+      guide="İrsaliye No'yu ortala, net olunca çek"
+      busyLabel="Okunuyor…"
+      onClose={onClose}
+      onCapture={async (file) => {
+        const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE);
+        if (!res.waybillNo && !res.orderNo) {
+          return 'Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.';
+        }
+        onResult(res);
+        return null;
+      }}
+    />
   );
 }

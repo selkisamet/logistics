@@ -157,7 +157,8 @@ export class ReceiptsService {
    * Araç depoya gelir, irsaliyesini getirir, depocu kontrol edip malı indirir.
    * Ön ihbar YOK: malın geleceği çoğu zaman önceden bilinmiyor. ALICI opsiyonel,
    * çünkü gelen irsaliyede nihai firma her zaman yazmıyor — ofis sonradan
-   * `updateCommercial` ile tamamlar.
+   * `updateCommercial` ile tamamlar. Yükleme yeri de orada girilir: depocu
+   * malın nereden yüklendiğini bilmez.
    */
   async start(input: StartReceiptInput, userId: string) {
     const [customer, warehouse] = await Promise.all([
@@ -168,7 +169,6 @@ export class ReceiptsService {
     if (!warehouse) throw new BadRequestException('Geçersiz depo');
 
     const recipientId = await this.validateRecipientCustomer(input.recipientCustomerId);
-    const sources = await this.validateSources(customer.id, input.sources);
 
     const receipt = await this.createWithUniqueRef((reference) =>
       this.prisma.receipt.create({
@@ -179,10 +179,8 @@ export class ReceiptsService {
           warehouseId: warehouse.id,
           recipientCustomerId: recipientId,
           waybillNo: input.waybillNo,
-          orderNo: input.orderNo,
           notes: input.notes,
           startedById: userId,
-          sources: { create: sources },
         },
         include: RECEIPT_INCLUDE,
       }),
