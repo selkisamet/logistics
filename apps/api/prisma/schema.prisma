@@ -96,6 +96,8 @@ model Customer {
   shipments          InboundShipment[]   @relation("ShipmentSender")
   recipientShipments InboundShipment[]   @relation("ShipmentRecipient")
   receipts           Receipt[]
+  // Mal kabuldeki ALICI (akış ön ihbardan mal kabule taşındı)
+  recipientReceipts  Receipt[]           @relation("ReceiptRecipient")
   sourceLocations    CustomerLocation[]
   recipients         CustomerRecipient[]
   contacts           CustomerContact[]
@@ -129,6 +131,8 @@ model CustomerLocation {
 
   shipmentSources            ShipmentSource[]
   shipmentRecipientLocations ShipmentRecipient[]
+  receiptSources             ReceiptSource[]
+  receiptRecipientLocations  ReceiptRecipient[]
   dispatchStops              DispatchStop[]
 
   @@index([customerId])
@@ -161,8 +165,9 @@ model Warehouse {
   locations Location[]
   shipments InboundShipment[]
   receipts  Receipt[]
-  // Ön ihbarda "yükleme yeri" olarak bizim depomuz seçilebilir (müşterinin deposu yerine)
+  // "Yükleme yeri" olarak bizim depomuz seçilebilir (müşterinin deposu yerine)
   shipmentSources ShipmentSource[]
+  receiptSources  ReceiptSource[]
 }
 
 model Location {
@@ -226,6 +231,8 @@ model Vehicle {
   updatedAt    DateTime    @updatedAt
 
   shipments  InboundShipment[]
+  // "Bu yük şu araca gidecek" planı — ön ihbardan mal kabule taşındı
+  plannedReceipts Receipt[] @relation("ReceiptPlannedVehicle")
   dispatches Dispatch[]
 }
 
@@ -282,13 +289,29 @@ model Receipt {
   id          String        @id @default(cuid())
   reference   String        @unique
   status      ReceiptStatus @default(IN_PROGRESS)
+  // DORMANT: ön ihbar akışı kaldırıldı, yeni kabuller shipment'sız açılır.
+  // Kolon eski kayıtların izlenebilirliği için duruyor (veri InboundShipment'tan
+  // buraya KOPYALANDI, kaynak silinmedi).
   shipmentId  String?
   shipment    InboundShipment? @relation(fields: [shipmentId], references: [id])
-  customerId  String
+  customerId  String // GÖNDERİCİ (malın sahibi)
   customer    Customer      @relation(fields: [customerId], references: [id])
   warehouseId String
   warehouse   Warehouse     @relation(fields: [warehouseId], references: [id])
   notes       String?
+
+  // --- Ticari/taraf bilgileri: eskiden InboundShipment'taydı, akış mal kabulle
+  // başladığı için buraya taşındı. Depocu yalnız alıcıyı görür (o da opsiyonel —
+  // gelen irsaliyede nihai firma yazmayabiliyor); gerisini ofis sonradan girer.
+  recipientCustomerId String? // ALICI = kayıtlı Müşteri; lokasyonları boşaltma yeri olur
+  recipientCustomer   Customer? @relation("ReceiptRecipient", fields: [recipientCustomerId], references: [id])
+  plannedVehicleId    String? // "bu yük şu araca gidecek" planı
+  plannedVehicle      Vehicle?  @relation("ReceiptPlannedVehicle", fields: [plannedVehicleId], references: [id])
+  deliveryBy          DateTime? // SON TESLİM (termin) — depoda önceliklendirme
+  currency            String    @default("TRY") // birim fiyatların para birimi
+  paymentType         String? // 'SENDER' | 'RECIPIENT'
+  showAmountOnSlip    Boolean   @default(false) // gönderici ödemeliyken ücret fişte görünsün mü
+  vatIncluded         Boolean   @default(false) // girilen birim fiyatlar KDV dahil mi
   waybillNo   String? // irsaliye numarası (elle girilir)
   orderNo     String? // sipariş numarası (irsaliyede yer alır, elle girilir)
   startedById String?
@@ -308,9 +331,44 @@ model Receipt {
   discrepancies Discrepancy[]
   dispatchItems DispatchItem[]
   attachments   Attachment[] // irsaliye/belge görüntüleri (foto)
+  sources       ReceiptSource[] // yükleme yerleri (çoklu)
+  recipients    ReceiptRecipient[] // boşaltma yerleri
 
   @@index([dispatchId])
   @@index([stopId])
+  @@index([recipientCustomerId])
+  @@index([plannedVehicleId])
+}
+
+// Bir mal kabulün yükleme yerleri (çoklu). ShipmentSource'un aynısı — akış
+// ön ihbardan mal kabule taşınınca bu tablo onun yerini aldı.
+model ReceiptSource {
+  id                 String            @id @default(cuid())
+  receiptId          String
+  receipt            Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  // Kaynak ÜÇ türden biri: göndericinin lokasyonu, BİZİM depomuz, ya da serbest
+  // metin (ikisi de null). İkisi birden dolu olamaz.
+  customerLocationId String?
+  customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  warehouseId        String?
+  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id])
+  label              String // görünen ad (kayıtlı yerin adı kopyası veya elle girilen metin)
+  address            String? // adres kopyası (fişte yükleme noktası)
+
+  @@index([receiptId])
+}
+
+// Bir mal kabulün boşaltma yeri. ShipmentRecipient'ın aynısı.
+model ReceiptRecipient {
+  id                 String            @id @default(cuid())
+  receiptId          String
+  receipt            Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  customerLocationId String? // alıcı müşterinin boşaltma lokasyonu
+  customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
+  label              String // görünen ad (lokasyon adı kopyası veya elle girilen metin)
+  address            String? // lokasyon adres kopyası (fişte boşaltma noktası)
+
+  @@index([receiptId])
 }
 
 // Sevkiyat (çıkış) — depodaki kabulleri araca yükleyip çıkış

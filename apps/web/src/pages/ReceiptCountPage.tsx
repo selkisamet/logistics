@@ -12,6 +12,8 @@ import {
   PACKAGE_TYPES,
   DISCREPANCY_TYPE_LABELS,
   VAT_RATE,
+  CURRENCIES,
+  CURRENCY_LABELS,
   CURRENCY_SYMBOLS,
   trUpper,
   type Currency,
@@ -24,6 +26,8 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadFiles, uploadSingle } from '../lib/api';
 import { OCR_PROFILE } from '../lib/image';
+import { useAuthStore } from '../stores/auth';
+import { useCustomerLocations, useCustomers, useVehicles, useWarehouses } from '../lib/lookups';
 import { isNativeApp } from '../lib/config';
 import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/format';
 import { COMPANY } from '../lib/company';
@@ -37,9 +41,11 @@ import {
   Combobox,
   Field,
   Input,
+  MultiCombobox,
   RowAction,
   Select,
   Spinner,
+  type ComboOption,
 } from '../components/ui';
 import { Icon } from '../components/icons';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
@@ -47,6 +53,9 @@ import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { WaybillCamera } from '../components/WaybillCamera';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
+
+/** Kendi depolarımızın değer öneki — müşteri lokasyonu id'siyle karışmasın (ikisi de cuid). */
+const WH_PREFIX = 'wh:';
 
 /** Fişteki KAP hücresi: kalemin nev'i. Enum geldiyse (eski/otomatik kayıt) etikete çevir,
  *  ham 'ADET' değerini okunur yaz, boşsa hücre boş kalsın (elle doldurulur). */
@@ -61,6 +70,7 @@ export function ReceiptCountPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const role = useAuthStore((s) => s.user?.role);
   const [addOpen, setAddOpen] = useState(false);
   const [prefill, setPrefill] = useState<{
     sku?: string;
@@ -97,7 +107,6 @@ export function ReceiptCountPage() {
     onSuccess: (r) => {
       setReceipt(r);
       qc.invalidateQueries({ queryKey: ['receipts'] });
-      qc.invalidateQueries({ queryKey: ['asn'] });
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Tamamlanamadı'),
   });
@@ -106,8 +115,7 @@ export function ReceiptCountPage() {
     mutationFn: () => api.post<Receipt>(`/receipts/${id}/cancel`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['receipts'] });
-      qc.invalidateQueries({ queryKey: ['asn'] });
-      toast('Mal kabul iptal edildi; ön ihbar tekrar düzenlenebilir.');
+      toast('Mal kabul iptal edildi.');
       navigate('/mal-kabul', { replace: true });
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'İptal edilemedi'),
@@ -118,7 +126,6 @@ export function ReceiptCountPage() {
     onSuccess: (r) => {
       setReceipt(r);
       qc.invalidateQueries({ queryKey: ['receipts'] });
-      qc.invalidateQueries({ queryKey: ['asn'] });
       toast('Mal kabul geri açıldı; düzenleyebilirsiniz.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Geri açılamadı'),
@@ -143,6 +150,8 @@ export function ReceiptCountPage() {
   if (!receipt) return <p className="text-slate-500">Kayıt bulunamadı.</p>;
 
   const editable = receipt.status === 'IN_PROGRESS';
+  // Ticari alanlar ofisin işi; uç da @Roles(ADMIN, SUPERVISOR) ile kısıtlı
+  const isOffice = role === 'ADMIN' || role === 'SUPERVISOR';
   const dispatched =
     receipt.dispatchId != null ||
     (receipt.packages ?? []).some((p) => p.dispatchId || p.dispatchedAt);
@@ -177,7 +186,7 @@ export function ReceiptCountPage() {
             <h2 className="text-lg font-bold text-slate-900">{receipt.reference}</h2>
             <p className="text-xs text-slate-500">
               {receipt.customer?.name}
-              {receipt.asnReference ? ` · Öİ: ${receipt.asnReference}` : ' · Kör kabul'}
+              {receipt.recipientCustomer ? ` → ${receipt.recipientCustomer.name}` : ''}
             </p>
           </div>
           <ReceiptStatusBadge status={receipt.status} />
@@ -249,6 +258,21 @@ export function ReceiptCountPage() {
           editable={editable}
         />
       </CollapsibleCard>
+
+      {/* Ticari/taraf bilgileri — depocu değil OFİS doldurur, o yüzden yalnız
+          yönetici/şef görür. Depocunun ekranı sade kalsın. */}
+      {isOffice && (
+        <CollapsibleCard
+          title="Ticari Bilgiler"
+          summary={
+            receipt.recipientCustomer?.name ??
+            (receipt.recipients?.[0]?.label || 'alıcı girilmedi')
+          }
+          defaultOpen={!receipt.recipientCustomerId}
+        >
+          <CommercialEditor receipt={receipt} />
+        </CollapsibleCard>
+      )}
 
       <CollapsibleCard
         title="İrsaliye Görüntüleri"
@@ -476,6 +500,189 @@ export function ReceiptCountPage() {
           onClose={() => setDiscrepancyFor(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Ticari/taraf bilgileri — OFİS doldurur (yönetici/şef).
+ *
+ * Bu alanlar eskiden ön ihbardaydı. Akış mal kabulle başladığı için buraya
+ * taşındı: depocu malı indirirken yalnız gönderici/alıcı/kalem girer, fiyat ve
+ * ödeme şartlarını ofis sonradan tamamlar. Alıcı burada da doldurulabilir —
+ * gelen irsaliyede nihai firma her zaman yazmıyor.
+ */
+function CommercialEditor({ receipt }: { receipt: Receipt }) {
+  const qc = useQueryClient();
+  const { data: customers } = useCustomers();
+  const { data: warehouses } = useWarehouses();
+  const { data: vehicles } = useVehicles();
+
+  const [recipientId, setRecipientId] = useState(receipt.recipientCustomerId ?? '');
+  const [vehicleId, setVehicleId] = useState(receipt.plannedVehicleId ?? '');
+  const [deliveryBy, setDeliveryBy] = useState(receipt.deliveryBy?.slice(0, 10) ?? '');
+  const [currency, setCurrency] = useState<Currency>(receipt.currency ?? 'TRY');
+  const [paymentType, setPaymentType] = useState<'SENDER' | 'RECIPIENT'>(
+    receipt.paymentType ?? 'SENDER',
+  );
+  const [vatIncluded, setVatIncluded] = useState(receipt.vatIncluded ?? false);
+  const [showAmount, setShowAmount] = useState(receipt.showAmountOnSlip ?? false);
+
+  const toOption = (p: { customerLocationId?: string | null; warehouseId?: string | null; label: string }, i: number) => ({
+    value: p.warehouseId ? `${WH_PREFIX}${p.warehouseId}` : (p.customerLocationId ?? `__ft_${i}`),
+    label: p.label,
+  });
+  const [sourceSel, setSourceSel] = useState<ComboOption[]>(
+    (receipt.sources ?? []).map(toOption),
+  );
+  const [dropSel, setDropSel] = useState<ComboOption[]>((receipt.recipients ?? []).map(toOption));
+
+  // Yükleme yeri göndericinin, boşaltma yeri ALICININ lokasyonlarından seçilir
+  const { data: srcLocations } = useCustomerLocations(receipt.customerId);
+  const { data: dropLocations } = useCustomerLocations(recipientId || undefined);
+
+  const mut = useMutation({
+    mutationFn: () =>
+      api.patch<Receipt>(`/receipts/${receipt.id}/commercial`, {
+        recipientCustomerId: recipientId || null,
+        plannedVehicleId: vehicleId || null,
+        deliveryBy: deliveryBy || null,
+        currency,
+        paymentType,
+        vatIncluded,
+        showAmountOnSlip: showAmount,
+        sources: sourceSel.map((o) =>
+          o.value.startsWith(WH_PREFIX)
+            ? { warehouseId: o.value.slice(WH_PREFIX.length), label: o.label }
+            : { customerLocationId: o.value.startsWith('__ft_') ? undefined : o.value, label: o.label },
+        ),
+        recipients: dropSel.map((o) => ({
+          customerLocationId: o.value.startsWith('__ft_') ? undefined : o.value,
+          label: o.label,
+        })),
+      }),
+    onSuccess: (r) => {
+      qc.setQueryData(['receipts', receipt.id], r);
+      toast('Ticari bilgiler kaydedildi');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
+  });
+
+  const customerOptions = (customers ?? []).map((c) => ({
+    value: c.id,
+    label: c.name,
+    hint: `(${c.code})`,
+  }));
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Alıcı">
+          <Combobox
+            options={customerOptions}
+            value={recipientId}
+            onChange={(v) => {
+              setRecipientId(v);
+              setDropSel([]); // boşaltma yerleri alıcıya bağlı
+            }}
+            nullable
+            nullableLabel="Bilinmiyor"
+            placeholder="Alıcı ara / seç..."
+          />
+        </Field>
+        <div className="space-y-1">
+          <span className="text-sm font-medium text-slate-700">Boşaltma Yeri</span>
+          <MultiCombobox
+            options={(dropLocations ?? []).map((l) => ({ value: l.id, label: l.name }))}
+            value={dropSel}
+            onChange={(v) => setDropSel(v.slice(-1))} // tek nokta: bir kabul tek yere iner
+            disabled={!recipientId}
+            placeholder={recipientId ? 'Boşaltma yeri seç…' : 'Önce alıcı seçin'}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
+        <MultiCombobox
+          options={[
+            ...(srcLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
+            ...(warehouses ?? []).map((w) => ({
+              value: `${WH_PREFIX}${w.id}`,
+              label: w.name,
+              hint: '· bizim depomuz',
+            })),
+          ]}
+          value={sourceSel}
+          onChange={setSourceSel}
+          placeholder="Yükleme yeri seç…"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Planlanan Araç">
+          <Combobox
+            options={(vehicles ?? []).map((v) => ({ value: v.id, label: v.plate }))}
+            value={vehicleId}
+            onChange={setVehicleId}
+            nullable
+            nullableLabel="Belirsiz"
+            placeholder="Plaka seç..."
+          />
+        </Field>
+        <Field label="Son Teslim (Termin)">
+          <Input type="date" value={deliveryBy} onChange={(e) => setDeliveryBy(e.target.value)} />
+        </Field>
+        <Field label="Para Birimi">
+          <Select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {CURRENCY_LABELS[c]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        {/* Gönderici ödemeli solda ve varsayılan */}
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={paymentType === 'SENDER'}
+            onChange={() => setPaymentType('SENDER')}
+          />
+          Gönderici ödemeli
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={paymentType === 'RECIPIENT'}
+            onChange={() => setPaymentType('RECIPIENT')}
+          />
+          Alıcı ödemeli
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={vatIncluded}
+            onChange={(e) => setVatIncluded(e.target.checked)}
+          />
+          Fiyatlar KDV dahil
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={showAmount}
+            onChange={(e) => setShowAmount(e.target.checked)}
+          />
+          Fişte ücret görünsün
+        </label>
+      </div>
+
+      <Button className="w-full" loading={mut.isPending} onClick={() => mut.mutate()}>
+        Kaydet
+      </Button>
     </div>
   );
 }

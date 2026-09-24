@@ -9,7 +9,10 @@ import {
   ShipmentStatus,
   type CreatePackageInput,
   type ReceiptListQuery,
+  type ReceiptRecipientInput,
+  type ReceiptSourceInput,
   type StartReceiptInput,
+  type UpdateReceiptCommercialInput,
   type UpsertReceiptLineInput,
 } from '@lojistik/shared';
 
@@ -27,33 +30,26 @@ const RECEIPT_INCLUDE = {
     },
   },
   warehouse: { select: { id: true, name: true, code: true } },
-  shipment: {
+  // Ticari/taraf bilgileri artık MAL KABULÜN kendisinde (akış ön ihbardan buraya taşındı).
+  // `shipment` yalnız eski kayıtların referansını göstermek için duruyor.
+  shipment: { select: { reference: true } },
+  plannedVehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
+  recipientCustomer: {
     select: {
-      reference: true,
-      deliveryBy: true, // termin — fiş/depo ekranında gösterilir
-      vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
-      loadAddress: true,
-      deliveryAddress: true,
-      paymentType: true,
-      showAmountOnSlip: true,
-      vatIncluded: true,
-      currency: true,
-      recipientCustomer: {
-        select: {
-          id: true,
-          name: true,
-          legalName: true, // belgelerde basılan tam ünvan
-          code: true,
-          address: true,
-          phone: true,
-          taxOffice: true,
-          taxNumber: true,
-        },
-      },
-      sources: { select: { label: true, address: true } },
-      recipients: { select: { label: true, address: true } },
+      id: true,
+      name: true,
+      legalName: true, // belgelerde basılan tam ünvan
+      code: true,
+      address: true,
+      phone: true,
+      taxOffice: true,
+      taxNumber: true,
     },
   },
+  sources: {
+    select: { id: true, customerLocationId: true, warehouseId: true, label: true, address: true },
+  },
+  recipients: { select: { id: true, customerLocationId: true, label: true, address: true } },
   lines: { orderBy: { createdAt: 'asc' } as const },
   packages: { orderBy: { createdAt: 'desc' } as const },
   discrepancies: {
@@ -142,7 +138,7 @@ export class ReceiptsService {
         include: RECEIPT_INCLUDE,
         // Önce TERMİNİ yakın olan (Postgres ASC'te NULL'lar sona düşer → terminsizler altta),
         // termin eşitse/yoksa en uzun bekleyen üstte.
-        orderBy: [{ shipment: { deliveryBy: 'asc' } }, { completedAt: 'asc' }],
+        orderBy: [{ deliveryBy: 'asc' }, { completedAt: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -155,17 +151,24 @@ export class ReceiptsService {
     return serializeReceipt(await this.getOrThrow(id));
   }
 
+  /**
+   * Mal kabul başlatma — uygulamanın GİRİŞ NOKTASI.
+   *
+   * Araç depoya gelir, irsaliyesini getirir, depocu kontrol edip malı indirir.
+   * Ön ihbar YOK: malın geleceği çoğu zaman önceden bilinmiyor. ALICI opsiyonel,
+   * çünkü gelen irsaliyede nihai firma her zaman yazmıyor — ofis sonradan
+   * `updateCommercial` ile tamamlar.
+   */
   async start(input: StartReceiptInput, userId: string) {
-    if (input.asnId) {
-      return this.startFromAsn(input.asnId, userId, input.notes);
-    }
-    // Kör kabul (blind)
     const [customer, warehouse] = await Promise.all([
-      this.prisma.customer.findUnique({ where: { id: input.customerId! } }),
-      this.prisma.warehouse.findUnique({ where: { id: input.warehouseId! } }),
+      this.prisma.customer.findUnique({ where: { id: input.customerId } }),
+      this.prisma.warehouse.findUnique({ where: { id: input.warehouseId } }),
     ]);
-    if (!customer) throw new BadRequestException('Geçersiz müşteri');
+    if (!customer) throw new BadRequestException('Geçersiz gönderici');
     if (!warehouse) throw new BadRequestException('Geçersiz depo');
+
+    const recipientId = await this.validateRecipientCustomer(input.recipientCustomerId);
+    const sources = await this.validateSources(customer.id, input.sources);
 
     const receipt = await this.createWithUniqueRef((reference) =>
       this.prisma.receipt.create({
@@ -174,69 +177,154 @@ export class ReceiptsService {
           status: ReceiptStatus.IN_PROGRESS,
           customerId: customer.id,
           warehouseId: warehouse.id,
+          recipientCustomerId: recipientId,
+          waybillNo: input.waybillNo,
+          orderNo: input.orderNo,
           notes: input.notes,
           startedById: userId,
+          sources: { create: sources },
         },
         include: RECEIPT_INCLUDE,
       }),
     );
-    await this.audit('receipt.started', 'Receipt', receipt.id, userId, { mode: 'blind' });
+    await this.audit('receipt.started', 'Receipt', receipt.id, userId, {});
     return serializeReceipt(receipt);
   }
 
-  private async startFromAsn(asnId: string, userId: string, notes?: string) {
-    const shipment = await this.prisma.inboundShipment.findUnique({
-      where: { id: asnId },
-      include: { lines: true },
-    });
-    if (!shipment) throw new NotFoundException('Ön ihbar bulunamadı');
-    if (shipment.status === ShipmentStatus.COMPLETED || shipment.status === ShipmentStatus.CANCELLED) {
-      throw new BadRequestException('Bu ön ihbar için mal kabul yapılamaz');
-    }
+  /**
+   * Ticari/taraf bilgileri — OFİS doldurur (yönetici/şef).
+   * Yalnız gönderilen alanlar değişir; `undefined` = dokunma, `null` = temizle.
+   */
+  async updateCommercial(id: string, input: UpdateReceiptCommercialInput, userId: string) {
+    const receipt = await this.getOrThrow(id);
 
-    // Devam eden bir kabul varsa onu sürdür
-    const existing = await this.prisma.receipt.findFirst({
-      where: { shipmentId: asnId, status: ReceiptStatus.IN_PROGRESS },
-      include: RECEIPT_INCLUDE,
-    });
-    if (existing) return serializeReceipt(existing);
+    const recipientId =
+      input.recipientCustomerId === undefined
+        ? undefined
+        : await this.validateRecipientCustomer(input.recipientCustomerId ?? undefined);
 
-    const receipt = await this.createWithUniqueRef((reference) =>
-      this.prisma.$transaction(async (tx) => {
-        const created = await tx.receipt.create({
-          data: {
-            reference,
-            status: ReceiptStatus.IN_PROGRESS,
-            shipmentId: shipment.id,
-            customerId: shipment.customerId,
-            warehouseId: shipment.warehouseId,
-            notes,
-            startedById: userId,
-            lines: {
-              create: shipment.lines.map((l) => ({
-                sku: l.sku,
-                description: l.description,
-                expectedQty: l.expectedQty,
-                countedQty: 0,
-                unit: l.unit,
-                barcode: l.barcode,
-                unitPrice: l.unitPrice,
-                weightKg: l.weightKg,
-                shipmentLineId: l.id,
-              })),
-            },
-          },
-          include: RECEIPT_INCLUDE,
+    const sources =
+      input.sources === undefined
+        ? undefined
+        : await this.validateSources(receipt.customerId, input.sources);
+    const recipients =
+      input.recipients === undefined
+        ? undefined
+        : await this.validateRecipients(
+            input.recipientCustomerId === undefined
+              ? receipt.recipientCustomerId
+              : (input.recipientCustomerId ?? null),
+            input.recipients,
+          );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.receipt.update({
+        where: { id },
+        data: {
+          recipientCustomerId: recipientId === undefined ? undefined : recipientId,
+          plannedVehicleId:
+            input.plannedVehicleId === undefined ? undefined : (input.plannedVehicleId ?? null),
+          deliveryBy:
+            input.deliveryBy === undefined
+              ? undefined
+              : input.deliveryBy
+                ? new Date(input.deliveryBy)
+                : null,
+          currency: input.currency,
+          paymentType: input.paymentType === undefined ? undefined : (input.paymentType ?? null),
+          showAmountOnSlip: input.showAmountOnSlip,
+          vatIncluded: input.vatIncluded,
+        },
+      });
+      // Nokta listeleri verildiyse TAMAMI değişir (ön ihbardaki desenin aynısı)
+      if (sources) {
+        await tx.receiptSource.deleteMany({ where: { receiptId: id } });
+        await tx.receiptSource.createMany({ data: sources.map((s) => ({ ...s, receiptId: id })) });
+      }
+      if (recipients) {
+        await tx.receiptRecipient.deleteMany({ where: { receiptId: id } });
+        await tx.receiptRecipient.createMany({
+          data: recipients.map((r) => ({ ...r, receiptId: id })),
         });
-        await tx.inboundShipment.update({
-          where: { id: shipment.id },
-          data: { status: ShipmentStatus.IN_RECEIVING },
-        });
-        return created;
-      }),
-    );
-    await this.audit('receipt.started', 'Receipt', receipt.id, userId, { mode: 'asn', asnId });
-    return serializeReceipt(receipt);
+      }
+    });
+
+    await this.audit('receipt.commercial_updated', 'Receipt', id, userId, {});
+    return this.findOne(id);
+  }
+
+  /** Alıcı = kayıtlı Müşteri. Boş geçilebilir (depocu bilmeyebilir). */
+  private async validateRecipientCustomer(id?: string): Promise<string | null> {
+    if (!id) return null;
+    const found = await this.prisma.customer.findUnique({ where: { id } });
+    if (!found) throw new BadRequestException('Geçersiz alıcı seçimi');
+    return found.id;
+  }
+
+  /**
+   * Yükleme yerlerini doğrular; kayıtlı bir yer seçildiyse etiket+adres o kayıttan
+   * sabitlenir (kayıt sonradan değişse de belge sabit kalsın). Yükleme yeri
+   * göndericinin deposu olabileceği gibi BİZİM depomuz da olabilir.
+   */
+  private async validateSources(customerId: string, sources: ReceiptSourceInput[] | undefined) {
+    if (!sources || sources.length === 0) return [];
+
+    const locIds = sources.map((s) => s.customerLocationId).filter((x): x is string => !!x);
+    const locations = locIds.length
+      ? await this.prisma.customerLocation.findMany({ where: { id: { in: locIds }, customerId } })
+      : [];
+    const byId = new Map(locations.map((l) => [l.id, l]));
+
+    const whIds = sources.map((s) => s.warehouseId).filter((x): x is string => !!x);
+    const warehouses = whIds.length
+      ? await this.prisma.warehouse.findMany({ where: { id: { in: whIds } } })
+      : [];
+    const whById = new Map(warehouses.map((w) => [w.id, w]));
+
+    return sources.map((s) => {
+      if (s.customerLocationId) {
+        const loc = byId.get(s.customerLocationId);
+        if (!loc) throw new BadRequestException('Geçersiz yükleme yeri seçimi');
+        return {
+          customerLocationId: loc.id,
+          warehouseId: null,
+          label: loc.name,
+          address: loc.address,
+        };
+      }
+      if (s.warehouseId) {
+        const wh = whById.get(s.warehouseId);
+        if (!wh) throw new BadRequestException('Geçersiz depo seçimi');
+        return { customerLocationId: null, warehouseId: wh.id, label: wh.name, address: wh.address };
+      }
+      return { customerLocationId: null, warehouseId: null, label: s.label, address: null };
+    });
+  }
+
+  /** Boşaltma yerleri — alıcı müşterinin lokasyonları ya da serbest metin. */
+  private async validateRecipients(
+    recipientCustomerId: string | null,
+    recipients: ReceiptRecipientInput[] | undefined,
+  ) {
+    if (!recipients || recipients.length === 0) return [];
+
+    const ids = recipients.map((r) => r.customerLocationId).filter((x): x is string => !!x);
+    const locations =
+      ids.length && recipientCustomerId
+        ? await this.prisma.customerLocation.findMany({
+            where: { id: { in: ids }, customerId: recipientCustomerId },
+          })
+        : [];
+    const byId = new Map(locations.map((l) => [l.id, l]));
+
+    return recipients.map((r) => {
+      if (r.customerLocationId) {
+        const loc = byId.get(r.customerLocationId);
+        if (!loc) throw new BadRequestException('Geçersiz boşaltma yeri seçimi');
+        return { customerLocationId: loc.id, label: loc.name, address: loc.address };
+      }
+      return { customerLocationId: null, label: r.label, address: null };
+    });
   }
 
   async update(id: string, input: { waybillNo?: string; orderNo?: string; notes?: string }) {
@@ -485,14 +573,22 @@ export class ReceiptsService {
   }
 }
 
+/** Nokta listesinin adreslerini tek satıra toplar (fişteki tek satırlık adres alanı için). */
+function joinAddresses(arr: { address: string | null }[]): string | null {
+  const addrs = arr.map((x) => x.address).filter((a): a is string => !!a);
+  return addrs.length ? Array.from(new Set(addrs)).join(' / ') : null;
+}
+
 function serializeReceipt(r: ReceiptWithRelations) {
   return {
     id: r.id,
     reference: r.reference,
     status: r.status,
+    // DORMANT: ön ihbar akışı kaldırıldı; yeni kabullerde null
     asnId: r.shipmentId,
     asnReference: r.shipment?.reference ?? null,
-    plannedVehicle: r.shipment?.vehicle ?? null,
+    plannedVehicleId: r.plannedVehicleId,
+    plannedVehicle: r.plannedVehicle,
     customerId: r.customerId,
     customer: r.customer,
     warehouseId: r.warehouseId,
@@ -500,20 +596,20 @@ function serializeReceipt(r: ReceiptWithRelations) {
     notes: r.notes,
     waybillNo: r.waybillNo,
     orderNo: r.orderNo,
-    deliveryBy: r.shipment?.deliveryBy ?? null,
+    deliveryBy: r.deliveryBy,
     dispatchId: r.dispatchId,
     dispatchedAt: r.dispatchedAt,
-    // Ön ihbardan taşınan taraf/adres/ödeme bilgileri (fiş için)
-    loadAddress: r.shipment?.loadAddress ?? null,
-    deliveryAddress: r.shipment?.deliveryAddress ?? null,
-    paymentType: (r.shipment?.paymentType ?? null) as 'SENDER' | 'RECIPIENT' | null,
-    showAmountOnSlip: r.shipment?.showAmountOnSlip ?? false,
-    vatIncluded: r.shipment?.vatIncluded ?? false,
-    currency: (r.shipment?.currency ?? 'TRY') as 'TRY' | 'USD' | 'EUR' | 'GBP',
-    recipientCustomer: r.shipment?.recipientCustomer ?? null,
-    sources: r.shipment?.sources?.map((s) => ({ label: s.label, address: s.address })) ?? [],
-    recipients:
-      r.shipment?.recipients?.map((rec) => ({ label: rec.label, address: rec.address })) ?? [],
+    // Taraf/adres/ödeme bilgileri (fiş için) — ofis doldurur
+    loadAddress: joinAddresses(r.sources),
+    deliveryAddress: joinAddresses(r.recipients),
+    paymentType: r.paymentType as 'SENDER' | 'RECIPIENT' | null,
+    showAmountOnSlip: r.showAmountOnSlip,
+    vatIncluded: r.vatIncluded,
+    currency: r.currency as 'TRY' | 'USD' | 'EUR' | 'GBP',
+    recipientCustomerId: r.recipientCustomerId,
+    recipientCustomer: r.recipientCustomer,
+    sources: r.sources,
+    recipients: r.recipients,
     startedById: r.startedById,
     startedAt: r.startedAt,
     completedAt: r.completedAt,

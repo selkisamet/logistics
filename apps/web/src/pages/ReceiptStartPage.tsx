@@ -1,31 +1,91 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clsx } from 'clsx';
-import type { Asn, Paginated, Receipt, StartReceiptInput } from '@lojistik/shared';
-import { Icon } from '../components/icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { CustomerLocation, Receipt, StartReceiptInput } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
-import { formatDate } from '../lib/format';
-import { Button, Card, Combobox, EmptyState, Field, Spinner } from '../components/ui';
-import { useCustomers, useWarehouses } from '../lib/lookups';
+import {
+  Button,
+  Card,
+  Combobox,
+  Field,
+  Input,
+  MultiCombobox,
+  type ComboOption,
+} from '../components/ui';
+import { useCustomers, useCustomerLocations, useWarehouses } from '../lib/lookups';
 
-type Mode = 'asn' | 'blind';
+/** Kendi depolarımızın değer öneki — müşteri lokasyonu id'siyle karışmasın (ikisi de cuid). */
+const WH_PREFIX = 'wh:';
 
+/**
+ * Mal Kabul Başlat — uygulamanın GİRİŞ NOKTASI.
+ *
+ * Araç depoya gelir, irsaliyesini getirir, depocu kontrol edip malı indirir.
+ * Ön ihbar YOK: malın geleceği çoğu zaman önceden bilinmiyor.
+ *
+ * Depocu yalnız fiziksel/belgesel bilgiyi girer. **ALICI opsiyonel** — gelen
+ * irsaliyede nihai firma her zaman yazmıyor; ofis mal kabul detayındaki
+ * "Ticari Bilgiler" kartından sonradan tamamlar.
+ */
 export function ReceiptStartPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<Mode>('asn');
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const { data: customers } = useCustomers();
+  const { data: warehouses } = useWarehouses();
+
+  const [customerId, setCustomerId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [recipientCustomerId, setRecipientCustomerId] = useState('');
+  const [sourceSel, setSourceSel] = useState<ComboOption[]>([]);
+  const [waybillNo, setWaybillNo] = useState('');
+  const [orderNo, setOrderNo] = useState('');
+
+  const { data: locations } = useCustomerLocations(customerId);
+
+  // Varsayılan depo bir kez ön-seçilir; kullanıcı değiştirdiyse ezmez
+  const whPrefilled = useRef(false);
+  useEffect(() => {
+    if (whPrefilled.current || !warehouses) return;
+    const def = warehouses.find((w) => w.isDefault);
+    if (def) {
+      whPrefilled.current = true;
+      setWarehouseId(def.id);
+    }
+  }, [warehouses]);
 
   const startMut = useMutation({
     mutationFn: (input: StartReceiptInput) => api.post<Receipt>('/receipts/start', input),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['receipts'] });
-      qc.invalidateQueries({ queryKey: ['asn'] });
       navigate(`/mal-kabul/${r.id}`, { replace: true });
     },
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Başlatılamadı'),
   });
+
+  /** Listede olmayan yükleme yerini göndericinin lokasyonu olarak kaydeder. */
+  const createSource = async (name: string): Promise<ComboOption> => {
+    const loc = await api.post<CustomerLocation>(`/customers/${customerId}/locations`, { name });
+    qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] });
+    return { value: loc.id, label: loc.name };
+  };
+
+  const submit = () => {
+    setServerError(null);
+    startMut.mutate({
+      customerId,
+      warehouseId,
+      recipientCustomerId: recipientCustomerId || undefined,
+      sources: sourceSel.map((o) =>
+        o.value.startsWith(WH_PREFIX)
+          ? { warehouseId: o.value.slice(WH_PREFIX.length), label: o.label }
+          : { customerLocationId: o.value, label: o.label },
+      ),
+      waybillNo: waybillNo || undefined,
+      orderNo: orderNo || undefined,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -36,121 +96,101 @@ export function ReceiptStartPage() {
         <h2 className="text-xl font-bold text-slate-900">Mal Kabul Başlat</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <TabButton active={mode === 'asn'} onClick={() => setMode('asn')}>
-          <Icon name="clipboard" className="h-4 w-4" /> Ön İhbardan
-        </TabButton>
-        <TabButton active={mode === 'blind'} onClick={() => setMode('blind')}>
-          <Icon name="package" className="h-4 w-4" /> Kör Kabul
-        </TabButton>
-      </div>
-
       {serverError && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{serverError}</p>
       )}
 
-      {mode === 'asn' ? (
-        <AsnPicker onPick={(asnId) => startMut.mutate({ asnId })} loading={startMut.isPending} />
-      ) : (
-        <BlindForm
-          onStart={(customerId, warehouseId) => startMut.mutate({ customerId, warehouseId })}
-          loading={startMut.isPending}
-        />
-      )}
-    </div>
-  );
-}
+      <Card className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Gönderici *">
+            <Combobox
+              options={(customers ?? []).map((c) => ({
+                value: c.id,
+                label: c.name,
+                hint: `(${c.code})`,
+              }))}
+              value={customerId}
+              onChange={(v) => {
+                setCustomerId(v);
+                setSourceSel([]); // lokasyonlar göndericiye bağlı, seçim geçersizleşir
+              }}
+              placeholder="Gönderici ara / seç..."
+            />
+          </Field>
+          <Field label="Hedef Depo *">
+            <Combobox
+              options={(warehouses ?? []).map((w) => ({
+                value: w.id,
+                label: w.name,
+                hint: `(${w.code})`,
+              }))}
+              value={warehouseId}
+              onChange={setWarehouseId}
+              placeholder="Depo ara / seç..."
+            />
+          </Field>
+        </div>
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        'rounded-lg py-3 text-sm font-semibold',
-        active ? 'bg-brand text-white' : 'bg-white text-slate-600',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AsnPicker({ onPick, loading }: { onPick: (id: string) => void; loading: boolean }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['asn', { forReceipt: true }],
-    queryFn: () => api.get<Paginated<Asn>>('/asn?page=1&pageSize=100'),
-    select: (d) => d.items.filter((a) => a.status === 'EXPECTED' || a.status === 'IN_RECEIVING'),
-  });
-
-  if (isLoading) return <Spinner />;
-  if (!data || data.length === 0)
-    return <EmptyState title="Beklenen ön ihbar yok" hint="Önce bir ön ihbar oluşturun ya da kör kabul yapın." />;
-
-  return (
-    <div className="flex flex-col gap-4">
-      {data.map((asn) => (
-        <Card key={asn.id} className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-slate-900">{asn.reference}</p>
-            <p className="text-xs text-slate-500">
-              {asn.customer?.name} · {asn.lines.length} kalem · {formatDate(asn.expectedAt)}
-            </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* Bilinmiyorsa boş bırakılır — irsaliyede nihai firma yazmayabiliyor */}
+          <Field label="Alıcı">
+            <Combobox
+              options={(customers ?? []).map((c) => ({
+                value: c.id,
+                label: c.name,
+                hint: `(${c.code})`,
+              }))}
+              value={recipientCustomerId}
+              onChange={setRecipientCustomerId}
+              nullable
+              nullableLabel="Bilinmiyor"
+              placeholder="Alıcı ara / seç..."
+            />
+          </Field>
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
+            {/* Göndericinin lokasyonları + kendi depolarımız (mal her zaman
+                müşteriden alınmıyor, bazen kendi depomuzdan yükleniyor) */}
+            <MultiCombobox
+              options={[
+                ...(locations ?? []).map((l) => ({ value: l.id, label: l.name })),
+                ...(warehouses ?? []).map((w) => ({
+                  value: `${WH_PREFIX}${w.id}`,
+                  label: w.name,
+                  hint: '· bizim depomuz',
+                })),
+              ]}
+              value={sourceSel}
+              onChange={setSourceSel}
+              onCreate={customerId ? createSource : undefined}
+              placeholder="Yükleme yeri seç / yaz…"
+              emptyHint="Yazıp “oluştur” ile ekleyin"
+            />
           </div>
-          <Button onClick={() => onPick(asn.id)} loading={loading}>
-            Başlat
-          </Button>
-        </Card>
-      ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="İrsaliye No">
+            <Input
+              value={waybillNo}
+              onChange={(e) => setWaybillNo(e.target.value)}
+              placeholder="Göndericinin sevk irsaliyesi"
+            />
+          </Field>
+          <Field label="Sipariş No">
+            <Input value={orderNo} onChange={(e) => setOrderNo(e.target.value)} />
+          </Field>
+        </div>
+
+        <Button
+          className="w-full"
+          disabled={!customerId || !warehouseId}
+          loading={startMut.isPending}
+          onClick={submit}
+        >
+          Mal Kabulü Başlat
+        </Button>
+      </Card>
     </div>
-  );
-}
-
-function BlindForm({
-  onStart,
-  loading,
-}: {
-  onStart: (customerId: string, warehouseId: string) => void;
-  loading: boolean;
-}) {
-  const { data: customers } = useCustomers();
-  const { data: warehouses } = useWarehouses();
-  const [customerId, setCustomerId] = useState('');
-  const [warehouseId, setWarehouseId] = useState('');
-
-  return (
-    <Card className="space-y-3">
-      <Field label="Müşteri *">
-        <Combobox
-          options={(customers ?? []).map((c) => ({ value: c.id, label: c.name, hint: `(${c.code})` }))}
-          value={customerId}
-          onChange={setCustomerId}
-          placeholder="Müşteri ara / seç..."
-        />
-      </Field>
-      <Field label="Hedef Depo *">
-        <Combobox
-          options={(warehouses ?? []).map((w) => ({ value: w.id, label: w.name, hint: `(${w.code})` }))}
-          value={warehouseId}
-          onChange={setWarehouseId}
-          placeholder="Depo ara / seç..."
-        />
-      </Field>
-      <Button
-        className="w-full"
-        disabled={!customerId || !warehouseId}
-        loading={loading}
-        onClick={() => onStart(customerId, warehouseId)}
-      >
-        Kör Kabul Başlat
-      </Button>
-    </Card>
   );
 }

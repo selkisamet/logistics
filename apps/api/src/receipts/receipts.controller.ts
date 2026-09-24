@@ -17,21 +17,28 @@ import {
   upsertReceiptLineSchema,
   createPackageSchema,
   updateReceiptSchema,
+  updateReceiptCommercialSchema,
   receiptListQuerySchema,
+  UserRole,
   type StartReceiptInput,
   type UpsertReceiptLineInput,
   type CreatePackageInput,
   type UpdateReceiptInput,
+  type UpdateReceiptCommercialInput,
   type ReceiptListQuery,
   type AuthUser,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { imageUploadOptions } from '../common/upload';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ReceiptsService } from './receipts.service';
 
-@UseGuards(JwtAuthGuard)
+// RolesGuard eklendi: @Roles taşımayan uçlar etkilenmez (guard boş listede geçer),
+// yalnız ticari alanlar yönetici/şef'e kısıtlanır.
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('receipts')
 export class ReceiptsController {
   constructor(private readonly receiptsService: ReceiptsService) {}
@@ -65,6 +72,17 @@ export class ReceiptsController {
     @Body(new ZodValidationPipe(updateReceiptSchema)) dto: UpdateReceiptInput,
   ) {
     return this.receiptsService.update(id, dto);
+  }
+
+  /** Ticari/taraf bilgileri — depocu değil OFİS doldurur. */
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/commercial')
+  updateCommercial(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateReceiptCommercialSchema)) dto: UpdateReceiptCommercialInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.receiptsService.updateCommercial(id, dto, user.id);
   }
 
   @Patch(':id/lines')

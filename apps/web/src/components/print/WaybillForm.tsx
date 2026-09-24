@@ -240,8 +240,9 @@ export function WaybillModal({ dispatch, onClose }: { dispatch: Dispatch; onClos
           )}
           {noRecipient > 0 && (
             <div>
-              ⚠ {noRecipient} satırda ALICI boş (ön ihbarda alıcı seçilmemiş ve durak atanmamış).
-              Alıcı yasal zorunlu alandır — durak ekleyin ya da ön ihbarda alıcıyı belirtin.
+              ⚠ {noRecipient} satırda ALICI boş (mal kabulde alıcı seçilmemiş ve durak
+              atanmamış). Alıcı yasal zorunlu alandır — durak ekleyin ya da mal kabulün Ticari
+              Bilgiler kartından alıcıyı belirtin.
             </div>
           )}
           {!COMPANY.taxNumber && (

@@ -6,9 +6,6 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { WarehousesPage } from './pages/WarehousesPage';
-import { AsnListPage } from './pages/AsnListPage';
-import { AsnFormPage } from './pages/AsnFormPage';
-import { AsnDetailPage } from './pages/AsnDetailPage';
 import { ReceiptListPage } from './pages/ReceiptListPage';
 import { ReceiptStartPage } from './pages/ReceiptStartPage';
 import { ReceiptCountPage } from './pages/ReceiptCountPage';
@@ -31,10 +28,6 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="/on-ihbar" element={<AsnListPage />} />
-          <Route path="/on-ihbar/yeni" element={<AsnFormPage />} />
-          <Route path="/on-ihbar/:id/duzenle" element={<AsnFormPage />} />
-          <Route path="/on-ihbar/:id" element={<AsnDetailPage />} />
           <Route path="/mal-kabul" element={<ReceiptListPage />} />
           <Route path="/mal-kabul/baslat" element={<ReceiptStartPage />} />
           <Route path="/mal-kabul/:id" element={<ReceiptCountPage />} />

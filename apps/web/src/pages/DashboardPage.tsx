@@ -6,7 +6,7 @@ import { formatDate, daysSince } from '../lib/format';
 import { useAuthStore } from '../stores/auth';
 import { Card } from '../components/ui';
 import { Icon, type IconName } from '../components/icons';
-import type { Paginated, Customer, Warehouse, Asn, Receipt, Dispatch, Vehicle } from '@lojistik/shared';
+import type { Paginated, Customer, Warehouse, Receipt, Dispatch, Vehicle } from '@lojistik/shared';
 
 /**
  * Panel = "bugün ne yapmalıyım?" ekranı.
@@ -20,10 +20,6 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
 
   // Açık işler — hepsi toplam sayı için pageSize=1 (liste gövdesi gereksiz)
-  const expectedAsn = useQuery({
-    queryKey: ['asn', { status: 'EXPECTED', dashboard: true }],
-    queryFn: () => api.get<Paginated<Asn>>('/asn?status=EXPECTED&page=1&pageSize=1'),
-  });
   const openReceipts = useQuery({
     queryKey: ['receipts', { status: 'IN_PROGRESS', dashboard: true }],
     queryFn: () => api.get<Paginated<Receipt>>('/receipts?status=IN_PROGRESS&page=1&pageSize=1'),
@@ -62,16 +58,8 @@ export function DashboardPage() {
         <p className="text-sm text-slate-500">Bugün bekleyen işler</p>
       </div>
 
-      {/* AÇIK İŞLER — akış sırasına göre: ön ihbar → mal kabul → depo → sevkiyat */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <TaskCard
-          label="Bekleyen ön ihbar"
-          hint="Mal kabul edilecek"
-          value={expectedAsn.data?.total}
-          to="/on-ihbar"
-          icon="clipboard"
-          tint="bg-blue-50 text-blue-600"
-        />
+      {/* AÇIK İŞLER — akış sırasına göre: mal kabul → depo → sevkiyat */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TaskCard
           label="Devam eden mal kabul"
           hint="Sayım sürüyor"
@@ -146,13 +134,7 @@ export function DashboardPage() {
           to="/mal-kabul/baslat"
           icon="inbox"
           title="Mal Kabul Başlat"
-          hint="Ön ihbardan ya da kör kabul"
-        />
-        <QuickAction
-          to="/on-ihbar/yeni"
-          icon="clipboard"
-          title="Yeni Ön İhbar"
-          hint="Gelecek yükü kaydet"
+          hint="Gelen malı teslim al"
         />
       </div>
 

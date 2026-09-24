@@ -53,9 +53,11 @@ export type SetCustomerActiveInput = z.infer<typeof setCustomerActiveSchema>;
 
 /** Müşterinin geçmiş kayıt sayıları — silinebilir mi kararı. */
 export const customerUsageSchema = z.object({
+  // asSender/asRecipient = ön ihbar (DORMANT, eski kayıtlar)
   asSender: z.number().int(),
   asRecipient: z.number().int(),
-  receipts: z.number().int(),
+  receipts: z.number().int(), // mal kabul, gönderici olarak
+  receiptsAsRecipient: z.number().int().optional().default(0), // mal kabul, alıcı olarak
   stops: z.number().int(),
   total: z.number().int(),
   deletable: z.boolean(),

@@ -12,7 +12,6 @@ type NavItem = { to: string; label: string; icon: IconName; roles?: UserRole[] }
 
 const PRIMARY: NavItem[] = [
   { to: '/', label: 'Özet', icon: 'home' },
-  { to: '/on-ihbar', label: 'Ön İhbar', icon: 'clipboard' },
   { to: '/mal-kabul', label: 'Mal Kabul', icon: 'inbox' },
   { to: '/depo', label: 'Depo', icon: 'boxes' },
   { to: '/sevkiyat', label: 'Sevkiyat', icon: 'truck' },

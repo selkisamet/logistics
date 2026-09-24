@@ -205,7 +205,7 @@ export function DispatchDetailPage() {
     },
     onSuccess: (d) => {
       setDispatch(d);
-      toast('Yükler ön ihbardaki alıcılara göre yeniden atandı.');
+      toast('Yükler mal kabuldeki alıcılara göre yeniden atandı.');
     },
     onError: (e) => stopErr(e, 'Yeniden atanamadı'),
   });
@@ -280,7 +280,7 @@ export function DispatchDetailPage() {
               {i.receiptReference}
             </Link>
             {i.waybillNo ? ` · Sevk İrs: ${i.waybillNo}` : ''}
-            {isMismatched(i) ? ` · ⚠ ön ihbarda alıcı: ${i.recipientName}` : ''}
+            {isMismatched(i) ? ` · ⚠ mal kabulde alıcı: ${i.recipientName}` : ''}
           </p>
           {/* NEREDEN → NEREYE. Yükleme deposu her zaman yazılır (bir seferde farklı depolardan
               yük olabilir). Teslim yeri YALNIZ durağa atanmamış yükte yazılır — atanmışsa

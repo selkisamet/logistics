@@ -35,7 +35,8 @@ function usageText(u?: CustomerUsage): string {
   const parts = [
     u.asSender ? `${u.asSender} ön ihbar (gönderici)` : '',
     u.asRecipient ? `${u.asRecipient} ön ihbar (alıcı)` : '',
-    u.receipts ? `${u.receipts} mal kabul` : '',
+    u.receipts ? `${u.receipts} mal kabul (gönderici)` : '',
+    u.receiptsAsRecipient ? `${u.receiptsAsRecipient} mal kabul (alıcı)` : '',
     u.stops ? `${u.stops} sevkiyat durağı` : '',
   ].filter(Boolean);
   return parts.length ? parts.join(', ') + ' kaydı var' : 'geçmiş kaydı yok';
@@ -126,7 +127,7 @@ export function CustomerDetailPage() {
                     if (
                       await confirmDialog({
                         title: 'Müşteriyi sil',
-                        message: `"${customer.name}" silinsin mi? Bu müşterinin hiç ön ihbar/mal kabul kaydı yok. Yetkili ve lokasyon kayıtları da silinir.`,
+                        message: `"${customer.name}" silinsin mi? Bu müşterinin hiç mal kabul/sevkiyat kaydı yok. Yetkili ve lokasyon kayıtları da silinir.`,
                         confirmText: 'Sil',
                         danger: true,
                       })
@@ -146,7 +147,7 @@ export function CustomerDetailPage() {
                       await confirmDialog({
                         title: toPassive ? 'Pasife al' : 'Aktife al',
                         message: toPassive
-                          ? `"${customer.name}" pasife alınsın mı? Listede ve ön ihbar seçiminde görünmez; geçmiş belgeleri korunur. (${usageText(usage)})`
+                          ? `"${customer.name}" pasife alınsın mı? Listede ve seçimlerde görünmez; geçmiş belgeleri korunur. (${usageText(usage)})`
                           : `"${customer.name}" tekrar aktif edilsin mi?`,
                         confirmText: toPassive ? 'Pasife Al' : 'Aktife Al',
                       })

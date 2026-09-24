@@ -96,14 +96,27 @@ export class CustomersService {
 
   /** Müşterinin geçmiş kayıt sayıları — silinebilir mi kararını bu belirler. */
   async usage(id: string) {
-    const [asSender, asRecipient, receipts, stops] = await this.prisma.$transaction([
-      this.prisma.inboundShipment.count({ where: { customerId: id } }),
-      this.prisma.inboundShipment.count({ where: { recipientCustomerId: id } }),
-      this.prisma.receipt.count({ where: { customerId: id } }),
-      this.prisma.dispatchStop.count({ where: { customerId: id } }),
-    ]);
-    const total = asSender + asRecipient + receipts + stops;
-    return { asSender, asRecipient, receipts, stops, total, deletable: total === 0 };
+    const [asSender, asRecipient, receipts, receiptsAsRecipient, stops] =
+      await this.prisma.$transaction([
+        // Ön ihbar sayıları DORMANT (akış kaldırıldı) ama eski kayıtlar duruyor
+        this.prisma.inboundShipment.count({ where: { customerId: id } }),
+        this.prisma.inboundShipment.count({ where: { recipientCustomerId: id } }),
+        this.prisma.receipt.count({ where: { customerId: id } }),
+        // ALICI olarak kullanım: bu sayılmazsa yalnız alıcı olan müşteri
+        // "hiç kullanılmamış" görünür, silinince fişlerdeki ALICI sessizce boşalırdı
+        this.prisma.receipt.count({ where: { recipientCustomerId: id } }),
+        this.prisma.dispatchStop.count({ where: { customerId: id } }),
+      ]);
+    const total = asSender + asRecipient + receipts + receiptsAsRecipient + stops;
+    return {
+      asSender,
+      asRecipient,
+      receipts,
+      receiptsAsRecipient,
+      stops,
+      total,
+      deletable: total === 0,
+    };
   }
 
   /**
@@ -118,7 +131,8 @@ export class CustomersService {
       const parts = [
         u.asSender ? `${u.asSender} ön ihbar (gönderici)` : '',
         u.asRecipient ? `${u.asRecipient} ön ihbar (alıcı)` : '',
-        u.receipts ? `${u.receipts} mal kabul` : '',
+        u.receipts ? `${u.receipts} mal kabul (gönderici)` : '',
+        u.receiptsAsRecipient ? `${u.receiptsAsRecipient} mal kabul (alıcı)` : '',
         u.stops ? `${u.stops} sevkiyat durağı` : '',
       ].filter(Boolean);
       throw new ConflictException(

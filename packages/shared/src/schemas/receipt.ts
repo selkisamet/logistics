@@ -3,7 +3,7 @@ import { RECEIPT_STATUSES, ReceiptStatus, PACKAGE_TYPES, PackageType } from '../
 import { paginationQuerySchema } from './common';
 import { discrepancySchema, attachmentSchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
-import { CURRENCIES } from './asn';
+import { CURRENCIES } from './commercial';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
 export const RECEIPT_STATUS_LABELS: Record<ReceiptStatus, string> = {
@@ -30,18 +30,50 @@ export const PACKAGE_TYPE_LABELS: Record<PackageType, string> = {
  *  `ReceiptLine.unit` serbest metin olduğu için etiketler doğrudan saklanır. */
 export const KAP_TYPES = Object.values(PACKAGE_TYPE_LABELS);
 
-/** Mal kabul başlatma: ASN'ye bağlı ya da "kör kabul" (blind). */
-export const startReceiptSchema = z
+/**
+ * Yükleme yeri: göndericinin lokasyonu, BİZİM depomuz ya da serbest metin.
+ * Yük her zaman müşteriden alınmıyor; bazı seferlerde kendi depomuzdan yükleniyor.
+ */
+export const receiptSourceInputSchema = z
   .object({
-    asnId: z.string().optional(),
-    // Blind kabul için müşteri ve depo doğrudan verilir.
-    customerId: z.string().optional(),
+    customerLocationId: z.string().optional(),
     warehouseId: z.string().optional(),
-    notes: upperOpt(),
+    label: upperStr(z.string().min(1, 'Yükleme yeri gerekli')),
   })
-  .refine((v) => !!v.asnId || (!!v.customerId && !!v.warehouseId), {
-    message: 'ASN seçin ya da kör kabul için müşteri ve depo belirtin',
+  // İkisi birden gelirse etiket/adresin hangi kayıttan sabitleneceği belirsiz kalır
+  .refine((s) => !(s.customerLocationId && s.warehouseId), {
+    message: 'Yükleme yeri ya müşteri lokasyonu ya da kendi depomuz olabilir',
+    path: ['warehouseId'],
   });
+export type ReceiptSourceInput = z.infer<typeof receiptSourceInputSchema>;
+
+/** Boşaltma yeri: alıcı müşterinin lokasyonu ya da serbest metin. */
+export const receiptRecipientInputSchema = z.object({
+  customerLocationId: z.string().optional(),
+  label: upperStr(z.string().min(1, 'Boşaltma yeri gerekli')),
+});
+export type ReceiptRecipientInput = z.infer<typeof receiptRecipientInputSchema>;
+
+/**
+ * Mal kabul başlatma — uygulamanın GİRİŞ NOKTASI.
+ *
+ * Akış ön ihbarla değil burada başlar: araç depoya gelir, irsaliyesini getirir,
+ * depocu kontrol edip malı indirir. Malın geleceği çoğu zaman önceden bilinmiyor.
+ *
+ * Depocu yalnız fiziksel/belgesel bilgiyi girer. ALICI **opsiyoneldir** — gelen
+ * irsaliyede nihai firma her zaman yazmıyor; ofis sonradan tamamlar. Ticari
+ * alanlar (para birimi, ödeme tipi, termin...) burada YOK, onlar
+ * `updateReceiptCommercialSchema` ile ofis tarafından girilir.
+ */
+export const startReceiptSchema = z.object({
+  customerId: z.string().min(1, 'Gönderici seçilmeli'),
+  warehouseId: z.string().min(1, 'Hedef depo seçilmeli'),
+  recipientCustomerId: z.string().optional(), // ALICI — depocu bilmiyorsa boş
+  sources: z.array(receiptSourceInputSchema).optional().default([]), // yükleme yerleri
+  waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su
+  orderNo: codeOpt(),
+  notes: upperOpt(),
+});
 export type StartReceiptInput = z.infer<typeof startReceiptSchema>;
 
 /** Tek bir satırın (ürünün) sayım kaydı/güncellemesi. */
@@ -111,9 +143,12 @@ export const receiptSchema = z.object({
   id: z.string(),
   reference: z.string(),
   status: z.enum(RECEIPT_STATUSES as [ReceiptStatus, ...ReceiptStatus[]]),
+  // DORMANT: ön ihbar akışı kaldırıldı; yeni kabullerde null. Eski kayıtlarda dolu.
   asnId: z.string().nullable(),
   asnReference: z.string().nullable().optional(),
-  plannedVehicle: vehicleSummarySchema.nullable().optional(), // ön ihbarda planlanan araç
+  plannedVehicleId: z.string().nullable().optional(),
+  plannedVehicle: vehicleSummarySchema.nullable().optional(), // "bu yük şu araca gidecek"
+  recipientCustomerId: z.string().nullable().optional(), // ALICI (ofis doldurur)
   customerId: z.string(),
   customer: z
     .object({
@@ -158,13 +193,29 @@ export const receiptSchema = z.object({
     })
     .nullable()
     .optional(),
-  // Yükleme (kaynak) ve boşaltma (alıcı) noktaları — fişte ayrı ayrı listelenir
+  // Yükleme (kaynak) ve boşaltma (alıcı) noktaları — fişte ayrı ayrı listelenir.
+  // id/customerLocationId/warehouseId ofis düzenleme formu seçimi geri kurabilsin diye.
   sources: z
-    .array(z.object({ label: z.string(), address: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        id: z.string().optional(),
+        customerLocationId: z.string().nullable().optional(),
+        warehouseId: z.string().nullable().optional(),
+        label: z.string(),
+        address: z.string().nullable().optional(),
+      }),
+    )
     .optional()
     .default([]),
   recipients: z
-    .array(z.object({ label: z.string(), address: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        id: z.string().optional(),
+        customerLocationId: z.string().nullable().optional(),
+        label: z.string(),
+        address: z.string().nullable().optional(),
+      }),
+    )
     .optional()
     .default([]),
   lines: z.array(receiptLineSchema),
@@ -185,6 +236,25 @@ export const updateReceiptSchema = z.object({
   notes: upperOpt(),
 });
 export type UpdateReceiptInput = z.infer<typeof updateReceiptSchema>;
+
+/**
+ * Ticari/taraf bilgileri — OFİS doldurur (yönetici/şef), depocu değil.
+ * Ayrı bir uçta duruyor çünkü `PATCH /receipts/:id` her oturum açmış kullanıcıya
+ * açık; bu alanlar eskiden ön ihbardaydı ve ön ihbar rotaları admin/şef'ti.
+ * Hepsi opsiyonel: yalnız gönderilen alan güncellenir.
+ */
+export const updateReceiptCommercialSchema = z.object({
+  recipientCustomerId: z.string().nullable().optional(), // null = alıcıyı kaldır
+  plannedVehicleId: z.string().nullable().optional(),
+  deliveryBy: z.string().nullable().optional(), // ISO tarih — SON TESLİM (termin)
+  currency: z.enum(CURRENCIES).optional(),
+  paymentType: z.enum(['SENDER', 'RECIPIENT']).nullable().optional(),
+  showAmountOnSlip: z.boolean().optional(),
+  vatIncluded: z.boolean().optional(),
+  sources: z.array(receiptSourceInputSchema).optional(), // verilirse hepsi değişir
+  recipients: z.array(receiptRecipientInputSchema).optional(),
+});
+export type UpdateReceiptCommercialInput = z.infer<typeof updateReceiptCommercialSchema>;
 
 export const receiptListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(RECEIPT_STATUSES as [ReceiptStatus, ...ReceiptStatus[]]).optional(),

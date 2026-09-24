@@ -27,13 +27,9 @@ const RECEIPT_FOR_WAYBILL = {
   customer: { select: { name: true, legalName: true } },
   warehouse: { select: { name: true } },
   lines: { select: { description: true } }, // MALIN CİNSİ sütunu
-  shipment: {
-    select: {
-      vehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
-      recipientCustomer: { select: { id: true, name: true, legalName: true } },
-      recipients: { select: { customerLocationId: true, label: true, address: true } },
-    },
-  },
+  plannedVehicle: { select: { id: true, plate: true, driverName: true, trailerPlate: true } },
+  recipientCustomer: { select: { id: true, name: true, legalName: true } },
+  recipients: { select: { customerLocationId: true, label: true, address: true } },
 } satisfies Prisma.ReceiptSelect;
 
 const DISPATCH_INCLUDE = {
@@ -59,7 +55,7 @@ const DISPATCH_INCLUDE = {
       stopId: true,
       customer: { select: { name: true } },
       warehouse: { select: { name: true } },
-      shipment: { select: { recipientCustomer: { select: { name: true } } } },
+      recipientCustomer: { select: { name: true } },
       lines: { select: { countedQty: true, description: true } },
     },
   },
@@ -199,7 +195,6 @@ export class DispatchService {
       where: { id: input.receiptId },
       include: {
         customer: { select: { name: true } },
-        shipment: { select: { vehicleId: true } },
         packages: { where: { dispatchedAt: null, dispatchId: null }, select: { id: true } },
         lines: { select: { id: true, countedQty: true, dispatchedQty: true } },
       },
@@ -218,7 +213,7 @@ export class DispatchService {
       throw new BadRequestException('Bu mal kabulde depoda kalan yük yok');
     }
 
-    const vehicleId = input.vehicleId || receipt.shipment?.vehicleId || null;
+    const vehicleId = input.vehicleId || receipt.plannedVehicleId || null;
     if (vehicleId) {
       const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
       if (!vehicle) throw new BadRequestException('Geçersiz araç seçimi');
@@ -591,21 +586,16 @@ export class DispatchService {
       where: { id: { in: receiptIds } },
       select: {
         id: true,
-        shipment: {
-          select: {
-            recipientCustomerId: true,
-            recipientCustomer: { select: { id: true, name: true, address: true, phone: true } },
-            recipients: { select: { customerLocationId: true, label: true, address: true } },
-          },
-        },
+        recipientCustomerId: true,
+        recipientCustomer: { select: { id: true, name: true, address: true, phone: true } },
+        recipients: { select: { customerLocationId: true, label: true, address: true } },
       },
     });
 
     // Durak anahtarı: lokasyon id'si varsa o, yoksa görünen ad
     const byKey = new Map<string, { name: string; address: string | null; phone: string | null; customerId: string | null; customerLocationId: string | null; receiptIds: string[] }>();
     for (const r of receipts) {
-      const sh = r.shipment;
-      if (!sh) continue;
+      const sh = r;
       const points = sh.recipients.length
         ? sh.recipients.map((p) => ({
             key: p.customerLocationId ?? p.label,
@@ -994,9 +984,9 @@ function serializeDispatch(d: DispatchWithRelations) {
       receiptReference: p.receipt.reference,
       receiptId: p.receiptId,
       waybillNo: p.receipt.waybillNo,
-      plannedVehicle: p.receipt.shipment?.vehicle ?? null,
+      plannedVehicle: p.receipt.plannedVehicle ?? null,
       warehouseName: p.receipt.warehouse?.name ?? null, // NEREDEN
-      recipientName: recipientNameOf(p.receipt.shipment), // KİME (ön ihbardaki alıcı)
+      recipientName: recipientNameOf(p.receipt), // KİME (mal kabuldeki alıcı)
       goodsKind: goodsKindOf(p.receipt.lines), // MALIN CİNSİ
       stopId: p.stopId,
     })),
@@ -1006,7 +996,7 @@ function serializeDispatch(d: DispatchWithRelations) {
       customerName: r.customer?.name ?? null,
       itemCount: r.lines.reduce((s, l) => s + l.countedQty, 0),
       warehouseName: r.warehouse?.name ?? null,
-      recipientName: r.shipment?.recipientCustomer?.name ?? null,
+      recipientName: r.recipientCustomer?.name ?? null,
       goodsKind: goodsKindOf(r.lines),
       stopId: r.stopId,
     })),
@@ -1028,16 +1018,16 @@ function serializeDispatch(d: DispatchWithRelations) {
       // Belgede tam ünvan; girilmemişse kısa ada düşer
       customerLegalName: i.receipt.customer?.legalName || i.receipt.customer?.name || null,
       warehouseName: i.receipt.warehouse?.name ?? null, // NEREDEN
-      recipientName: recipientNameOf(i.receipt.shipment), // ön ihbardaki alıcı (ekran)
-      recipientLegalName: recipientLegalNameOf(i.receipt.shipment), // belgedeki ALICI
+      recipientName: recipientNameOf(i.receipt), // mal kabuldeki alıcı (ekran)
+      recipientLegalName: recipientLegalNameOf(i.receipt), // belgedeki ALICI
       // Bu yükün ön ihbarında SEÇİLEN teslim yerleri — "İnecek durak" seçicisi bunlarla
       // sınırlanır (başka müşterinin durağına atanıp irsaliyeye yanlış ALICI basılmasın).
-      recipientPoints: (i.receipt.shipment?.recipients ?? []).map((p) => ({
+      recipientPoints: (i.receipt.recipients ?? []).map((p) => ({
         customerLocationId: p.customerLocationId,
         label: p.label,
       })),
       waybillNo: i.receipt.waybillNo, // müşterinin SEVK İRSALİYE no'su
-      plannedVehicle: i.receipt.shipment?.vehicle ?? null,
+      plannedVehicle: i.receipt.plannedVehicle ?? null,
     })),
     stops: d.stops.map((s) => ({
       id: s.id,
@@ -1068,22 +1058,22 @@ function goodsKindOf(lines: { description: string }[]): string {
   return 'Muhtelif';
 }
 
-/** Ön ihbardaki alıcı adı: kayıtlı alıcı müşteri, yoksa ilk boşaltma noktasının etiketi. */
+/** Mal kabuldeki alıcı adı: kayıtlı alıcı müşteri, yoksa ilk boşaltma noktasının etiketi. */
 function recipientNameOf(
-  shipment: { recipientCustomer: { name: string } | null; recipients: { label: string }[] } | null,
+  receipt: { recipientCustomer: { name: string } | null; recipients: { label: string }[] } | null,
 ): string | null {
-  if (!shipment) return null;
-  return shipment.recipientCustomer?.name ?? shipment.recipients[0]?.label ?? null;
+  if (!receipt) return null;
+  return receipt.recipientCustomer?.name ?? receipt.recipients[0]?.label ?? null;
 }
 
 /** Belgeye basılacak ALICI: tam ünvan varsa o, yoksa kısa ad (aynı sırayla). */
 function recipientLegalNameOf(
-  shipment: {
+  receipt: {
     recipientCustomer: { name: string; legalName: string | null } | null;
     recipients: { label: string }[];
   } | null,
 ): string | null {
-  if (!shipment) return null;
-  const c = shipment.recipientCustomer;
-  return (c?.legalName || c?.name) ?? shipment.recipients[0]?.label ?? null;
+  if (!receipt) return null;
+  const c = receipt.recipientCustomer;
+  return (c?.legalName || c?.name) ?? receipt.recipients[0]?.label ?? null;
 }

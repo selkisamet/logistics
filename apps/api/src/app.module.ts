@@ -6,7 +6,6 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
-import { AsnModule } from './asn/asn.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { DiscrepanciesModule } from './discrepancies/discrepancies.module';
 import { OcrModule } from './ocr/ocr.module';
@@ -26,7 +25,6 @@ import { AppController } from './app.controller';
     UsersModule,
     CustomersModule,
     WarehousesModule,
-    AsnModule,
     ReceiptsModule,
     DiscrepanciesModule,
     OcrModule,
