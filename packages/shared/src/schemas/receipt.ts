@@ -273,6 +273,26 @@ export const receiptSchema = z.object({
   // İrsaliye/belge görüntüleri (foto) — doğrudan mal kabule bağlı
   attachments: z.array(attachmentSchema).optional().default([]),
   startedById: z.string().nullable(),
+  /** Malı teslim alan depocu — geriye dönük "kim kabul etti" sorusu için. */
+  startedBy: z.object({ id: z.string(), fullName: z.string() }).nullable().optional(),
+  /**
+   * Bu kabulün yükü hangi sefer(ler)le çıktı.
+   * Kaynak `DispatchItem` defteri; `Receipt.dispatchId` DORMANT olduğu için
+   * oradan okunamaz. Aynı kabulün birden çok kalemi tek sefere gidebildiğinden
+   * sunucuda TEKİLLEŞTİRİLİR.
+   */
+  dispatches: z
+    .array(
+      z.object({
+        id: z.string(),
+        reference: z.string(),
+        status: z.string(),
+        dispatchedAt: z.string().nullable(),
+        plate: z.string().nullable(),
+      }),
+    )
+    .optional()
+    .default([]),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
 });
@@ -307,5 +327,9 @@ export type UpdateReceiptCommercialInput = z.infer<typeof updateReceiptCommercia
 
 export const receiptListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(RECEIPT_STATUSES as [ReceiptStatus, ...ReceiptStatus[]]).optional(),
+  // Geriye dönük sorgulama: teslim alma tarihine (startedAt) göre aralık.
+  // paginationQuerySchema'ya eklenmedi — müşteri/araç listelerinde anlamsız.
+  from: z.string().optional(), // ISO tarih (gün başı)
+  to: z.string().optional(), // ISO tarih (gün sonu dahil)
 });
 export type ReceiptListQuery = z.infer<typeof receiptListQuerySchema>;

@@ -60,6 +60,22 @@ const RECEIPT_INCLUDE = {
     include: { attachments: { orderBy: { createdAt: 'asc' } as const } },
   },
   attachments: { orderBy: { createdAt: 'asc' } as const },
+  startedBy: { select: { id: true, fullName: true } },
+  // "Hangi plakayla çıktı" — bağ DispatchItem defterinden kurulur,
+  // Receipt.dispatchId DORMANT olduğu için oradan okunamaz.
+  dispatchItems: {
+    select: {
+      dispatch: {
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          dispatchedAt: true,
+          vehicle: { select: { plate: true } },
+        },
+      },
+    },
+  },
 } satisfies Prisma.ReceiptInclude;
 
 type ReceiptWithRelations = Prisma.ReceiptGetPayload<{ include: typeof RECEIPT_INCLUDE }>;
@@ -69,9 +85,11 @@ export class ReceiptsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: ReceiptListQuery) {
-    const { page, pageSize, search, status } = query;
+    const { page, pageSize, search, status, from, to } = query;
+    const period = dayRange(from, to);
     const where: Prisma.ReceiptWhereInput = {
       ...(status ? { status } : {}),
+      ...(period ? { startedAt: period } : {}),
       ...(search
         ? {
             OR: [
@@ -608,6 +626,17 @@ export class ReceiptsService {
     throw lastErr;
   }
 
+  /** Denetim izi — kaydın "kim ne zaman ne yaptı" geçmişi (Geçmiş kartı). */
+  async history(id: string) {
+    await this.getOrThrow(id);
+    const events = await this.prisma.auditEvent.findMany({
+      where: { entityType: 'Receipt', entityId: id },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return events.map(serializeAudit);
+  }
+
   private audit(
     action: string,
     entityType: string,
@@ -625,6 +654,56 @@ export class ReceiptsService {
 function packageTypeOf(label: string): PackageType {
   const hit = Object.entries(PACKAGE_TYPE_LABELS).find(([, v]) => v === label);
   return (hit?.[0] as PackageType) ?? PackageType.OTHER;
+}
+
+/**
+ * Gün aralığını Prisma filtresine çevirir. `to` GÜN SONUNA kadar alınır —
+ * aksi halde "24.09 - 24.09" seçildiğinde o günün hiçbir kaydı gelmezdi
+ * (gte/lte gece yarısına düşer).
+ */
+export function dayRange(from?: string, to?: string): { gte?: Date; lte?: Date } | undefined {
+  const gte = from ? new Date(`${from.slice(0, 10)}T00:00:00.000`) : undefined;
+  const lte = to ? new Date(`${to.slice(0, 10)}T23:59:59.999`) : undefined;
+  if (!gte && !lte) return undefined;
+  return { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
+}
+
+/**
+ * Defterdeki satırlardan sefer listesi üretir. Aynı kabulün birden çok kalemi
+ * tek sefere yüklenebildiği için TEKİLLEŞTİRİLİR, yoksa aynı plaka tekrarlanır.
+ */
+function uniqueDispatches(
+  items: {
+    dispatch: {
+      id: string;
+      reference: string;
+      status: string;
+      dispatchedAt: Date | null;
+      vehicle: { plate: string } | null;
+    } | null;
+  }[],
+) {
+  const byId = new Map<string, ReturnType<typeof toRow>>();
+  for (const it of items) {
+    if (it.dispatch && !byId.has(it.dispatch.id)) byId.set(it.dispatch.id, toRow(it.dispatch));
+  }
+  return [...byId.values()];
+}
+
+function toRow(d: {
+  id: string;
+  reference: string;
+  status: string;
+  dispatchedAt: Date | null;
+  vehicle: { plate: string } | null;
+}) {
+  return {
+    id: d.id,
+    reference: d.reference,
+    status: d.status,
+    dispatchedAt: d.dispatchedAt,
+    plate: d.vehicle?.plate ?? null,
+  };
 }
 
 /** Nokta listesinin adreslerini tek satıra toplar (fişteki tek satırlık adres alanı için). */
@@ -665,6 +744,8 @@ function serializeReceipt(r: ReceiptWithRelations) {
     sources: r.sources,
     recipients: r.recipients,
     startedById: r.startedById,
+    startedBy: r.startedBy,
+    dispatches: uniqueDispatches(r.dispatchItems),
     startedAt: r.startedAt,
     completedAt: r.completedAt,
     lines: r.lines.map((l) => ({
@@ -717,5 +798,28 @@ function serializeReceipt(r: ReceiptWithRelations) {
       mimeType: a.mimeType,
       createdAt: a.createdAt,
     })),
+  };
+}
+
+/** AuditEvent → API çıktısı (kullanıcı adı düzleştirilir). */
+export function serializeAudit(e: {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: unknown;
+  userId: string | null;
+  createdAt: Date;
+  user: { fullName: string } | null;
+}) {
+  return {
+    id: e.id,
+    action: e.action,
+    entityType: e.entityType,
+    entityId: e.entityId,
+    metadata: e.metadata ?? null,
+    userId: e.userId,
+    userName: e.user?.fullName ?? null,
+    createdAt: e.createdAt,
   };
 }

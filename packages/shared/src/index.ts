@@ -5,6 +5,7 @@ export * from './schemas/auth';
 export * from './schemas/user';
 export * from './schemas/customer';
 export * from './schemas/warehouse';
+export * from './schemas/audit';
 export * from './schemas/commercial';
 export * from './schemas/receipt';
 export * from './schemas/discrepancy';

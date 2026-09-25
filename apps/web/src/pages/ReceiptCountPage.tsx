@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { useForm } from 'react-hook-form';
@@ -27,7 +27,7 @@ import { api, ApiError, assetUrl, uploadFiles } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
 import { useCustomerLocations, useCustomers, useVehicles, useWarehouses } from '../lib/lookups';
 import { isNativeApp } from '../lib/config';
-import { formatCount, formatDate, formatMoney, formatWeight } from '../lib/format';
+import { formatCount, formatDate, formatDateTime, formatMoney, formatWeight } from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -50,6 +50,7 @@ import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { NativeCamera } from '../components/NativeCamera';
 import { ImageLightbox, type LightboxImage } from '../components/ImageLightbox';
+import { HistoryCard } from '../components/HistoryCard';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
 
@@ -193,6 +194,31 @@ export function ReceiptCountPage() {
             </p>
           </div>
           <ReceiptStatusBadge status={receipt.status} />
+        </div>
+        {/* Geriye dönük sorgulamanın iki temel sorusu: kim teslim aldı, hangi plakayla çıktı */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-xs text-slate-500">
+          <span>
+            Teslim alan:{' '}
+            <b className="text-slate-700">{receipt.startedBy?.fullName ?? 'bilinmiyor'}</b>
+            {' · '}
+            {formatDateTime(receipt.startedAt)}
+          </span>
+          <span>
+            Sevkiyat:{' '}
+            {receipt.dispatches?.length ? (
+              receipt.dispatches.map((d, n) => (
+                <span key={d.id}>
+                  {n > 0 && ', '}
+                  <Link to={`/sevkiyat/${d.id}`} className="font-semibold text-brand">
+                    {d.plate ?? d.reference}
+                  </Link>
+                  {d.dispatchedAt ? ` (${formatDate(d.dispatchedAt)})` : ' (taslak)'}
+                </span>
+              ))
+            ) : (
+              <b className="text-slate-700">depoda</b>
+            )}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-slate-500">Toplam sayılan</span>
@@ -518,6 +544,8 @@ export function ReceiptCountPage() {
           onClose={() => setDiscrepancyFor(null)}
         />
       )}
+      <HistoryCard path={`/receipts/${receipt.id}/history`} />
+
       {photoView && (
         <ImageLightbox
           images={photoView.images}

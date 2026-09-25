@@ -13,6 +13,7 @@ import { Icon } from '../components/icons';
 import { formatDateTime } from '../lib/format';
 import { Button, EmptyState, ListCard, Spinner } from '../components/ui';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
+import { ListFilterBar, applyFilters, type ListFilters } from '../components/ListFilterBar';
 
 const FILTERS: { value: DispatchStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'Hepsi' },
@@ -24,12 +25,14 @@ const FILTERS: { value: DispatchStatus | 'ALL'; label: string }[] = [
 export function DispatchListPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<DispatchStatus | 'ALL'>('ALL');
+  const [filters, setFilters] = useState<ListFilters>({ from: '', to: '', search: '' });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dispatches', { status }],
+    queryKey: ['dispatches', { status, ...filters }],
     queryFn: () => {
       const params = new URLSearchParams({ page: '1', pageSize: '50' });
       if (status !== 'ALL') params.set('status', status);
+      applyFilters(params, filters);
       return api.get<Paginated<Dispatch>>(`/dispatches?${params.toString()}`);
     },
   });
@@ -55,6 +58,8 @@ export function DispatchListPage() {
           </button>
         ))}
       </div>
+
+      <ListFilterBar value={filters} onChange={setFilters} />
 
       {isLoading ? (
         <Spinner />

@@ -13,6 +13,7 @@ import { Icon } from '../components/icons';
 import { formatDateTime } from '../lib/format';
 import { Button, EmptyState, ListCard, Spinner } from '../components/ui';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
+import { ListFilterBar, applyFilters, type ListFilters } from '../components/ListFilterBar';
 
 const FILTERS: { value: ReceiptStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'Hepsi' },
@@ -24,12 +25,14 @@ const FILTERS: { value: ReceiptStatus | 'ALL'; label: string }[] = [
 export function ReceiptListPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<ReceiptStatus | 'ALL'>('ALL');
+  const [filters, setFilters] = useState<ListFilters>({ from: '', to: '', search: '' });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['receipts', { status }],
+    queryKey: ['receipts', { status, ...filters }],
     queryFn: () => {
       const params = new URLSearchParams({ page: '1', pageSize: '50' });
       if (status !== 'ALL') params.set('status', status);
+      applyFilters(params, filters);
       return api.get<Paginated<Receipt>>(`/receipts?${params.toString()}`);
     },
   });
@@ -55,6 +58,8 @@ export function ReceiptListPage() {
           </button>
         ))}
       </div>
+
+      <ListFilterBar value={filters} onChange={setFilters} />
 
       {isLoading ? (
         <Spinner />

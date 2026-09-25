@@ -78,6 +78,12 @@ export class DispatchController {
     return this.dispatchService.findOne(id);
   }
 
+  /** Denetim izi — "Geçmiş" kartı bunu okur. */
+  @Get(':id/history')
+  history(@Param('id') id: string) {
+    return this.dispatchService.history(id);
+  }
+
   @Post()
   create(@Body(new ZodValidationPipe(createDispatchSchema)) dto: CreateDispatchInput) {
     return this.dispatchService.create(dto);

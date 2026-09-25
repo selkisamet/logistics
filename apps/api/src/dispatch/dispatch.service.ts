@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { dayRange, serializeAudit } from '../receipts/receipts.service';
 import { paginate } from '../common/pagination';
 import { datedReference } from '../common/codes';
 import {
@@ -125,18 +126,37 @@ export class DispatchService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: DispatchListQuery) {
-    const { page, pageSize, search, status } = query;
+    const { page, pageSize, search, status, from, to } = query;
+    const period = dayRange(from, to);
+    // AND: tarih ve arama iki ayrı koşul; ikisi de OR taşıdığı için tek nesnede
+    // birleştirilseydi birbirinin OR'unu ezerlerdi.
     const where: Prisma.DispatchWhereInput = {
       ...(status ? { status } : {}),
-      ...(search
-        ? {
-            OR: [
-              { reference: { contains: search, mode: 'insensitive' } },
-              { destination: { contains: search, mode: 'insensitive' } },
-              { vehiclePlate: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      AND: [
+        // Sevk edilmişse sevk tarihine, taslaksa açılış tarihine bakılır —
+        // tek alana bakılsaydı taslak seferler her tarih filtresinde kaybolurdu.
+        ...(period
+          ? [
+              {
+                OR: [
+                  { dispatchedAt: period },
+                  { AND: [{ dispatchedAt: null }, { createdAt: period }] },
+                ],
+              },
+            ]
+          : []),
+        ...(search
+          ? [
+              {
+                OR: [
+                  { reference: { contains: search, mode: 'insensitive' as const } },
+                  { destination: { contains: search, mode: 'insensitive' as const } },
+                  { vehiclePlate: { contains: search, mode: 'insensitive' as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.dispatch.findMany({
@@ -948,6 +968,17 @@ export class DispatchService {
     if (dispatch.status !== DispatchStatus.DRAFT) {
       throw new BadRequestException('Bu sevkiyat artık düzenlenemez');
     }
+  }
+
+  /** Denetim izi — "Geçmiş" kartı bunu okur. */
+  async history(id: string) {
+    await this.getOrThrow(id);
+    const events = await this.prisma.auditEvent.findMany({
+      where: { entityType: 'Dispatch', entityId: id },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return events.map(serializeAudit);
   }
 
   private audit(action: string, entityId: string, userId: string, metadata?: Prisma.InputJsonValue) {

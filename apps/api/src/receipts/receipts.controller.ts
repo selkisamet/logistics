@@ -66,6 +66,12 @@ export class ReceiptsController {
     return this.receiptsService.start(dto, user.id);
   }
 
+  /** Denetim izi — "Geçmiş" kartı bunu okur. */
+  @Get(':id/history')
+  history(@Param('id') id: string) {
+    return this.receiptsService.history(id);
+  }
+
   @Patch(':id')
   update(
     @Param('id') id: string,

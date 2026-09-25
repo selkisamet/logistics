@@ -55,6 +55,7 @@ import { Icon } from '../components/icons';
 import { DispatchStatusBadge } from '../components/DispatchStatusBadge';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { WaybillModal } from '../components/print/WaybillForm';
+import { HistoryCard } from '../components/HistoryCard';
 
 export function DispatchDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -530,6 +531,8 @@ export function DispatchDetailPage() {
           </span>
         </div>
       </Card>
+
+      <HistoryCard path={`/dispatches/${dispatch.id}/history`} />
 
       {/* ROTA ve YÜK TEK KARTTA. Eskiden "Duraklar" ve "Yüklenen Yük" ayrı kartlardı ve
           AYNI bilgiyi iki yönden anlatıyordu (durak "5 adet · 1 gönderici" derken, yük kartı

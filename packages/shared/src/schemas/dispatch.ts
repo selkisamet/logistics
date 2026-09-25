@@ -283,5 +283,9 @@ export type Dispatch = z.infer<typeof dispatchSchema>;
 
 export const dispatchListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(DISPATCH_STATUSES as [DispatchStatus, ...DispatchStatus[]]).optional(),
+  // Sevk edilmişse dispatchedAt, taslaksa createdAt'e bakılır (servis tarafında):
+  // tek alana bakılsaydı taslak seferler her tarih filtresinde kaybolurdu.
+  from: z.string().optional(),
+  to: z.string().optional(),
 });
 export type DispatchListQuery = z.infer<typeof dispatchListQuerySchema>;
