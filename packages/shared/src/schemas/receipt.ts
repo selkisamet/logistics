@@ -312,6 +312,33 @@ export type UpdateReceiptInput = z.infer<typeof updateReceiptSchema>;
  * açık; bu alanlar eskiden ön ihbardaydı ve ön ihbar rotaları admin/şef'ti.
  * Hepsi opsiyonel: yalnız gönderilen alan güncellenir.
  */
+/**
+ * Kalemin TİCARİ alanlarını düzenler — OFİS doldurur (yönetici/şef).
+ *
+ * Depocu malı indirirken fiyatı bilmiyor; yalnızca cins ve adet giriyor.
+ * Fiyat sonradan buradan yazılır ve mal kabul TAMAMLANDIKTAN SONRA da
+ * yazılabilir (fişteki ÜCRET sütunu ve KDV hesabı bundan besleniyor).
+ *
+ * **`countedQty` BİLEREK YOK.** Adet stok defterinin kendisi: sevk edilmiş bir
+ * kabulde değişirse `dispatchedQty` sayacı bozulur, kalan negatife düşer.
+ * Adet düzeltmesi "Geri Aç"tan geçer — o da sevk edilmiş kaydı reddediyor.
+ *
+ * `undefined` = dokunma, `null` = temizle.
+ */
+export const editReceiptLineSchema = z.object({
+  description: upperOpt(),
+  unit: z.string().optional(),
+  unitPrice: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v === null ? null : v),
+    z.coerce.number().nonnegative('Fiyat negatif olamaz').nullable().optional(),
+  ),
+  weightKg: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v === null ? null : v),
+    z.coerce.number().nonnegative('Ağırlık negatif olamaz').nullable().optional(),
+  ),
+});
+export type EditReceiptLineInput = z.infer<typeof editReceiptLineSchema>;
+
 export const updateReceiptCommercialSchema = z.object({
   recipientCustomerId: z.string().nullable().optional(), // null = alıcıyı kaldır
   plannedVehicleId: z.string().nullable().optional(),

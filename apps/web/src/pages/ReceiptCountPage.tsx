@@ -27,7 +27,14 @@ import { api, ApiError, assetUrl, uploadFiles } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
 import { useCustomerLocations, useCustomers, useVehicles, useWarehouses } from '../lib/lookups';
 import { isNativeApp } from '../lib/config';
-import { formatCount, formatDate, formatDateTime, formatMoney, formatWeight } from '../lib/format';
+import {
+  formatAmount,
+  formatCount,
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  formatWeight,
+} from '../lib/format';
 import { COMPANY } from '../lib/company';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
@@ -39,6 +46,7 @@ import {
   Combobox,
   Field,
   Input,
+  Modal,
   MultiCombobox,
   RowAction,
   Select,
@@ -91,6 +99,8 @@ export function ReceiptCountPage() {
   const [photoView, setPhotoView] = useState<{ images: LightboxImage[]; index: number } | null>(
     null,
   );
+  // Ofisin düzenlediği kalem (fiyat/kilo/cins) — adet burada DEĞİŞTİRİLEMEZ
+  const [editingLine, setEditingLine] = useState<ReceiptLine | null>(null);
 
   const { data: receipt, isLoading } = useQuery({
     queryKey: ['receipts', id],
@@ -260,8 +270,11 @@ export function ReceiptCountPage() {
                 key={line.id}
                 line={line}
                 editable={editable}
+                isOffice={isOffice}
+                currency={receipt.currency ?? 'TRY'}
                 onSetCount={setCount}
                 onReport={(type) => setDiscrepancyFor({ lineId: line.id, type })}
+                onEdit={() => setEditingLine(line)}
               />
             ))}
           </div>
@@ -545,6 +558,15 @@ export function ReceiptCountPage() {
         />
       )}
       <HistoryCard path={`/receipts/${receipt.id}/history`} />
+
+      {editingLine && (
+        <EditLineModal
+          receiptId={receipt.id}
+          line={editingLine}
+          currency={receipt.currency ?? 'TRY'}
+          onClose={() => setEditingLine(null)}
+        />
+      )}
 
       {photoView && (
         <ImageLightbox
@@ -927,13 +949,20 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
 function LineRow({
   line,
   editable,
+  isOffice,
+  currency,
   onSetCount,
   onReport,
+  onEdit,
 }: {
   line: ReceiptLine;
   editable: boolean;
+  /** Ofis (yönetici/şef) fiyat/kilo/cins düzenleyebilir — tamamlandıktan sonra da. */
+  isOffice: boolean;
+  currency: Currency;
   onSetCount: (line: ReceiptLine, qty: number) => void;
   onReport: (type: DiscrepancyType) => void;
+  onEdit: () => void;
 }) {
   const expected = line.expectedQty;
   const state =
@@ -965,8 +994,17 @@ function LineRow({
           <span className="font-bold text-slate-900">{line.countedQty}</span>
           {expected != null && <span className="text-slate-400"> / {expected}</span>}
           <span className="ml-1 text-xs text-slate-400">{line.unit}</span>
-          {line.weightKg != null && (
-            <span className="block text-xs text-slate-400">{formatWeight(line.weightKg)} kg</span>
+          <span className="block text-xs text-slate-400">
+            {line.weightKg != null ? `${formatWeight(line.weightKg)} kg` : ''}
+            {line.weightKg != null && line.unitPrice != null ? ' · ' : ''}
+            {line.unitPrice != null
+              ? `${CURRENCY_SYMBOLS[currency] ?? '₺'}${formatAmount(line.unitPrice)}`
+              : ''}
+          </span>
+          {isOffice && (
+            <button onClick={onEdit} className="mt-1 text-xs font-medium text-brand">
+              Düzenle
+            </button>
           )}
         </div>
       </div>
@@ -1086,6 +1124,100 @@ function AddLineModal({
         </form>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Kalemin ticari alanlarını düzenler — OFİS (yönetici/şef).
+ *
+ * Depocu malı indirirken fiyatı bilmiyor; buradan sonradan giriliyor ve mal
+ * kabul TAMAMLANDIKTAN SONRA da girilebiliyor.
+ *
+ * **Adet burada YOK, bilerek.** Adet stok defterinin kendisi: sevk edilmiş bir
+ * kabulde değişirse sevk sayacı bozulur. Adet düzeltmesi "Geri Aç"tan geçer,
+ * o da sevk edilmiş kaydı reddediyor.
+ */
+function EditLineModal({
+  receiptId,
+  line,
+  currency,
+  onClose,
+}: {
+  receiptId: string;
+  line: ReceiptLine;
+  currency: Currency;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [description, setDescription] = useState(line.description);
+  const [unit, setUnit] = useState(line.unit);
+  const [price, setPrice] = useState(line.unitPrice != null ? String(line.unitPrice) : '');
+  const [weight, setWeight] = useState(line.weightKg != null ? String(line.weightKg) : '');
+
+  const mut = useMutation({
+    mutationFn: () =>
+      api.patch<Receipt>(`/receipts/${receiptId}/lines/${line.id}`, {
+        description,
+        unit,
+        // Boş bırakılırsa null gider = değeri temizle
+        unitPrice: price.trim() === '' ? null : price,
+        weightKg: weight.trim() === '' ? null : weight,
+      }),
+    onSuccess: (r) => {
+      qc.setQueryData(['receipts', receiptId], r);
+      toast('Kalem güncellendi');
+      onClose();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
+  });
+
+  return (
+    <Modal title="Kalemi Düzenle" description={`${line.countedQty} ${line.unit}`} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Malın Cinsi">
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Nevi (kap)">
+            <Select value={unit} onChange={(e) => setUnit(e.target.value)}>
+              {KAP_TYPES.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Kilo (kg)">
+            <Input
+              type="number"
+              min={0}
+              step="0.001"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              placeholder="0"
+            />
+          </Field>
+        </div>
+        <Field label={`Birim Fiyat (${CURRENCY_SYMBOLS[currency] ?? '₺'})`}>
+          <Input
+            type="number"
+            min={0}
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="0"
+          />
+        </Field>
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            Vazgeç
+          </Button>
+          <Button className="flex-1" loading={mut.isPending} onClick={() => mut.mutate()}>
+            Kaydet
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

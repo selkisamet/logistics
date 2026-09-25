@@ -29,6 +29,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'receipt.cancelled': 'Mal kabul iptal edildi',
   'receipt.reopened': 'Mal kabul geri açıldı',
   'receipt.commercial_updated': 'Ticari bilgiler güncellendi',
+  'receipt.lineUpdated': 'Kalem düzenlendi',
   'dispatch.completed': 'Sevk edildi',
   'dispatch.cancelled': 'Sevkiyat geri alındı',
   'dispatch.quick': 'Hızlı sevk yapıldı',

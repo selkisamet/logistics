@@ -14,6 +14,7 @@ import {
   type ReceiptListQuery,
   type ReceiptRecipientInput,
   type ReceiptSourceInput,
+  type EditReceiptLineInput,
   type StartReceiptInput,
   type UpdateReceiptCommercialInput,
   type UpsertReceiptLineInput,
@@ -441,6 +442,40 @@ export class ReceiptsService {
         },
       });
     }
+    return this.findOne(id);
+  }
+
+  /**
+   * Kalemin TİCARİ alanlarını düzenler — OFİS (yönetici/şef).
+   *
+   * Depocu fiyatı bilmediği için yalnız cins/adet giriyor; fiyat sonradan
+   * buradan yazılıyor. `ensureInProgress` BİLEREK çağrılmıyor: tamamlanmış
+   * kabulde de fiyat girilebilmeli (fişteki ÜCRET/KDV bundan besleniyor).
+   * İptal edilmiş kayıt ise dokunulmaz.
+   */
+  async updateLineCommercial(
+    id: string,
+    lineId: string,
+    input: EditReceiptLineInput,
+    userId: string,
+  ) {
+    const receipt = await this.getOrThrow(id);
+    if (receipt.status === ReceiptStatus.CANCELLED) {
+      throw new BadRequestException('İptal edilmiş mal kabul düzenlenemez');
+    }
+    const line = receipt.lines.find((l) => l.id === lineId);
+    if (!line) throw new NotFoundException('Kalem bulunamadı');
+
+    await this.prisma.receiptLine.update({
+      where: { id: lineId },
+      data: {
+        description: input.description,
+        unit: input.unit,
+        unitPrice: input.unitPrice,
+        weightKg: input.weightKg,
+      },
+    });
+    await this.audit('receipt.lineUpdated', 'Receipt', id, userId, { lineId });
     return this.findOne(id);
   }
 

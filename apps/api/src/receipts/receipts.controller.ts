@@ -18,6 +18,7 @@ import {
   createPackageSchema,
   updateReceiptSchema,
   updateReceiptCommercialSchema,
+  editReceiptLineSchema,
   receiptListQuerySchema,
   UserRole,
   type StartReceiptInput,
@@ -25,6 +26,7 @@ import {
   type CreatePackageInput,
   type UpdateReceiptInput,
   type UpdateReceiptCommercialInput,
+  type EditReceiptLineInput,
   type ReceiptListQuery,
   type AuthUser,
 } from '@lojistik/shared';
@@ -97,6 +99,18 @@ export class ReceiptsController {
     @Body(new ZodValidationPipe(upsertReceiptLineSchema)) dto: UpsertReceiptLineInput,
   ) {
     return this.receiptsService.upsertLine(id, dto);
+  }
+
+  /** Kalemin ticari alanları (fiyat, kilo, cins) — depocu değil OFİS doldurur. */
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Patch(':id/lines/:lineId')
+  updateLineCommercial(
+    @Param('id') id: string,
+    @Param('lineId') lineId: string,
+    @Body(new ZodValidationPipe(editReceiptLineSchema)) dto: EditReceiptLineInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.receiptsService.updateLineCommercial(id, lineId, dto, user.id);
   }
 
   @Delete(':id/lines/:lineId')
