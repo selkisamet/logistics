@@ -16,8 +16,9 @@ mal depoya gelince elde olur, bazı yük cross-dock (hemen çıkar), bazısı bi
 **düzenlenebilir input'a** yazan dar OCR (kullanıcı kaydetmeden kontrol eder). Bkz. Native uygulama.
 Genel ayar tercihi: en mantıklı/sade çözüm, az tık, hata riskini azaltan akış.
 
-Kurulum/çalıştırma detayları için ayrıca [README.md](README.md). **Yeni makinede kurulum:**
-[GELISTIRME.md](GELISTIRME.md). Önceki makineden taşınan Claude hafızası/tercihleri:
+Kurulum/çalıştırma detayları için ayrıca [README.md](README.md). **Kendi bilgisayarında kurulum +
+oradan VPS'e yayın + günlük iş akışı:** [GELISTIRME.md](GELISTIRME.md) (üretim: VPS'te Docker,
+`lojistik.enderlojistik.com`, güncelleme `ssh ... ./deploy.sh`; sunucu ayrıntısı [KURULUM.md](KURULUM.md)). Önceki makineden taşınan Claude hafızası/tercihleri:
 [docs/claude-notlar.md](docs/claude-notlar.md) — oturum başında oku.
 Aşağıdaki "Çalıştırma" bölümündeki `.bat`/`.tools` düzeni **firma PC'sine** özgüdür.
 
