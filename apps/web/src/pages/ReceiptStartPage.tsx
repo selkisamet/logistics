@@ -51,10 +51,12 @@ export function ReceiptStartPage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [recipientCustomerId, setRecipientCustomerId] = useState('');
   const [waybillNo, setWaybillNo] = useState('');
-  // İrsaliye No fotoğraftan okunur; depocu elle yazmakla uğraşmasın diye kilitli
-  // açılır. Ama OCR yanlış okuyabilir ve bu numara tesellüm fişine basılıyor —
-  // "Düzelt" ile kilit açılabilir (dar OCR'ın kuralı: kullanıcı kaydetmeden kontrol eder).
-  const [waybillUnlocked, setWaybillUnlocked] = useState(false);
+  const [orderNo, setOrderNo] = useState('');
+  // İrsaliye ve sipariş no fotoğraftan okunur; depocu elle yazmakla uğraşmasın
+  // diye kilitli açılırlar. Ama OCR yanlış okuyabilir ve bu numaralar tesellüm
+  // fişine basılıyor — "Düzelt" kilidi açar (dar OCR'ın kuralı: kullanıcı
+  // kaydetmeden kontrol eder). İkisi aynı okumadan geldiği için tek kilit.
+  const [docsUnlocked, setDocsUnlocked] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
 
   // Depo nadiren değişir: formdan çıkarıldı, üstte ince şeritte durur
@@ -127,7 +129,7 @@ export function ReceiptStartPage() {
   const addPhotos = async (files: File[]) => {
     if (!files.length) return;
     setPhotos((p) => [...p, ...files]);
-    if (waybillNo.trim()) return;
+    if (waybillNo.trim() || orderNo.trim()) return;
 
     setOcrBusy(true);
     try {
@@ -137,16 +139,17 @@ export function ReceiptStartPage() {
         'file',
         OCR_PROFILE,
       );
-      if (res.waybillNo) {
-        setWaybillNo(res.waybillNo);
-        toast('İrsaliye No okundu — kontrol edin');
+      if (res.waybillNo) setWaybillNo(res.waybillNo);
+      if (res.orderNo) setOrderNo(res.orderNo);
+      if (res.waybillNo || res.orderNo) {
+        toast('Numaralar okundu — kontrol edin');
       } else {
         // Okunamadıysa kilidi aç: depocu elle yazabilsin, yoksa mahsur kalır
-        setWaybillUnlocked(true);
+        setDocsUnlocked(true);
         toast.error('Numara okunamadı — elle yazabilirsiniz');
       }
     } catch {
-      setWaybillUnlocked(true);
+      setDocsUnlocked(true);
       toast.error('Numara okunamadı — elle yazabilirsiniz');
     } finally {
       setOcrBusy(false);
@@ -228,24 +231,33 @@ export function ReceiptStartPage() {
 
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-slate-700">İrsaliye No</span>
-            {!waybillUnlocked && (
+            <span className="text-sm font-medium text-slate-700">Belge Bilgileri</span>
+            {!docsUnlocked && (
               <button
                 type="button"
-                onClick={() => setWaybillUnlocked(true)}
+                onClick={() => setDocsUnlocked(true)}
                 className="text-sm font-medium text-brand"
               >
                 Düzelt
               </button>
             )}
           </div>
-          <Input
-            value={waybillNo}
-            onChange={(e) => setWaybillNo(e.target.value)}
-            disabled={!waybillUnlocked}
-            placeholder={ocrBusy ? 'Okunuyor…' : 'Fotoğraftan okunacak'}
-            className={clsx(!waybillUnlocked && 'bg-slate-50 text-slate-600')}
-          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Input
+              value={waybillNo}
+              onChange={(e) => setWaybillNo(e.target.value)}
+              disabled={!docsUnlocked}
+              placeholder={ocrBusy ? 'Okunuyor…' : 'İrsaliye No — fotoğraftan'}
+              className={clsx(!docsUnlocked && 'bg-slate-50 text-slate-600')}
+            />
+            <Input
+              value={orderNo}
+              onChange={(e) => setOrderNo(e.target.value)}
+              disabled={!docsUnlocked}
+              placeholder={ocrBusy ? 'Okunuyor…' : 'Sipariş No — fotoğraftan'}
+              className={clsx(!docsUnlocked && 'bg-slate-50 text-slate-600')}
+            />
+          </div>
         </div>
 
         {/* İrsaliye fotoğrafı — araç beklerken hızlıca çekilsin, kayıtla birlikte yüklenir */}
@@ -414,6 +426,7 @@ export function ReceiptStartPage() {
               warehouseId,
               recipientCustomerId: recipientCustomerId || undefined,
               waybillNo: waybillNo || undefined,
+              orderNo: orderNo || undefined,
               kap: items.length ? { items, makeLabels } : undefined,
               discrepancy:
                 noteOpen && noteText.trim()

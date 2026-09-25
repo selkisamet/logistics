@@ -70,16 +70,19 @@ export type ReceiptRecipientInput = z.infer<typeof receiptRecipientInputSchema>;
  * Depocu yalnız BİLDİĞİ şeyi girer. ALICI **opsiyoneldir** — gelen irsaliyede
  * nihai firma her zaman yazmıyor; ofis sonradan tamamlar.
  *
- * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez (ofis
- * `updateReceiptCommercialSchema` ile girer), **sipariş no**'yu OCR irsaliye
- * fotoğrafından okuyup Belge Bilgileri'ne (`updateReceiptSchema`) yazar, ticari
- * alanlar (para birimi, ödeme tipi, termin...) da ofisin işi.
+ * İrsaliye ve sipariş no'yu depocu YAZMAZ: irsaliye fotoğrafı çekilince OCR
+ * okur ve alanlar kendiliğinden dolar (yanlış okursa elle düzeltilebilir).
+ *
+ * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez ve ticari
+ * alanlar (para birimi, ödeme tipi, termin...) ofisin işi — ikisi de
+ * `updateReceiptCommercialSchema` ile girilir.
  */
 export const startReceiptSchema = z.object({
   customerId: z.string().min(1, 'Gönderici seçilmeli'),
   warehouseId: z.string().min(1, 'Hedef depo seçilmeli'),
   recipientCustomerId: z.string().optional(), // ALICI — depocu bilmiyorsa boş
-  waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su
+  waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su — fotoğraftan okunur
+  orderNo: codeOpt(), // sipariş no — aynı fotoğraftan okunur, fişe basılır
   notes: upperOpt(),
 
   /**

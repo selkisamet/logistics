@@ -211,6 +211,7 @@ export class ReceiptsService {
           warehouseId: warehouse.id,
           recipientCustomerId: recipientId,
           waybillNo: input.waybillNo,
+          orderNo: input.orderNo,
           notes: input.notes,
           startedById: userId,
           lines: lines ? { create: lines } : undefined,
