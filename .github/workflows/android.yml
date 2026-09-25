@@ -54,6 +54,6 @@ jobs:
       - name: APK'yı yükle (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: tesellum-debug-apk
+          name: lojistik-debug-apk
           path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

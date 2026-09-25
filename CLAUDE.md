@@ -16,7 +16,10 @@ mal depoya gelince elde olur, bazı yük cross-dock (hemen çıkar), bazısı bi
 **düzenlenebilir input'a** yazan dar OCR (kullanıcı kaydetmeden kontrol eder). Bkz. Native uygulama.
 Genel ayar tercihi: en mantıklı/sade çözüm, az tık, hata riskini azaltan akış.
 
-Kurulum/çalıştırma detayları için ayrıca [README.md](README.md).
+Kurulum/çalıştırma detayları için ayrıca [README.md](README.md). **Yeni makinede kurulum:**
+[GELISTIRME.md](GELISTIRME.md). Önceki makineden taşınan Claude hafızası/tercihleri:
+[docs/claude-notlar.md](docs/claude-notlar.md) — oturum başında oku.
+Aşağıdaki "Çalıştırma" bölümündeki `.bat`/`.tools` düzeni **firma PC'sine** özgüdür.
 
 ## Çalıştırma
 
@@ -131,6 +134,12 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     kullanıyor.)
 - Mal Kabul: sayım (satırlar **id** ile güncellenir, SKU boş olabilir), **İrsaliye No + Sipariş No** (Belge Bilgileri),
   toplu palet QR etiketi üretimi (adet girilir), tamamla. Kör kabul (ASN'siz) da var.
+  - **İrsaliye görüntüleri (foto):** mal kabul detayında "İrsaliye Görüntüleri" kartı (`AttachmentsCard`,
+    [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)) — çoklu foto yüklenir, galeri + sil.
+    **OCR YOK** (belge kaydı olarak saklanır; dar irsaliye-no OCR'ı ayrı, Belge Bilgileri'nde). `Attachment`
+    modeli artık `discrepancyId` VEYA `receiptId` ile bağlanabilir (ikisi opsiyonel). Endpoint:
+    `POST /receipts/:id/attachments` (FilesInterceptor, tek adımda yükle+bağla) + `DELETE /receipts/:id/attachments/:attachmentId`;
+    yalnız IN_PROGRESS'te eklenir/silinir (`ensureInProgress`). `serializeReceipt` `attachments`'ı yüzeye çıkarır.
 - **Tesellüm fişi:** mal kabul başlığındaki "🖨️ Tesellüm Fişi" ile her durumda basılır (`ReceiptSlipModal`,
   [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)). Klasik **"Ambar Tesellüm Fişi"** form düzeni,
   **A5 YATAY**: kaşe/QR + ünvan, fiş bilgileri (seri/sıra no=fiş ref, tarih, gönderici sevk irs.=irsaliye no,
@@ -309,8 +318,8 @@ farklı alıcılara/noktalara gidebilir.
 - **Modeller:** User, Customer(+taxOffice,taxNumber), CustomerContact, CustomerLocation, CustomerRecipient(dormant),
   Warehouse(+isDefault), Location,
   InboundShipment(+vehicleId,recipientCustomerId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,
-  Receipt(+waybillNo, orderNo, dispatchId, **stopId**), ReceiptLine, Package(+dispatchId,
-  dispatchedAt, **stopId**), Discrepancy, Attachment,
+  Receipt(+waybillNo, orderNo, dispatchId, **stopId**, attachments), ReceiptLine, Package(+dispatchId,
+  dispatchedAt, **stopId**), Discrepancy, Attachment(discrepancyId? **veya** receiptId?),
   Dispatch(+vehicleId, packages, **stops, waybillSerial/waybillNo/waybillDate, freightAmount, freightVatIncluded**),
   **DispatchStop**(dispatchId, seq, customerId?, customerLocationId?, name/address/phone snapshot, deliveredAt),
   Vehicle(type=String), AuditEvent.

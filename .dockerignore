@@ -1,0 +1,18 @@
+# Docker build bağlamına GİRMEYECEKLER.
+# .tools (taşınabilir Postgres + pgdata) ve backups gigabaytlarca yer tutar;
+# bağlama girerse her derleme dakikalarca sürer.
+node_modules
+**/node_modules
+.git
+.tools
+backups
+uploads
+**/uploads
+**/dist
+**/.turbo
+apps/web/android
+apps/web/.vite
+*.log
+.env
+.env.*
+!.env.prod.example

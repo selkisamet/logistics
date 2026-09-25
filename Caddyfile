@@ -1,0 +1,21 @@
+# Caddy: HTTPS sertifikasını Let's Encrypt'ten kendi alır ve kendi yeniler.
+# Elle sertifika işi YOK — 80 ve 443 açık olsun, DNS doğru göstersin, yeter.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Mal kabulde 12 foto yüklenebiliyor. İstemci sıkıştırması ~500 KB'a indiriyor
+	# ama sıkıştırma başarısız olursa orijinal gidiyor (12 × 10 MB) — limit ona göre.
+	request_body {
+		max_size 128MB
+	}
+
+	reverse_proxy app:3000
+
+	log {
+		output file /data/erisim.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

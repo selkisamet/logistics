@@ -1,0 +1,78 @@
+# Üretim yığını: Postgres + uygulama + Caddy (otomatik HTTPS).
+# Çalıştır:  docker compose -f docker-compose.prod.yml up -d --build
+#
+# `name` sabit: yedek scripti volume adlarını (lojistik_uploads) buradan bulur.
+name: lojistik
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lojistik
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?once .env dosyasini doldur}
+      POSTGRES_DB: lojistik
+      TZ: Europe/Istanbul
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # DIŞARI PORT AÇILMAZ — veritabanına yalnız docker ağı içinden erişilir.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lojistik -d lojistik']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://lojistik:${POSTGRES_PASSWORD}@db:5432/lojistik?schema=public
+      JWT_SECRET: ${JWT_SECRET:?once .env dosyasini doldur}
+      JWT_EXPIRES_IN: 7d
+      API_PORT: 3000
+      WEB_ORIGIN: https://${DOMAIN}
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: ./uploads
+      OCR_PROVIDER: claude
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TZ: Europe/Istanbul
+    volumes:
+      # İrsaliye fotoğrafları. Kaba yedek için named volume; yedek scripti buradan alır.
+      - uploads:/app/apps/api/uploads
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?once .env dosyasini doldur}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # sertifikalar burada — SİLME, yoksa Let's Encrypt limitine takılırsın
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

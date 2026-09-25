@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   // Canlı yükleme: APK, web'i buluttaki adresten yükler → web değişince APK'yı
   // yeniden kurmaya gerek yok. Native eklentiler (kamera) yine çalışır.
   server: {
-    url: 'https://logistics-86zh.onrender.com',
+    url: 'https://lojistik.enderlojistik.com',
     cleartext: false,
   },
   android: {
