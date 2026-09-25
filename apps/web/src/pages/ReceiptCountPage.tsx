@@ -49,6 +49,7 @@ import { Icon } from '../components/icons';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { NativeCamera } from '../components/NativeCamera';
+import { ImageLightbox, type LightboxImage } from '../components/ImageLightbox';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
 
@@ -85,6 +86,10 @@ export function ReceiptCountPage() {
     lineId?: string;
     type?: DiscrepancyType;
   } | null>(null);
+  // Tutanak fotoğrafları tam ekran açılır (görseller tutanak başına gruplanır)
+  const [photoView, setPhotoView] = useState<{ images: LightboxImage[]; index: number } | null>(
+    null,
+  );
 
   const { data: receipt, isLoading } = useQuery({
     queryKey: ['receipts', id],
@@ -392,14 +397,26 @@ export function ReceiptCountPage() {
                 </div>
                 {d.attachments.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {d.attachments.map((a) => (
-                      <a key={a.id} href={assetUrl(a.url)} target="_blank" rel="noreferrer">
+                    {d.attachments.map((a, idx) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() =>
+                          setPhotoView({
+                            images: d.attachments.map((x) => ({
+                              url: assetUrl(x.url),
+                              alt: x.fileName,
+                            })),
+                            index: idx,
+                          })
+                        }
+                      >
                         <img
                           src={assetUrl(a.url)}
                           alt={a.fileName}
                           className="h-16 w-16 rounded-lg object-cover"
                         />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -499,6 +516,13 @@ export function ReceiptCountPage() {
           defaultLineId={discrepancyFor.lineId}
           defaultType={discrepancyFor.type}
           onClose={() => setDiscrepancyFor(null)}
+        />
+      )}
+      {photoView && (
+        <ImageLightbox
+          images={photoView.images}
+          startIndex={photoView.index}
+          onClose={() => setPhotoView(null)}
         />
       )}
     </div>
@@ -775,6 +799,8 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
   // diyaloğu zaten yeterli. Aynı ayrım "İrsaliye No Oku"da da var.
   const [cameraOpen, setCameraOpen] = useState(false);
   const native = isNativeApp();
+  // Tam ekran görüntüleyicide açık olan görselin sırası (null = kapalı)
+  const [viewer, setViewer] = useState<number | null>(null);
 
   // Tamamlanmış ve hiç görüntü yoksa gizle
   if (!editable && attachments.length === 0) return null;
@@ -821,17 +847,24 @@ function AttachmentsCard({ receipt, editable }: { receipt: Receipt; editable: bo
           }}
         />
       )}
+      {viewer !== null && (
+        <ImageLightbox
+          images={attachments.map((a) => ({ url: assetUrl(a.url), alt: a.fileName }))}
+          startIndex={viewer}
+          onClose={() => setViewer(null)}
+        />
+      )}
       {attachments.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {attachments.map((a) => (
+          {attachments.map((a, idx) => (
             <div key={a.id} className="relative">
-              <a href={assetUrl(a.url)} target="_blank" rel="noreferrer">
+              <button type="button" onClick={() => setViewer(idx)}>
                 <img
                   src={assetUrl(a.url)}
                   alt={a.fileName}
                   className="h-24 w-24 rounded-lg border border-slate-200 object-cover"
                 />
-              </a>
+              </button>
               {editable && (
                 <button
                   type="button"
