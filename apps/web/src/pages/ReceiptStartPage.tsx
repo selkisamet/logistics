@@ -8,8 +8,11 @@ import {
   type DiscrepancyType,
   type Receipt,
   type StartReceiptInput,
+  type WaybillExtraction,
 } from '@lojistik/shared';
-import { api, ApiError, uploadFiles } from '../lib/api';
+import { clsx } from 'clsx';
+import { api, ApiError, uploadFiles, uploadSingle } from '../lib/api';
+import { OCR_PROFILE } from '../lib/image';
 import { isNativeApp } from '../lib/config';
 import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Select } from '../components/ui';
@@ -48,6 +51,11 @@ export function ReceiptStartPage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [recipientCustomerId, setRecipientCustomerId] = useState('');
   const [waybillNo, setWaybillNo] = useState('');
+  // İrsaliye No fotoğraftan okunur; depocu elle yazmakla uğraşmasın diye kilitli
+  // açılır. Ama OCR yanlış okuyabilir ve bu numara tesellüm fişine basılıyor —
+  // "Düzelt" ile kilit açılabilir (dar OCR'ın kuralı: kullanıcı kaydetmeden kontrol eder).
+  const [waybillUnlocked, setWaybillUnlocked] = useState(false);
+  const [ocrBusy, setOcrBusy] = useState(false);
 
   // Depo nadiren değişir: formdan çıkarıldı, üstte ince şeritte durur
   const [whOpen, setWhOpen] = useState(false);
@@ -111,7 +119,39 @@ export function ReceiptStartPage() {
     onError: (err) => setServerError(err instanceof ApiError ? err.message : 'Başlatılamadı'),
   });
 
-  const addPhotos = (files: File[]) => setPhotos((p) => [...p, ...files]);
+  /**
+   * Foto eklenir; İrsaliye No HENÜZ BOŞSA ilk kareden okunmaya çalışılır.
+   * Doluysa tekrar okunmaz — hem boşuna OCR çağrısı yapılmaz, hem de doğru
+   * okunmuş bir numara sonraki (belki bulanık) kareyle ezilmez.
+   */
+  const addPhotos = async (files: File[]) => {
+    if (!files.length) return;
+    setPhotos((p) => [...p, ...files]);
+    if (waybillNo.trim()) return;
+
+    setOcrBusy(true);
+    try {
+      const res = await uploadSingle<WaybillExtraction>(
+        '/ocr/waybill',
+        files[0],
+        'file',
+        OCR_PROFILE,
+      );
+      if (res.waybillNo) {
+        setWaybillNo(res.waybillNo);
+        toast('İrsaliye No okundu — kontrol edin');
+      } else {
+        // Okunamadıysa kilidi aç: depocu elle yazabilsin, yoksa mahsur kalır
+        setWaybillUnlocked(true);
+        toast.error('Numara okunamadı — elle yazabilirsiniz');
+      }
+    } catch {
+      setWaybillUnlocked(true);
+      toast.error('Numara okunamadı — elle yazabilirsiniz');
+    } finally {
+      setOcrBusy(false);
+    }
+  };
   const warehouseName = warehouses?.find((w) => w.id === warehouseId)?.name ?? '—';
 
   return (
@@ -186,13 +226,27 @@ export function ReceiptStartPage() {
           </Field>
         </div>
 
-        <Field label="İrsaliye No">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-slate-700">İrsaliye No</span>
+            {!waybillUnlocked && (
+              <button
+                type="button"
+                onClick={() => setWaybillUnlocked(true)}
+                className="text-sm font-medium text-brand"
+              >
+                Düzelt
+              </button>
+            )}
+          </div>
           <Input
             value={waybillNo}
             onChange={(e) => setWaybillNo(e.target.value)}
-            placeholder="Göndericinin sevk irsaliyesi"
+            disabled={!waybillUnlocked}
+            placeholder={ocrBusy ? 'Okunuyor…' : 'Fotoğraftan okunacak'}
+            className={clsx(!waybillUnlocked && 'bg-slate-50 text-slate-600')}
           />
-        </Field>
+        </div>
 
         {/* İrsaliye fotoğrafı — araç beklerken hızlıca çekilsin, kayıtla birlikte yüklenir */}
         <div className="space-y-2 border-t border-slate-100 pt-3">
@@ -206,8 +260,9 @@ export function ReceiptStartPage() {
               multiple
               className="hidden"
               onChange={(e) => {
-                addPhotos(Array.from(e.target.files ?? []));
+                const files = Array.from(e.target.files ?? []);
                 e.target.value = '';
+                void addPhotos(files);
               }}
             />
             <Button
@@ -378,7 +433,7 @@ export function ReceiptStartPage() {
           busyLabel="Alınıyor…"
           onClose={() => setCameraOpen(false)}
           onCapture={async (file) => {
-            addPhotos([file]);
+            await addPhotos([file]);
             return null;
           }}
         />
