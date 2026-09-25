@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CameraPreview } from '@capacitor-community/camera-preview';
-import type { WaybillExtraction } from '@lojistik/shared';
-import { ApiError, uploadSingle } from '../lib/api';
-import { OCR_PROFILE } from '../lib/image';
+import { ApiError } from '../lib/api';
 
 /**
  * Native (Capacitor) kamera kabuğu: CameraX tabanlı camera-preview eklentisiyle ARKA
@@ -12,9 +10,9 @@ import { OCR_PROFILE } from '../lib/image';
  * Sayfa YENİLENMEZ.
  *
  * Çekilen kareyle ne yapılacağını `onCapture` belirler — iki kullanıcısı var:
- * irsaliye numarası okuma (OCR) ve mal kabule belge fotoğrafı ekleme. Tarayıcıda
- * `<input capture>` yeterli, ama APK içinde arka kamerayı açtıramıyor ve
- * odaklamıyor; bu kabuk tam o yüzden yazıldı.
+ * teslim alma ekranı (kareyi hem OCR'a yollar hem eke koyar) ve mal kabuldeki
+ * "İrsaliye Görüntüleri" kartı. Tarayıcıda `<input capture>` yeterli, ama APK
+ * içinde arka kamerayı açtıramıyor ve odaklamıyor; bu kabuk tam o yüzden yazıldı.
  */
 export function NativeCamera({
   title,
@@ -143,34 +141,5 @@ export function NativeCamera({
       </div>
     </div>,
     document.body,
-  );
-}
-
-/**
- * İrsaliye numarası okuyucu — kareyi OCR'a gönderir, numara input'a yazılır.
- * Numara okunamazsa kamera açık kalır ki kullanıcı hemen tekrar çekebilsin.
- */
-export function WaybillCamera({
-  onResult,
-  onClose,
-}: {
-  onResult: (res: WaybillExtraction) => void;
-  onClose: () => void;
-}) {
-  return (
-    <NativeCamera
-      title="İrsaliye Numarasını Oku"
-      guide="İrsaliye No'yu ortala, net olunca çek"
-      busyLabel="Okunuyor…"
-      onClose={onClose}
-      onCapture={async (file) => {
-        const res = await uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE);
-        if (!res.waybillNo && !res.orderNo) {
-          return 'Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.';
-        }
-        onResult(res);
-        return null;
-      }}
-    />
   );
 }

@@ -22,10 +22,8 @@ import {
   type UpsertReceiptLineInput,
   type Package,
   type DiscrepancyType,
-  type WaybillExtraction,
 } from '@lojistik/shared';
-import { api, ApiError, assetUrl, uploadFiles, uploadSingle } from '../lib/api';
-import { OCR_PROFILE } from '../lib/image';
+import { api, ApiError, assetUrl, uploadFiles } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
 import { useCustomerLocations, useCustomers, useVehicles, useWarehouses } from '../lib/lookups';
 import { isNativeApp } from '../lib/config';
@@ -50,7 +48,7 @@ import {
 import { Icon } from '../components/icons';
 import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge';
 import { DiscrepancyModal } from '../components/DiscrepancyModal';
-import { NativeCamera, WaybillCamera } from '../components/WaybillCamera';
+import { NativeCamera } from '../components/NativeCamera';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
 
@@ -714,64 +712,13 @@ function DocumentEditor({
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Kaydedilemedi'),
   });
 
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const ocrMut = useMutation({
-    mutationFn: (file: File) =>
-      uploadSingle<WaybillExtraction>('/ocr/waybill', file, 'file', OCR_PROFILE),
-    onSuccess: (res) => fillFromOcr(res),
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Okunamadı'),
-  });
-
-  function fillFromOcr(res: WaybillExtraction) {
-    if (res.waybillNo) setWaybill(res.waybillNo);
-    if (res.orderNo) setOrder(res.orderNo);
-    toast(
-      res.waybillNo || res.orderNo
-        ? "Okundu — kontrol edip Kaydet'e basın"
-        : 'Numara okunamadı — İrsaliye No net görünecek şekilde tekrar çekin.',
-    );
-  }
-
-  // Native app'te CameraX'li arka kamera; tarayıcıda telefonun kamera diyaloğu (yedek).
-  const openCamera = () => {
-    if (isNativeApp()) setCameraOpen(true);
-    else fileRef.current?.click();
-  };
-
   // Tamamlanmış ve her iki alan da boşsa hiç gösterme
   if (!editable && !initialWaybill && !initialOrder) return null;
 
+  // OCR burada YOK: numaralar teslim alma anında irsaliye fotoğrafından okunuyor
+  // (ReceiptStartPage). Burası yalnızca düzeltme yeri.
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-slate-400">İrsaliye ve sipariş numarası</span>
-        {editable && (
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) ocrMut.mutate(f);
-                e.target.value = '';
-              }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              loading={ocrMut.isPending}
-              onClick={openCamera}
-            >
-              <Icon name="camera" className="h-4 w-4" /> İrsaliye No Oku
-            </Button>
-          </>
-        )}
-      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Field label="İrsaliye No">
           <Input
@@ -794,9 +741,6 @@ function DocumentEditor({
         <Button variant="secondary" loading={mut.isPending} onClick={() => mut.mutate()}>
           Kaydet
         </Button>
-      )}
-      {cameraOpen && (
-        <WaybillCamera onResult={fillFromOcr} onClose={() => setCameraOpen(false)} />
       )}
     </div>
   );

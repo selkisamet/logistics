@@ -17,7 +17,7 @@ import { isNativeApp } from '../lib/config';
 import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Select } from '../components/ui';
 import { Icon } from '../components/icons';
-import { NativeCamera } from '../components/WaybillCamera';
+import { NativeCamera } from '../components/NativeCamera';
 import { useCustomers, useWarehouses } from '../lib/lookups';
 
 /** Ekrandaki bir kalem satırı. `key` React listesi için; id değil. */
