@@ -954,7 +954,6 @@ function LineRow({
           <p className="text-xs text-slate-500">
             {line.sku}
             {line.barcode ? ` · ${line.barcode}` : ''}
-            {expected == null && ' · ekstra (ön ihbarda yok)'}
           </p>
         </div>
         <div className="text-right text-sm">

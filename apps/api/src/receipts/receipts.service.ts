@@ -178,26 +178,28 @@ export class ReceiptsService {
     const recipientId = await this.validateRecipientCustomer(input.recipientCustomerId);
     const kap = input.kap;
 
-    // QR istendiyse kap bazlı (palet başına etiket), istenmediyse kalem bazlı tek
-    // satır. Tek-granülerlik kuralı: ikisi bir arada çift sayım yapardı.
+    // QR istendiyse kap bazlı (her kap için etiket), istenmediyse kalem bazlı
+    // (satır başına bir kalem). Tek-granülerlik kuralı: ikisi bir arada çift
+    // sayım yapardı, bu yüzden karar satır başına değil KAYIT başınadır.
     const packages: Prisma.PackageCreateWithoutReceiptInput[] | undefined =
       kap && kap.makeLabels
-        ? Array.from({ length: kap.count }, () => ({
-            code: `PKG-${randomCode(8)}`,
-            type: packageTypeOf(kap.type),
-          }))
+        ? kap.items.flatMap((it) =>
+            Array.from({ length: it.count }, () => ({
+              code: `PKG-${randomCode(8)}`,
+              type: packageTypeOf(it.type),
+              note: it.description ?? null,
+            })),
+          )
         : undefined;
     const lines: Prisma.ReceiptLineCreateWithoutReceiptInput[] | undefined =
       kap && !kap.makeLabels
-        ? [
-            {
-              sku: '',
-              description: kap.description || trUpper(kap.type),
-              countedQty: kap.count,
-              unit: kap.type,
-              expectedQty: null,
-            },
-          ]
+        ? kap.items.map((it) => ({
+            sku: '',
+            description: it.description || trUpper(it.type),
+            countedQty: it.count,
+            unit: it.type,
+            expectedQty: null,
+          }))
         : undefined;
 
     const receipt = await this.createWithUniqueRef((reference) =>
@@ -227,7 +229,11 @@ export class ReceiptsService {
       }),
     );
     await this.audit('receipt.started', 'Receipt', receipt.id, userId, {
-      kap: kap ? `${kap.count} ${kap.type}${kap.makeLabels ? ' (QR)' : ''}` : null,
+      kap: kap
+        ? `${kap.items.map((it) => `${it.count} ${it.type}`).join(', ')}${
+            kap.makeLabels ? ' (QR)' : ''
+          }`
+        : null,
     });
     return serializeReceipt(receipt);
   }

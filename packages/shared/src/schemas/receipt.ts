@@ -82,17 +82,32 @@ export const startReceiptSchema = z.object({
   waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su
   notes: upperOpt(),
 
-  // "5 palet geldi" — kayıtla AYNI transaction'da işlenir. Tarayıcıdan arka arkaya
-  // istek zincirlemek yerine buradan gitmesi, yarım kalmış kaydı imkânsız kılar.
+  /**
+   * Gelen yük — "5 palet ham madde, 3 varil boya". Kayıtla AYNI transaction'da
+   * işlenir; tarayıcıdan arka arkaya istek zincirlemek yarım kalmış kayıt
+   * üretiyordu (kayıt açılır, kalem açılmaz).
+   */
   kap: z
     .object({
-      /** Kap tipi ETİKETİ (Palet/Varil…) — `KAP_TYPES` değerlerinden. */
-      type: z.string().min(1),
-      count: z.coerce.number().int().positive(),
-      /** Malın cinsi; boşsa kap adı kullanılır (depocu irsaliyeyi okuyunca düzeltir). */
-      description: upperOpt(),
-      /** true → her kap için benzersiz QR etiketi (kap bazlı sevk),
-       *  false → tek kalem satırı (kalem bazlı sevk). Tek-granülerlik kuralı. */
+      items: z
+        .array(
+          z.object({
+            /** Kap tipi ETİKETİ (Palet/Varil…) — `KAP_TYPES` değerlerinden. */
+            type: z.string().min(1),
+            count: z.coerce.number().int().positive(),
+            /** Malın cinsi; boşsa kap adı kullanılır (depocu sonradan düzeltir). */
+            description: upperOpt(),
+          }),
+        )
+        .min(1),
+      /**
+       * true → her kap için benzersiz QR etiketi (kap bazlı sevk),
+       * false → satır başına bir kalem (kalem bazlı sevk).
+       *
+       * Satır başına DEĞİL kayıt başına bir karar: tek-granülerlik kuralı gereği
+       * bir kabul ya kap ya kalem bazlıdır, karışığı çift sayım yapar ve sevkte
+       * reddedilir.
+       */
       makeLabels: z.boolean().optional().default(false),
     })
     .optional(),

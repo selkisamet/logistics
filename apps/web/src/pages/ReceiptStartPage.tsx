@@ -17,12 +17,18 @@ import { Icon } from '../components/icons';
 import { NativeCamera } from '../components/WaybillCamera';
 import { useCustomers, useWarehouses } from '../lib/lookups';
 
+/** Ekrandaki bir kalem satırı. `key` React listesi için; id değil. */
+type KapRow = { key: number; type: string; count: string; description: string };
+
+let rowSeq = 0;
+const newRow = (): KapRow => ({ key: ++rowSeq, type: 'Palet', count: '', description: '' });
+
 /**
  * Mal Kabul Başlat — uygulamanın GİRİŞ NOKTASI ve teslim alma anının TEK ekranı.
  *
  * Araç depoya gelir, irsaliyesini getirir, depocu kontrol edip malı indirir.
  * Şoför beklediği için ekran tek geçişte bitmeli: gönderici, irsaliye fotoğrafı,
- * gelen kap sayısı ve gerekirse tutanak burada girilir.
+ * gelen kalemler ve gerekirse tutanak burada girilir.
  *
  * Kap ve tutanak kayıt gövdesiyle birlikte gider; sunucu üçünü AYNI
  * transaction'da oluşturur. Fotoğraf multipart olduğu için tek ayrı istek.
@@ -46,11 +52,13 @@ export function ReceiptStartPage() {
   // Depo nadiren değişir: formdan çıkarıldı, üstte ince şeritte durur
   const [whOpen, setWhOpen] = useState(false);
 
-  // --- Gelen kap ---
-  const [kap, setKap] = useState<string>('Palet');
-  const [kapCount, setKapCount] = useState('');
-  const [goods, setGoods] = useState('');
+  // --- Gelen yük: bir araçta birden çok cins gelebilir ("5 palet ham madde,
+  // 3 varil boya"), bu yüzden mal kabul detayındaki Kalemler gibi çoklu satır ---
+  const [rows, setRows] = useState<KapRow[]>([newRow()]);
   const [makeLabels, setMakeLabels] = useState(false);
+
+  const setRow = (i: number, patch: Partial<KapRow>) =>
+    setRows((r) => r.map((x, n) => (n === i ? { ...x, ...patch } : x)));
 
   // --- İrsaliye fotoğrafları (kayıt açılınca yüklenir) ---
   const [photos, setPhotos] = useState<File[]>([]);
@@ -233,32 +241,54 @@ export function ReceiptStartPage() {
           )}
         </div>
 
-        {/* Gelen kap — "5 palet geldi" */}
+        {/* Kalemler — mal kabul detayındaki Kalemler kartıyla aynı anatomi */}
         <div className="space-y-2 border-t border-slate-100 pt-3">
-          <span className="text-sm font-medium text-slate-700">Gelen Kap</span>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Select value={kap} onChange={(e) => setKap(e.target.value)}>
-              {KAP_TYPES.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </Select>
-            <Input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={kapCount}
-              onChange={(e) => setKapCount(e.target.value)}
-              placeholder="Adet"
-            />
-            <Input
-              className="col-span-2"
-              value={goods}
-              onChange={(e) => setGoods(e.target.value)}
-              placeholder="Malın cinsi (opsiyonel)"
-            />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-slate-700">Kalemler</span>
+            <Button type="button" variant="secondary" onClick={() => setRows((r) => [...r, newRow()])}>
+              + Kalem
+            </Button>
           </div>
+          {rows.map((row, i) => (
+            <div key={row.key} className="flex items-start gap-2">
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+                <Select value={row.type} onChange={(e) => setRow(i, { type: e.target.value })}>
+                  {KAP_TYPES.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={row.count}
+                  onChange={(e) => setRow(i, { count: e.target.value })}
+                  placeholder="Adet"
+                />
+                <Input
+                  className="col-span-2"
+                  value={row.description}
+                  onChange={(e) => setRow(i, { description: e.target.value })}
+                  placeholder="Malın cinsi (opsiyonel)"
+                />
+              </div>
+              {/* Tek satır kalınca silme yok: form hep bir satırla açılır */}
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setRows((r) => r.filter((_, n) => n !== i))}
+                  className="mt-2 shrink-0 text-slate-400 hover:text-red-600"
+                  aria-label="Satırı kaldır"
+                >
+                  <Icon name="trash" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {/* Karar satır başına DEĞİL kayıt başına: bir kabul ya kap ya kalem
+              bazlıdır, karışığı sevkte reddedilir (tek-granülerlik kuralı). */}
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
@@ -316,16 +346,20 @@ export function ReceiptStartPage() {
           loading={startMut.isPending}
           onClick={() => {
             setServerError(null);
-            const count = Number(kapCount);
+            // Adet girilmemiş satırlar yok sayılır (boş satır her zaman duruyor)
+            const items = rows
+              .map((r) => ({
+                type: r.type,
+                count: Number(r.count),
+                description: r.description.trim() || undefined,
+              }))
+              .filter((r) => r.count > 0);
             startMut.mutate({
               customerId,
               warehouseId,
               recipientCustomerId: recipientCustomerId || undefined,
               waybillNo: waybillNo || undefined,
-              kap:
-                count > 0
-                  ? { type: kap, count, description: goods.trim() || undefined, makeLabels }
-                  : undefined,
+              kap: items.length ? { items, makeLabels } : undefined,
               discrepancy:
                 noteOpen && noteText.trim()
                   ? { type: noteType, description: noteText.trim() }
