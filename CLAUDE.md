@@ -81,10 +81,11 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   `toLocaleUpperCase('tr-TR')` — düz `toUpperCase()` "işi"yi "ISI" yapar, doğrusu "İŞİ".
   Kod/slug alanları (`[A-Za-z0-9_-]` regex'li: müşteri/depo kodu, irsaliye seri/no) `codeOpt()` ile
   **ASCII** büyütülür — `İ` regex'i ihlal ederdi. **Dokunulmayanlar:** e-posta, şifre, telefon,
-  vergi no, arama metni (`search`), id'ler. UI'da `Input` görsel olarak da büyütür
-  (`uppercase` sınıfı; `type` email/password/tel/number/date/**search** ise hariç) — `value` değişmez,
-  gerçek normalizasyon sunucuda. Eski kayıtlar için tek seferlik `BUYUKHARF.bat`
-  (`apps/api/scripts/uppercase-text.mjs`, `--dry-run` destekli).
+  vergi no, arama metni (`search`), id'ler. UI'da `Input` **değeri yazarken gerçekten büyütür**
+  (`trUpper`, imleç korunur; `uppercase` sınıfı + `autoCapitalize="characters"`; `type`
+  email/password/tel/number/date/url/**search** ise hariç). Android klavyesi "composition" ile yazdığı için
+  kompozisyon sırasında DOKUNULMAZ, `compositionend`'de çevrilir (aksi halde harfler çiftlenir).
+  Combobox arama kutuları yalnız görsel büyütür (eşleşme `norm` ile). Sunucu normalizasyonu son güvence.
 - **Sayı biçimi TSE/tr-TR** ([lib/format.ts](apps/web/src/lib/format.ts)): `formatMoney` (₺12.345,50),
   `formatAmount` (simgesiz), `formatWeight` (kg, ≤3 ondalık), **`formatCount`** (adet — **ondalık YOK**,
   yalnız binlik: 1.250; "5 palet" asla "5,00" olmaz). Belgelerde satır `qty` **sayı olarak** taşınır,

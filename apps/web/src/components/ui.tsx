@@ -7,17 +7,25 @@ import { formatMoneyInput, moneyToInput, parseMoneyInput } from '../lib/money';
 import {
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
+  type RefObject,
   type InputHTMLAttributes,
   type SelectHTMLAttributes,
   type HTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
+import { trUpper } from '@lojistik/shared';
 import { Icon, type IconName } from './icons';
+
+/** Arama karşılaştırması: Türkçe büyük harfe çevir — düz toLowerCase() "İ"yi bozar
+ *  ("GEBKİM" ≠ "gebkim"), kayıtlı yer bulunamaz ve mükerrer oluşturulurdu. */
+const norm = (s: string) => s.toLocaleUpperCase('tr-TR');
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -71,21 +79,59 @@ const NO_UPPERCASE_TYPES = new Set([
   'radio',
 ]);
 
+/**
+ * Metni yerinde Türkçe BÜYÜK HARFE çevirir, imleci korur. Değişiklik olduysa true.
+ * `trUpper` şart — düz toUpperCase() "işi"yi "ISI" yapar.
+ */
+function upperInPlace(el: HTMLInputElement): boolean {
+  const up = trUpper(el.value);
+  if (up === el.value) return false;
+  const { selectionStart, selectionEnd } = el;
+  el.value = up;
+  // Dönüşüm uzunluğu korur (ß gibi istisnalar hariç) — imleç yerinde kalsın
+  if (selectionStart != null) el.setSelectionRange(selectionStart, selectionEnd);
+  return true;
+}
+
+/** React'e "değer değişti" dedirtir: yerel setter + input olayı (value tracker'ı atlatır). */
+function commitValue(el: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, value);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function Input({ className, type, ...props }, ref) {
-    // Girilen değerler sunucuda BÜYÜK HARFE normalize ediliyor (shared/text.ts `upperStr`).
-    // Kullanıcı ne kaydedeceğini yazarken görsün diye görsel olarak da büyütülür — `value`
-    // değişmez, yalnızca görüntü (`lang="tr"` sayesinde CSS de i→İ Türkçe eşlemesini yapar).
+  function Input({ className, type, onChange, onCompositionEnd, ...props }, ref) {
+    // Metin alanları HER ZAMAN BÜYÜK HARF: değer yazılırken çevrilir (yalnız görüntü değil),
+    // böylece ekranda görülen, formda tutulan ve kaydedilen aynıdır. Sunucudaki `upperStr`
+    // normalizasyonu (shared/text.ts) yine son güvence olarak durur.
     const uppercase = !NO_UPPERCASE_TYPES.has(type ?? 'text');
     return (
       <input
         ref={ref}
         type={type}
+        autoCapitalize={uppercase ? 'characters' : undefined}
         className={clsx(
           'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20',
           uppercase && 'uppercase placeholder:normal-case',
           className,
         )}
+        onChange={(e) => {
+          // Android klavyeleri kelimeyi "composition" ile yazar; o sırada değeri değiştirmek
+          // harfleri çiftler. Kompozisyon bitince (aşağıda) çevrilir.
+          if (uppercase && !(e.nativeEvent as InputEvent).isComposing) upperInPlace(e.target);
+          onChange?.(e);
+        }}
+        onCompositionEnd={(e) => {
+          onCompositionEnd?.(e);
+          if (!uppercase) return;
+          const el = e.currentTarget;
+          const up = trUpper(el.value);
+          if (up !== el.value) {
+            const { selectionStart, selectionEnd } = el;
+            commitValue(el, up);
+            if (selectionStart != null) el.setSelectionRange(selectionStart, selectionEnd);
+          }
+        }}
         {...props}
       />
     );
@@ -109,7 +155,83 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   },
 );
 
-export type ComboOption = { value: string; label: string; hint?: string };
+/**
+ * Açılır listeyi `body`'ye portal eder ve kutuya göre `position: fixed` ile konumlar.
+ *
+ * Neden: liste kutunun içinde `absolute` açılınca kaydırılabilir bir kabın (Modal gövdesi
+ * `overflow-auto`) kenarında KIRPILIYORDU. Portal hiçbir kabın taşma sınırına takılmaz.
+ * Altta yer yoksa (ekranın/klavyenin dibine yakın kutu) liste yukarı açılır.
+ * z-[70]: Modal z-[60]'ın üstünde kalmalı.
+ */
+function DropdownPortal({
+  anchorRef,
+  listRef,
+  maxHeight,
+  children,
+}: {
+  anchorRef: RefObject<HTMLElement>;
+  listRef: RefObject<HTMLUListElement>;
+  maxHeight: number;
+  children: ReactNode;
+}) {
+  const [pos, setPos] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const gap = 4;
+      const below = window.innerHeight - r.bottom - gap - 8;
+      const above = r.top - gap - 8;
+      // Altta en az birkaç satırlık yer varsa ya da üst daha darsa aşağı aç
+      const up = below < Math.min(maxHeight, 160) && above > below;
+      const height = Math.max(120, Math.min(maxHeight, up ? above : below));
+      const next: CSSProperties = up
+        ? { left: r.left, width: r.width, bottom: window.innerHeight - r.top + gap, maxHeight: height }
+        : { left: r.left, width: r.width, top: r.bottom + gap, maxHeight: height };
+      setPos((prev) =>
+        prev &&
+        prev.left === next.left &&
+        prev.top === next.top &&
+        prev.bottom === next.bottom &&
+        prev.width === next.width &&
+        prev.maxHeight === next.maxHeight
+          ? prev
+          : next,
+      );
+    };
+    update();
+    // capture: modal gövdesi gibi İÇ kaydırmalarda da liste kutuyla birlikte kaysın
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [anchorRef, maxHeight]);
+
+  if (!pos) return null;
+  return createPortal(
+    <ul
+      ref={listRef}
+      style={{ position: 'fixed', ...pos }}
+      className="z-[70] overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+    >
+      {children}
+    </ul>,
+    document.body,
+  );
+}
+
+export type ComboOption = {
+  value: string;
+  label: string;
+  hint?: string;
+  /** Satırın SAĞINDA rozet (ör. araç sahipliği ÖZMAL / SPOT). Aramaya girmez. */
+  badge?: string;
+  badgeTone?: 'muted' | 'warn';
+};
 
 /**
  * Aranabilir açılır liste (combobox). Yazdıkça filtreler; klavye (yön tuşları/Enter/Esc),
@@ -123,6 +245,8 @@ export function Combobox({
   nullable = false,
   nullableLabel = 'Belirsiz / boş',
   disabled = false,
+  onCreate,
+  formatQuery,
 }: {
   options: ComboOption[];
   value: string;
@@ -131,30 +255,62 @@ export function Combobox({
   nullable?: boolean;
   nullableLabel?: string;
   disabled?: boolean;
+  /** Verilirse aranan metin listede yoksa "+ … ekle" satırı çıkar; oluşturulan option döner. */
+  onCreate?: (text: string) => Promise<ComboOption>;
+  /** Aranan metni karşılaştırmadan önce biçimlendirir (ör. plaka: "34abc" → "34 ABC"). */
+  formatQuery?: (text: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
+  const [busy, setBusy] = useState(false);
+  // Yeni oluşturulan kayıt, liste sorgusu tazelenene kadar burada durur — yoksa seçim
+  // bir anlığına boş görünürdü
+  const [created, setCreated] = useState<ComboOption | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
-  const selected = options.find((o) => o.value === value) ?? null;
+  const allOptions =
+    created && !options.some((o) => o.value === created.value) ? [...options, created] : options;
+  const selected = allOptions.find((o) => o.value === value) ?? null;
+  const typed = (formatQuery ? formatQuery(query) : query).trim();
 
   const items = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+    const q = norm(typed);
+    const filtered = q ? allOptions.filter((o) => norm(o.label).includes(q)) : allOptions;
     // "Boş" satırı yalnızca arama yokken en üstte sabit dursun
     return nullable && !q ? [{ value: '', label: nullableLabel }, ...filtered] : filtered;
-  }, [options, query, nullable, nullableLabel]);
+  }, [allOptions, typed, nullable, nullableLabel]);
+  const showCreate =
+    !!onCreate && typed.length > 0 && !allOptions.some((o) => norm(o.label) === norm(typed));
+  const itemCount = items.length + (showCreate ? 1 : 0);
+
+  const create = async () => {
+    if (!onCreate || busy || !typed) return;
+    setBusy(true);
+    try {
+      const opt = await onCreate(typed);
+      setCreated(opt);
+      onChange(opt.value);
+      setOpen(false);
+      setQuery('');
+    } catch {
+      /* hata onCreate tarafında toast'lanır */
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
+      const t = e.target as Node;
+      // Liste body'ye portal edildiği için kutunun DIŞINDA — ona tıklamak "dışarı" sayılmasın
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
+      setQuery('');
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -181,7 +337,7 @@ export function Combobox({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!open) openList();
-      else setHighlight((h) => Math.min(h + 1, items.length - 1));
+      else setHighlight((h) => Math.min(h + 1, itemCount - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlight((h) => Math.max(h - 1, 0));
@@ -190,6 +346,7 @@ export function Combobox({
         e.preventDefault();
         const it = items[highlight];
         if (it) choose(it.value);
+        else if (showCreate) void create();
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -208,13 +365,17 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           autoComplete="off"
+          // Arama metni: büyük harf görünür (eşleşme `norm` ile harf-duyarsız; oluşturulan kayıt sunucuda büyütülür)
+          autoCapitalize="characters"
           disabled={disabled}
           value={display}
           placeholder={selected ? selected.label : placeholder}
           onFocus={openList}
           onClick={openList}
           onChange={(e) => {
-            setQuery(e.target.value);
+            // formatQuery bir MASKE gibi uygulanır: plakada "34abc123" yazarken kutuda
+            // "34 ABC 123" görünür (PlateInput ile aynı davranış)
+            setQuery(formatQuery ? formatQuery(e.target.value) : e.target.value);
             setHighlight(0);
             if (!open) setOpen(true);
           }}
@@ -223,6 +384,8 @@ export function Combobox({
             'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-9 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20',
             disabled && 'cursor-not-allowed bg-slate-100 text-slate-400',
             !selected && !open && 'text-slate-400',
+            // Yalnız yazarken: seçili etiket ("Bilinmiyor" gibi) olduğu gibi görünsün
+            open && 'uppercase placeholder:normal-case',
           )}
         />
         <Icon
@@ -235,8 +398,8 @@ export function Combobox({
       </div>
 
       {open && (
-        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-          {items.length === 0 ? (
+        <DropdownPortal anchorRef={rootRef} listRef={listRef} maxHeight={240}>
+          {items.length === 0 && !showCreate ? (
             <li className="px-3 py-2 text-sm text-slate-400">Sonuç yok</li>
           ) : (
             items.map((opt, i) => {
@@ -260,13 +423,46 @@ export function Combobox({
                       {opt.label}
                       {opt.hint && <span className="ml-1 text-xs text-slate-400">{opt.hint}</span>}
                     </span>
-                    {isSel && <span className="text-brand">✓</span>}
+                    <span className="flex shrink-0 items-center gap-2">
+                      {opt.badge && (
+                        <span
+                          className={clsx(
+                            'rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide',
+                            opt.badgeTone === 'warn'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-600',
+                          )}
+                        >
+                          {opt.badge}
+                        </span>
+                      )}
+                      {isSel && <span className="text-brand">✓</span>}
+                    </span>
                   </button>
                 </li>
               );
             })
           )}
-        </ul>
+          {showCreate && (
+            <li>
+              <button
+                type="button"
+                ref={highlight === items.length ? activeRef : undefined}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHighlight(items.length)}
+                onClick={() => void create()}
+                disabled={busy}
+                className={clsx(
+                  'flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm font-medium',
+                  highlight === items.length ? 'bg-brand/10 text-brand' : 'text-brand',
+                )}
+              >
+                <Icon name="plus" className="h-4 w-4" />
+                {busy ? 'Ekleniyor…' : `${typed} ekle`}
+              </button>
+            </li>
+          )}
+        </DropdownPortal>
       )}
     </div>
   );
@@ -300,27 +496,29 @@ export function MultiCombobox({
   const [highlight, setHighlight] = useState(0);
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedIds = new Set(value.map((v) => v.value));
-  const q = query.trim().toLowerCase();
+  const q = norm(query.trim());
   const filtered = options.filter(
-    (o) => !selectedIds.has(o.value) && (!q || o.label.toLowerCase().includes(q)),
+    (o) => !selectedIds.has(o.value) && (!q || norm(o.label).includes(q)),
   );
   const showCreate =
     !!onCreate &&
     query.trim().length > 0 &&
-    !options.some((o) => o.label.toLowerCase() === q) &&
-    !value.some((o) => o.label.toLowerCase() === q);
+    !options.some((o) => norm(o.label) === q) &&
+    !value.some((o) => norm(o.label) === q);
   const itemCount = filtered.length + (showCreate ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
+      const t = e.target as Node;
+      // Liste body'ye portal edildiği için kutunun DIŞINDA — ona tıklamak "dışarı" sayılmasın
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
+      setQuery('');
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -415,6 +613,8 @@ export function MultiCombobox({
           ref={inputRef}
           type="text"
           autoComplete="off"
+          // Arama metni: büyük harf görünür (eşleşme `norm` ile harf-duyarsız; oluşturulan kayıt sunucuda büyütülür)
+          autoCapitalize="characters"
           disabled={disabled}
           value={query}
           placeholder={value.length === 0 ? placeholder : ''}
@@ -425,12 +625,12 @@ export function MultiCombobox({
             setOpen(true);
           }}
           onKeyDown={onKeyDown}
-          className="min-w-[90px] flex-1 bg-transparent px-1 py-1 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+          className="min-w-[90px] flex-1 bg-transparent px-1 py-1 uppercase outline-none placeholder:normal-case placeholder:text-slate-400 disabled:cursor-not-allowed"
         />
       </div>
 
       {open && !disabled && (
-        <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <DropdownPortal anchorRef={rootRef} listRef={listRef} maxHeight={224}>
           {itemCount === 0 ? (
             <li className="px-3 py-2 text-sm text-slate-400">{emptyHint}</li>
           ) : (
@@ -480,7 +680,7 @@ export function MultiCombobox({
               )}
             </>
           )}
-        </ul>
+        </DropdownPortal>
       )}
     </div>
   );
