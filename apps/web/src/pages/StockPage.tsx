@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
@@ -43,10 +43,9 @@ type QuickTarget = {
 export function StockPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [vehicleId, setVehicleId] = useState(''); // boş = araç bağlamı yok (eski akış)
+  const [vehicleId, setVehicleId] = useState(''); // boş = araç seçilmedi → yük seçilemez
   const [onlyPlanned, setOnlyPlanned] = useState(false);
   const [quick, setQuick] = useState<QuickTarget | null>(null);
-  const [planOpen, setPlanOpen] = useState(false);
   // Seçim: palet id → işaretli, kalem id → miktar
   const [pkgSel, setPkgSel] = useState<Record<string, boolean>>({});
   const [lineQty, setLineQty] = useState<Record<string, number>>({});
@@ -211,12 +210,12 @@ export function StockPage() {
           {data ? ` · ${data.total} kayıt · ${totalPackages} etiketli paket` : ''}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Farklı müşterilerin ürünlerini işaretleyip <b>tek araca</b> yükleyebilirsiniz — hepsi tek
-          taşıma irsaliyesinde görünür.
+          Önce yukarıdan <b>aracı seçin</b>, sonra farklı müşterilerin ürünlerini işaretleyip o araca
+          yükleyin — hepsi tek taşıma irsaliyesinde görünür.
         </p>
       </div>
 
-      {/* Araç şeridi — önce aracı seç, sonra ona yükle. Seçilmezse eski akış (modal) sürer. */}
+      {/* Araç şeridi — önce aracı seç, sonra ona yükle. Seçilmezse kartlarda yükleme kutusu çıkmaz. */}
       {vehicleStats.length > 0 && (
         <div className="space-y-2">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
@@ -228,6 +227,8 @@ export function StockPage() {
                   onClick={() => {
                     setVehicleId(on ? '' : v.id);
                     setOnlyPlanned(false);
+                    // Araç bırakılınca seçim de düşer — araçsız yük seçimi yok
+                    if (on) clear();
                   }}
                   className={clsx(
                     'shrink-0 rounded-lg border px-3 py-2 text-left transition',
@@ -247,9 +248,10 @@ export function StockPage() {
             })}
           </div>
 
-          {activeVehicle && (
+          {/* Seçili araç şeritte zaten vurgulu — plakayı tekrar yazmıyoruz; bu satır yalnız
+              araca özel kısayol (planlı yükler / açık sefer) varsa çıkar. */}
+          {activeVehicle && (activeVehicle.planned > 0 || activeVehicle.draft) && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand/5 px-3 py-2 text-sm">
-              <span className="font-medium text-slate-800">{activeVehicle.v.plate} seçili</span>
               {activeVehicle.planned > 0 && (
                 <>
                   <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
@@ -296,7 +298,9 @@ export function StockPage() {
           hint="Süzgeci kaldırın ya da depodaki başka yükleri seçip bu araca yükleyin."
         />
       ) : (
-        <div className="flex flex-col gap-4">
+        // Masaüstünde çift sütun (kartlar kısa, tam genişlikte sağ taraf boş kalıyordu); mobilde tek.
+        // Satırdaki kartlar eşit boyda uzar → ızgara düzgün görünür.
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {visible.map((r) => {
             const wait = daysSince(r.completedAt);
             const pkgs = (r.packages ?? []).filter((p) => !p.dispatchedAt && !p.dispatchId);
@@ -310,7 +314,7 @@ export function StockPage() {
               pkgs.some((p) => pkgSel[p.id]) || openLines.some((l) => (lineQty[l.id] ?? 0) > 0);
 
             return (
-              <Card key={r.id} className={clsx('space-y-2', picked && 'ring-2 ring-brand/40')}>
+              <Card key={r.id} className={clsx('flex flex-col gap-2', picked && 'ring-2 ring-brand/40')}>
                 <Link to={`/mal-kabul/${r.id}`} className="block space-y-1">
                   <div className="flex items-start justify-between">
                     <div>
@@ -363,7 +367,8 @@ export function StockPage() {
                     paletsizde `− miktar +` sayacı, paletlide palet palet checkbox vardı;
                     ikisi de gereksiz karar noktasıydı ve operatörü yavaşlatıyordu.
                     Alttaki `entries`/API yapısı aynı — seçim tüm kapları/kalemleri işaretler. */}
-                {canDispatch && (
+                {/* Önce ARAÇ seçilir (üstteki şerit), sonra ona yük: araçsız seçim gösterilmez */}
+                {canDispatch && activeVehicle && (
                   <label
                     className={clsx(
                       'flex cursor-pointer items-center justify-between gap-2 rounded-lg border p-2',
@@ -376,7 +381,7 @@ export function StockPage() {
                         checked={picked}
                         onChange={(e) => toggleReceipt(r, e.target.checked)}
                       />
-                      Bu kabulü araca yükle
+                      Bu kabulü {activeVehicle.v.plate} aracına yükle
                     </span>
                     <span className="shrink-0 text-xs text-slate-400">
                       {picked ? 'Seçildi' : 'Tamamı'}
@@ -395,9 +400,10 @@ export function StockPage() {
                         plannedVehicle: r.plannedVehicle,
                       })
                     }
-                    className="w-full rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                    // mt-auto: ızgarada yan kart uzunsa buton kartın DİBİNE otursun, hizalı dursun
+                    className="mt-auto w-full rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
                   >
-                    Bu kabulün tamamını hemen sevk et
+                    Sevk Et
                   </button>
                 )}
               </Card>
@@ -429,18 +435,14 @@ export function StockPage() {
               <Button variant="secondary" onClick={clear}>
                 Temizle
               </Button>
-              {activeVehicle ? (
-                // Araç belli → modal sorusu gereksiz; doğrudan o aracın seferine ekle ve
-                // sayfada kal (arka arkaya yük eklenebilsin).
+              {/* Seçim yalnız araç seçiliyken yapılabildiği için araç hep belli: doğrudan o
+                  aracın seferine ekle ve sayfada kal (arka arkaya yük eklenebilsin). */}
+              {activeVehicle && (
                 <Button
                   loading={loadToVehicleMut.isPending}
                   onClick={() => loadToVehicleMut.mutate()}
                 >
                   <Icon name="truck" className="h-4 w-4" /> {activeVehicle.v.plate} aracına yükle
-                </Button>
-              ) : (
-                <Button onClick={() => setPlanOpen(true)}>
-                  <Icon name="truck" className="h-4 w-4" /> Araca Yükle
                 </Button>
               )}
             </div>
@@ -448,149 +450,8 @@ export function StockPage() {
         </div>
       )}
 
-      {planOpen && (
-        <LoadToVehicleModal
-          entries={entries}
-          summary={sel}
-          onClose={() => setPlanOpen(false)}
-          onDone={clear}
-        />
-      )}
       {quick && <QuickDispatchModal target={quick} onClose={() => setQuick(null)} />}
     </div>
-  );
-}
-
-/**
- * Seçilen yükleri bir araca yükler: mevcut TASLAK sevkiyata ekler ya da yeni sefer açar.
- * Böylece farklı müşterilerin malı tek sevkiyatta → tek taşıma irsaliyesinde toplanır.
- */
-function LoadToVehicleModal({
-  entries,
-  summary,
-  onClose,
-  onDone,
-}: {
-  entries: LoadEntryInput[];
-  summary: { pkg: number; qty: number; customers: string[]; recipients: string[] };
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const { data: vehicles } = useVehicles();
-  const [vehicleId, setVehicleId] = useState('');
-  const [draftId, setDraftId] = useState(''); // boş = yeni sefer
-  // Sefer adı KISA olmalı (ör. "Avrupa Yakası", "Kocaeli"). Tüm alıcı adlarını
-  // birleştirmek okunmaz bir başlık üretiyordu — tek alıcı varsa onun adı, yoksa boş bırak.
-  const [destination, setDestination] = useState(
-    summary.recipients.length === 1 ? summary.recipients[0] : '',
-  );
-
-  // Devam eden yük planları (taslak sevkiyatlar)
-  const { data: drafts } = useQuery({
-    queryKey: ['dispatches', { status: 'DRAFT', forPlan: true }],
-    queryFn: () => api.get<Paginated<Dispatch>>('/dispatches?page=1&pageSize=50&status=DRAFT'),
-  });
-
-  const mut = useMutation({
-    mutationFn: async () => {
-      let id = draftId;
-      if (!id) {
-        const created = await api.post<Dispatch>('/dispatches', {
-          destination:
-            destination.trim() ||
-            (summary.customers.length > 1 ? `Karma sefer (${summary.customers.length} müşteri)` : 'Sefer'),
-          vehicleId: vehicleId || undefined,
-        });
-        id = created.id;
-      }
-      return api.post<Dispatch>(`/dispatches/${id}/items`, { items: entries });
-    },
-    onSuccess: (d) => {
-      qc.invalidateQueries({ queryKey: ['stock'] });
-      qc.invalidateQueries({ queryKey: ['dispatches'] });
-      toast(`Yük ${d.reference} sefer planına eklendi`);
-      onDone();
-      onClose();
-      navigate(`/sevkiyat/${d.id}`);
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Yüklenemedi'),
-  });
-
-  const draftOptions = (drafts?.items ?? []).map((d) => ({
-    value: d.id,
-    label: `${d.reference}${d.vehicle?.plate ? ` · ${d.vehicle.plate}` : ''} · ${d.destination}`,
-  }));
-
-  return (
-    <Modal
-      title="Araca Yükle"
-      description={`${summary.pkg ? `${formatCount(summary.pkg)} kap` : ''}${summary.pkg && summary.qty ? ' · ' : ''}${
-        summary.qty ? `${formatCount(summary.qty)} adet` : ''
-      } · ${summary.customers.join(', ')}`}
-      onClose={onClose}
-    >
-      <div className="space-y-3">
-        {draftOptions.length > 0 && (
-          <Field label="Devam eden sefer planı (varsa)">
-            <Combobox
-              options={draftOptions}
-              value={draftId}
-              onChange={setDraftId}
-              nullable
-              nullableLabel="Yeni sefer oluştur"
-              placeholder="Taslak sevkiyat seç..."
-            />
-          </Field>
-        )}
-
-        {!draftId && (
-          <>
-            <Field label="Araç / Plaka">
-              <Combobox
-                options={(vehicles ?? []).map((v) => ({
-                  value: v.id,
-                  label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
-                }))}
-                value={vehicleId}
-                onChange={setVehicleId}
-                placeholder="Araç ara / seç..."
-              />
-            </Field>
-            <Field label="Sefer adı / Gideceği bölge">
-              <Input
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="Örn. Avrupa Yakası, Kocaeli, Çorlu"
-              />
-            </Field>
-            <p className="-mt-1 text-xs text-slate-400">
-              Kısa tutun — alıcılar zaten yük listesinden ve duraklardan geliyor.
-            </p>
-            {!vehicleId && (
-              <p className="text-xs text-amber-600">
-                Araç şimdi seçilmezse sevkiyat detayından sonra da atanabilir.
-              </p>
-            )}
-          </>
-        )}
-
-        <p className="text-xs text-slate-400">
-          Yük <b>taslak</b> sefere eklenir. Sevkiyat ekranında durakları belirleyip irsaliyeyi
-          bastıktan sonra "Sevk Et" dersiniz.
-        </p>
-
-        <div className="flex gap-2 pt-1">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
-            Vazgeç
-          </Button>
-          <Button type="button" className="flex-1" loading={mut.isPending} onClick={() => mut.mutate()}>
-            {draftId ? 'Sefere Ekle' : 'Sefer Oluştur ve Yükle'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 

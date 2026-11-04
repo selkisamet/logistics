@@ -178,12 +178,14 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
 - **Planlanan araç:** ASN.vehicleId stok ve sevkiyat paletlerine taşınır (operatör hangi yükün
   hangi araca gideceğini görür). Depo kartında rozet. `PATCH /asn/:id/vehicle` ile plan değiştirilebilir
   (iptal hariç her durumda; ön ihbar detayından — yönetici/şef).
-- **Depo = YÜK PLANLAMA ekranı** ([StockPage](apps/web/src/pages/StockPage.tsx)): kartlarda ürün/palet
-  **çoklu seçim** (paletsizde `− miktar +`, kısmi), altta sabit çubuk → **"🚚 Araca Yükle"**.
-  Modal ya **yeni taslak sefer** açar (`POST /dispatches` + `POST /:id/items`) ya da **devam eden
-  taslağa ekler**. Böylece **farklı müşterilerin malı tek sevkiyatta** toplanır → tek taşıma
+- **Depo = YÜK PLANLAMA ekranı** ([StockPage](apps/web/src/pages/StockPage.tsx)): **önce üstteki araç
+  şeridinden ARAÇ seçilir** — seçilmeden kartlarda "Bu kabulü … aracına yükle" kutusu ÇIKMAZ (araçsız
+  seçim yok; araç bırakılınca seçim temizlenir). Seçim kabul bazında (tamamı). Altta sabit çubuk →
+  **"PLAKA aracına yükle"**: o aracın **taslak seferine ekler**, yoksa yenisini açar (`POST /dispatches` +
+  `POST /:id/items`) ve sayfada kalır. (Eski araç/taslak soran `LoadToVehicleModal` kaldırıldı.)
+  Böylece **farklı müşterilerin malı tek sevkiyatta** toplanır → tek taşıma
   irsaliyesinde hepsi görünür (173 GT'nin istediği liste yapısı).
-- **Hızlı Sevk** (kartın altındaki ikincil "Bu kabulün tamamını hemen sevk et") →
+- **Hızlı Sevk** (kartın altındaki ikincil "Sevk Et") →
   `POST /dispatches/quick`. **Tek kabulü ayrı sefer olarak ANINDA sevk eder** — çoklu müşteri
   planlamak isteyen kullanıcı bunu kullanırsa her kabul ayrı irsaliye olur; bu yüzden modalda
   uyarı var ve buton ikincil stilde.
