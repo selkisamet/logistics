@@ -1,6 +1,7 @@
 name: Android APK
 
-# Web/paylaşılan kod değişince ya da elle tetiklenince bulutta debug APK üretir.
+# Native kod değişince ya da elle tetiklenince bulutta debug APK üretir.
+# Elle: GitHub → Actions → Android APK → Run workflow (repo sahibinin hesabıyla).
 on:
   workflow_dispatch:
   # Sadece NATIVE değişikliklerde APK derle (web değişiklikleri sunucudan canlı gelir).
