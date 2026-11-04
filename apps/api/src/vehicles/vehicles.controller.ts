@@ -10,9 +10,11 @@ import {
 } from '@nestjs/common';
 import {
   createVehicleSchema,
+  quickVehicleSchema,
   updateVehicleSchema,
   UserRole,
   type CreateVehicleInput,
+  type QuickVehicleInput,
   type UpdateVehicleInput,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -40,6 +42,13 @@ export class VehiclesController {
   @Post()
   create(@Body(new ZodValidationPipe(createVehicleSchema)) dto: CreateVehicleInput) {
     return this.vehiclesService.create(dto);
+  }
+
+  /** Spot araç — plaka alanına yazılınca anında eklenir; varsa mevcut kayıt döner. */
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Post('quick')
+  quickCreate(@Body(new ZodValidationPipe(quickVehicleSchema)) dto: QuickVehicleInput) {
+    return this.vehiclesService.quickCreate(dto);
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)

@@ -38,7 +38,8 @@ import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/dialog';
 import { formatDate, formatDateTime, formatMoney } from '../lib/format';
-import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
+import { useCustomerLocations, useCustomers, useVehicles, vehicleOptions } from '../lib/lookups';
+import { formatPlate } from '../lib/plate';
 import {
   Button,
   Card,
@@ -1340,10 +1341,8 @@ function ChangeVehicleModal({
 
         <Field label="Araç / Plaka">
           <Combobox
-            options={(vehicles ?? []).map((v) => ({
-              value: v.id,
-              label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
-            }))}
+            options={vehicleOptions(vehicles)}
+            formatQuery={formatPlate}
             value={vehicleId}
             onChange={setVehicleId}
             placeholder="Araç ara / seç..."

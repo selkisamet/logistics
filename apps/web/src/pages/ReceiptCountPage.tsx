@@ -26,7 +26,14 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadFiles } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
-import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
+import {
+  useCustomerLocations,
+  useCustomers,
+  useQuickVehicle,
+  useVehicles,
+  vehicleOptions,
+} from '../lib/lookups';
+import { formatPlate } from '../lib/plate';
 import { isNativeApp } from '../lib/config';
 import {
   formatAmount,
@@ -592,6 +599,7 @@ function CommercialEditor({ receipt }: { receipt: Receipt }) {
   const qc = useQueryClient();
   const { data: customers } = useCustomers();
   const { data: vehicles } = useVehicles();
+  const quickVehicle = useQuickVehicle();
 
   const [recipientId, setRecipientId] = useState(receipt.recipientCustomerId ?? '');
   const [vehicleId, setVehicleId] = useState(receipt.plannedVehicleId ?? '');
@@ -712,12 +720,15 @@ function CommercialEditor({ receipt }: { receipt: Receipt }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="Planlanan Araç">
           <Combobox
-            options={(vehicles ?? []).map((v) => ({ value: v.id, label: v.plate }))}
+            options={vehicleOptions(vehicles)}
             value={vehicleId}
             onChange={setVehicleId}
             nullable
             nullableLabel="Belirsiz"
-            placeholder="Plaka seç..."
+            // Spot araç kayıtlı değil: plakayı yazıp "ekle"
+            onCreate={quickVehicle}
+            formatQuery={formatPlate}
+            placeholder="Plaka seç ya da yaz..."
           />
         </Field>
         <Field label="Son Teslim">

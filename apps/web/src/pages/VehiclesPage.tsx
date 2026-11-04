@@ -9,6 +9,7 @@ import {
   type Vehicle,
 } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
+import { vehicleOwnership } from '../lib/lookups';
 import { toast } from '../lib/toast';
 import {
   Badge,
@@ -75,6 +76,15 @@ function VehicleRow({ vehicle, onEdit }: { vehicle: Vehicle; onEdit: () => void 
         <p className="font-semibold text-slate-900">
           {vehicle.plate}
           {!vehicle.isActive && <span className="ml-2 text-xs text-red-500">(pasif)</span>}
+          <span
+            className={
+              vehicle.isSpot
+                ? 'ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-800'
+                : 'ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-slate-600'
+            }
+          >
+            {vehicleOwnership(vehicle)}
+          </span>
         </p>
         <p className="text-xs text-slate-500">
           {vehicle.type}
@@ -119,8 +129,9 @@ function VehicleForm({
           driverName: vehicle.driverName ?? '',
           driverPhone: vehicle.driverPhone ?? '',
           trailerPlate: vehicle.trailerPlate ?? '',
+          isSpot: vehicle.isSpot,
         }
-      : { type: 'Kamyon' },
+      : { type: 'Kamyon', isSpot: false },
   });
 
   const mutation = useMutation({
@@ -178,6 +189,11 @@ function VehicleForm({
             )}
           />
         </Field>
+      {/* Spot araç sürekli kullanılmaya başlarsa işaret kaldırılır → şirket aracı gibi görünür */}
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" {...register('isSpot')} />
+        Spot araç (firmaya ait değil, iş için tutuldu)
+      </label>
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
       <div className="flex gap-2 pt-1">
         <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>

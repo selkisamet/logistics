@@ -12,7 +12,8 @@ import {
 import { api, ApiError } from '../lib/api';
 import { toast } from '../lib/toast';
 import { formatCount, formatDate, daysSince } from '../lib/format';
-import { useVehicles } from '../lib/lookups';
+import { useVehicles, vehicleOptions } from '../lib/lookups';
+import { formatPlate } from '../lib/plate';
 import { Icon } from '../components/icons';
 import {
   Badge,
@@ -148,6 +149,8 @@ export function StockPage() {
         planned: planned.get(v.id) ?? 0,
         draft: draftFor(v.id),
       }))
+      // Spot araçlar (o iş için tutulan) şeridi doldurmasın: yalnız işi varsa görünür
+      .filter((x) => !x.v.isSpot || x.planned > 0 || !!x.draft || x.v.id === vehicleId)
       // İlgili araçlar önce: planlı yükü olan, sonra açık seferi olan, sonra plakaya göre
       .sort(
         (a, b) =>
@@ -155,7 +158,7 @@ export function StockPage() {
           Number(!!b.draft) - Number(!!a.draft) ||
           a.v.plate.localeCompare(b.v.plate, 'tr'),
       );
-  }, [vehicles, data, drafts]);
+  }, [vehicles, data, drafts, vehicleId]);
 
   const activeVehicle = vehicleStats.find((x) => x.v.id === vehicleId) ?? null;
 
@@ -496,10 +499,8 @@ function QuickDispatchModal({ target, onClose }: { target: QuickTarget; onClose:
         </p>
         <Field label="Araç / Plaka">
           <Combobox
-            options={(vehicles ?? []).map((v) => ({
-              value: v.id,
-              label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
-            }))}
+            options={vehicleOptions(vehicles)}
+            formatQuery={formatPlate}
             value={vehicleId}
             onChange={setVehicleId}
             placeholder="Araç ara / seç..."

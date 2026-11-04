@@ -18,8 +18,18 @@ export const createVehicleSchema = z.object({
   driverName: upperOpt(),
   driverPhone: z.string().optional(),
   trailerPlate: upperOpt(), // dorse (tır)
+  isSpot: z.boolean().optional(), // firmaya ait değil, o iş için tutuldu
 });
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
+
+/**
+ * Plaka alanına yazılan, kayıtlı olmayan aracı ANINDA ekler (spot araç).
+ * Aynı plaka zaten varsa yenisi açılmaz, mevcut kayıt döner.
+ */
+export const quickVehicleSchema = z.object({
+  plate: upperStr(z.string().min(4, 'Plaka gerekli')),
+});
+export type QuickVehicleInput = z.infer<typeof quickVehicleSchema>;
 
 export const updateVehicleSchema = createVehicleSchema.partial().extend({
   isActive: z.boolean().optional(),
@@ -33,6 +43,7 @@ export const vehicleSchema = z.object({
   driverName: z.string().nullable(),
   driverPhone: z.string().nullable(),
   trailerPlate: z.string().nullable(),
+  isSpot: z.boolean().optional().default(false),
   isActive: z.boolean(),
   createdAt: z.string(),
 });

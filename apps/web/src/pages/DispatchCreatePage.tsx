@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { createDispatchSchema, type CreateDispatchInput, type Dispatch } from '@lojistik/shared';
 import { api, ApiError } from '../lib/api';
 import { Button, Card, Combobox, Field, Input, PlateInput } from '../components/ui';
-import { useVehicles } from '../lib/lookups';
+import { useVehicles, vehicleOptions } from '../lib/lookups';
+import { formatPlate } from '../lib/plate';
 
 export function DispatchCreatePage() {
   const navigate = useNavigate();
@@ -50,10 +51,8 @@ export function DispatchCreatePage() {
               control={control}
               render={({ field }) => (
                 <Combobox
-                  options={(vehicles ?? []).map((v) => ({
-                    value: v.id,
-                    label: `${v.plate}${v.driverName ? ` - ${v.driverName}` : ''}`,
-                  }))}
+                  options={vehicleOptions(vehicles)}
+                  formatQuery={formatPlate}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   nullable

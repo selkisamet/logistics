@@ -226,6 +226,9 @@ model Vehicle {
   driverName   String?
   driverPhone  String?
   trailerPlate String? // dorse plakası (tır)
+  // Spot = firmaya ait olmayan, o iş için tutulan araç. Plaka alanına yazılarak anında
+  // eklenir; depo ekranındaki araç şeridini doldurmasın diye ayrı işaretlenir.
+  isSpot       Boolean     @default(false)
   isActive     Boolean     @default(true)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

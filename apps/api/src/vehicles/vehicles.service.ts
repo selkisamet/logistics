@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { CreateVehicleInput, UpdateVehicleInput } from '@lojistik/shared';
+import type { CreateVehicleInput, QuickVehicleInput, UpdateVehicleInput } from '@lojistik/shared';
 
 @Injectable()
 export class VehiclesService {
@@ -22,6 +22,23 @@ export class VehiclesService {
     return this.prisma.vehicle.create({
       data: { ...input, plate, trailerPlate: normalizeOpt(input.trailerPlate) },
     });
+  }
+
+  /**
+   * Spot araç: plaka alanına yazılıp anında eklenir (Araçlar sayfasına gitmeden).
+   * Aynı plaka boşluk farkıyla da olsa varsa YENİSİ AÇILMAZ — mevcut kayıt döner
+   * (pasifse yeniden aktifleşir), böylece aynı kamyon iki kez kaydolmaz.
+   */
+  async quickCreate(input: QuickVehicleInput) {
+    const plate = normalizePlate(input.plate);
+    const key = plateKey(plate);
+    const existing = (await this.prisma.vehicle.findMany()).find((v) => plateKey(v.plate) === key);
+    if (existing) {
+      return existing.isActive
+        ? existing
+        : this.prisma.vehicle.update({ where: { id: existing.id }, data: { isActive: true } });
+    }
+    return this.prisma.vehicle.create({ data: { plate, type: 'DİĞER', isSpot: true } });
   }
 
   async update(id: string, input: UpdateVehicleInput) {
@@ -56,6 +73,10 @@ export class VehiclesService {
 
 function normalizePlate(plate: string): string {
   return plate.trim().toUpperCase().replace(/\s+/g, ' ');
+}
+/** Karşılaştırma anahtarı: "34ABC123" ile "34 ABC 123" aynı araç. */
+function plateKey(plate: string): string {
+  return plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 function normalizeOpt(v?: string): string | undefined {
   if (v === undefined) return undefined;
