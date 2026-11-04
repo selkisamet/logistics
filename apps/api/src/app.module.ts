@@ -11,6 +11,8 @@ import { DiscrepanciesModule } from './discrepancies/discrepancies.module';
 import { OcrModule } from './ocr/ocr.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
+import { RegionsModule } from './regions/regions.module';
+import { PickupTasksModule } from './pickup-tasks/pickup-tasks.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -30,6 +32,8 @@ import { AppController } from './app.controller';
     OcrModule,
     DispatchModule,
     VehiclesModule,
+    RegionsModule,
+    PickupTasksModule,
   ],
   controllers: [AppController],
 })

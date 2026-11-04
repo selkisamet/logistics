@@ -17,14 +17,26 @@ const PRIMARY: NavItem[] = [
   { to: '/sevkiyat', label: 'Sevkiyat', icon: 'truck' },
 ];
 
+/**
+ * Aracı yüke gönderenler (yönetici + sevkiyat müdürü) için. Talep çoğu zaman WhatsApp'tan
+ * telefona geldiği için mobil alt çubukta da durur — yalnız bu rollerde.
+ */
+const PICKUP_ITEM: NavItem = {
+  to: '/arac-gorevleri',
+  label: 'Görevler',
+  icon: 'route',
+  roles: [UserRole.ADMIN, UserRole.SUPERVISOR],
+};
+
 const GROUPS: { title?: string; items: NavItem[] }[] = [
-  { items: PRIMARY },
+  { items: [...PRIMARY, { ...PICKUP_ITEM, label: 'Araç Görevleri' }] },
   {
     title: 'Tanımlar',
     items: [
       { to: '/musteriler', label: 'Müşteriler', icon: 'building' },
       { to: '/depolar', label: 'Depolar', icon: 'warehouse' },
       { to: '/araclar', label: 'Araçlar', icon: 'van' },
+      { to: '/bolgeler', label: 'Bölgeler', icon: 'grid' },
     ],
   },
   // Ayarlar menüde DEĞİL, en alttaki hesap bloğunda (avatarın altında) — seyrek
@@ -116,7 +128,9 @@ export function AppLayout() {
 
         {/* Mobil alt tab bar */}
         <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
-          {PRIMARY.map((item) => (
+          {[...PRIMARY, PICKUP_ITEM]
+            .filter((i) => !i.roles || (user && i.roles.includes(user.role)))
+            .map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

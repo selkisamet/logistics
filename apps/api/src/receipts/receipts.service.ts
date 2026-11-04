@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PickupTaskStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/pagination';
 import { datedReference, randomCode } from '../common/codes';
@@ -10,6 +10,7 @@ import {
   ReceiptStatus,
   ShipmentStatus,
   trUpper,
+  type SetReceiptRegionInput,
   type CreatePackageInput,
   type ReceiptListQuery,
   type ReceiptRecipientInput,
@@ -62,6 +63,9 @@ const RECEIPT_INCLUDE = {
   },
   attachments: { orderBy: { createdAt: 'asc' } as const },
   startedBy: { select: { id: true, fullName: true } },
+  region: { select: { id: true, name: true } },
+  storedRegion: { select: { id: true, name: true } },
+  pickupTask: { select: { vehicle: { select: { plate: true } } } },
   // "Hangi plakayla çıktı" — bağ DispatchItem defterinden kurulur,
   // Receipt.dispatchId DORMANT olduğu için oradan okunamaz.
   dispatchItems: {
@@ -194,7 +198,24 @@ export class ReceiptsService {
     if (!customer) throw new BadRequestException('Geçersiz gönderici');
     if (!warehouse) throw new BadRequestException('Geçersiz depo');
 
-    const recipientId = await this.validateRecipientCustomer(input.recipientCustomerId);
+    // Depocu gelen aracın plakasına dokunduysa: görevdeki bilgiler (alıcı, bölge)
+    // varsayılan olur; depocunun ekranda değiştirdiği değer önceliklidir.
+    const task = input.pickupTaskId
+      ? await this.prisma.pickupTask.findUnique({ where: { id: input.pickupTaskId } })
+      : null;
+    if (input.pickupTaskId && (!task || task.status !== PickupTaskStatus.OPEN)) {
+      throw new BadRequestException('Bu araç görevi artık açık değil — sayfayı yenileyin');
+    }
+
+    // undefined = görevdekini al; null = depocu ekranda bilerek boşalttı
+    const recipientId = await this.validateRecipientCustomer(
+      (input.recipientCustomerId === undefined
+        ? task?.recipientCustomerId
+        : input.recipientCustomerId) ?? undefined,
+    );
+    const regionId = await this.validateRegion(
+      input.regionId === undefined ? task?.regionId : input.regionId,
+    );
     const kap = input.kap;
 
     // QR istendiyse kap bazlı (her kap için etiket), istenmediyse kalem bazlı
@@ -244,6 +265,9 @@ export class ReceiptsService {
           customerId: customer.id,
           warehouseId: warehouse.id,
           recipientCustomerId: recipientId,
+          // Mal indirilirken doğrudan gideceği bölgeye konur → durduğu yer = gideceği yer
+          regionId,
+          storedRegionId: regionId,
           waybillNo: input.waybillNo,
           orderNo: input.orderNo,
           notes: input.notes,
@@ -266,14 +290,64 @@ export class ReceiptsService {
         include: RECEIPT_INCLUDE,
       }),
     );
+    // Görevi kapat. `status: OPEN` koşulu: aynı araca iki depocu aynı anda dokunursa
+    // görev yalnız birine bağlanır; diğerinin kabulü yine açılır (sadece bağsız kalır).
+    if (task) {
+      await this.prisma.pickupTask.updateMany({
+        where: { id: task.id, status: PickupTaskStatus.OPEN },
+        data: { status: PickupTaskStatus.RECEIVED, receiptId: receipt.id },
+      });
+    }
     await this.audit('receipt.started', 'Receipt', receipt.id, userId, {
+      pickupTaskId: task?.id ?? null,
       kap: kap
         ? `${kap.items.map((it) => `${it.count} ${it.type}`).join(', ')}${
             kap.makeLabels ? ' (QR)' : ''
           }`
         : null,
     });
-    return serializeReceipt(receipt);
+    return serializeReceipt(task ? await this.getOrThrow(receipt.id) : receipt);
+  }
+
+  /**
+   * Gideceği bölgeyi değiştirir (null = BEKLEYEN). Durduğu yer DEĞİŞMEZ: mal fiilen
+   * taşınana kadar eski yerinde — fark depocuya "yer değiştir" görevi olarak görünür.
+   * Herkese açık: bilgiyi kim öğrenirse (yönetici, sevkiyat müdürü, depocu) o girer.
+   */
+  async setRegion(id: string, input: SetReceiptRegionInput, userId: string) {
+    const receipt = await this.getOrThrow(id);
+    if (receipt.status === ReceiptStatus.CANCELLED) {
+      throw new BadRequestException('İptal edilmiş kabulün bölgesi değiştirilemez');
+    }
+    const regionId = await this.validateRegion(input.regionId);
+    await this.prisma.receipt.update({ where: { id }, data: { regionId } });
+    await this.audit('receipt.region_set', 'Receipt', id, userId, {
+      from: receipt.region?.name ?? null,
+      to: regionId ? (await this.prisma.region.findUnique({ where: { id: regionId } }))?.name : null,
+    });
+    return this.findOne(id);
+  }
+
+  /** Depocu malı gideceği bölgeye taşıdı → durduğu yer = gideceği yer. */
+  async markRelocated(id: string, userId: string) {
+    const receipt = await this.getOrThrow(id);
+    await this.prisma.receipt.update({
+      where: { id },
+      data: { storedRegionId: receipt.regionId },
+    });
+    await this.audit('receipt.relocated', 'Receipt', id, userId, {
+      from: receipt.storedRegion?.name ?? null,
+      to: receipt.region?.name ?? null,
+    });
+    return this.findOne(id);
+  }
+
+  /** null = BEKLEYEN. Pasif bölgeye yeni mal konmaz. */
+  private async validateRegion(id: string | null | undefined): Promise<string | null> {
+    if (!id) return null;
+    const region = await this.prisma.region.findUnique({ where: { id } });
+    if (!region || !region.isActive) throw new BadRequestException('Geçersiz bölge');
+    return region.id;
   }
 
   /**
@@ -577,6 +651,12 @@ export class ReceiptsService {
         data: { status: ReceiptStatus.CANCELLED },
         include: RECEIPT_INCLUDE,
       });
+      // Araç görevi bu kabulle kapanmıştı → tekrar "yolda": depocu yanlış araca
+      // dokunduysa doğru kabul aynı görevle yeniden açılabilsin.
+      await tx.pickupTask.updateMany({
+        where: { receiptId: id, status: PickupTaskStatus.RECEIVED },
+        data: { status: PickupTaskStatus.OPEN, receiptId: null },
+      });
       // ASN'yi tekrar beklenen duruma al
       if (receipt.shipmentId) {
         await tx.inboundShipment.update({
@@ -799,6 +879,11 @@ function serializeReceipt(r: ReceiptWithRelations) {
     startedById: r.startedById,
     startedBy: r.startedBy,
     dispatches: uniqueDispatches(r.dispatchItems),
+    regionId: r.regionId,
+    region: r.region,
+    storedRegionId: r.storedRegionId,
+    storedRegion: r.storedRegion,
+    pickupVehiclePlate: r.pickupTask?.vehicle.plate ?? null,
     startedAt: r.startedAt,
     completedAt: r.completedAt,
     lines: r.lines.map((l) => ({

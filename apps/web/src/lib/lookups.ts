@@ -10,6 +10,8 @@ import type {
   Warehouse,
   Vehicle,
   Paginated,
+  Region,
+  PickupTask,
 } from '@lojistik/shared';
 
 /** Seçim kutuları için tüm müşteriler (select). */
@@ -52,6 +54,25 @@ export function useCustomerRecipients(customerId: string | undefined) {
     queryKey: ['customers', customerId, 'recipients'],
     queryFn: () => api.get<CustomerRecipient[]>(`/customers/${customerId}/recipients`),
     enabled: !!customerId,
+  });
+}
+
+/** Depo bölgeleri. Varsayılan: yalnız aktifler (seçim kutuları); yönetim sayfası hepsini ister. */
+export function useRegions(opts: { includeInactive?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['regions'],
+    queryFn: () => api.get<Region[]>('/regions'),
+    select: (list) => (opts.includeInactive ? list : list.filter((r) => r.isActive)),
+  });
+}
+
+/** Yoldaki araçlar (açık yükleme görevleri) — mal kabulde plakayla eşleştirme için. */
+export function useOpenPickupTasks() {
+  return useQuery({
+    queryKey: ['pickup-tasks', 'OPEN'],
+    queryFn: () => api.get<PickupTask[]>('/pickup-tasks?status=OPEN'),
+    // Depocu ekranı açık beklerken yeni yola çıkan araç da görünsün
+    refetchInterval: 60_000,
   });
 }
 

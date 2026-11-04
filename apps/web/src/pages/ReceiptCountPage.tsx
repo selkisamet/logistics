@@ -67,6 +67,7 @@ import { DiscrepancyModal } from '../components/DiscrepancyModal';
 import { NativeCamera } from '../components/NativeCamera';
 import { ImageLightbox, type LightboxImage } from '../components/ImageLightbox';
 import { HistoryCard } from '../components/HistoryCard';
+import { RegionPlacement } from '../components/RegionPlacement';
 import { PrintableDocModal, type CopyOption } from '../components/print/PrintableDocModal';
 import { MetaLine, FieldLine } from '../components/print/FormLines';
 
@@ -221,6 +222,11 @@ export function ReceiptCountPage() {
             {' · '}
             {formatDateTime(receipt.startedAt)}
           </span>
+          {receipt.pickupVehiclePlate && (
+            <span>
+              Getiren araç: <b className="text-slate-700">{receipt.pickupVehiclePlate}</b>
+            </span>
+          )}
           <span>
             Sevkiyat:{' '}
             {receipt.dispatches?.length ? (
@@ -245,6 +251,12 @@ export function ReceiptCountPage() {
             {totalExpected ? ` / ${formatCount(totalExpected)}` : ''} adet
           </span>
         </div>
+        {/* Depoda nereye konacağı — bölge sonradan öğrenilirse buradan girilir */}
+        {receipt.status !== 'CANCELLED' && (
+          <div className="border-t border-slate-100 pt-2">
+            <RegionPlacement receipt={receipt} />
+          </div>
+        )}
         <Button variant="secondary" className="w-full" onClick={() => setSlipOpen(true)}>
           <Icon name="printer" className="h-4 w-4" /> Tesellüm Fişi
         </Button>
@@ -1416,7 +1428,10 @@ function SlipForm({
             <MetaLine label="TARİH" value={formatDate(receipt.completedAt ?? receipt.startedAt)} />
             <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
             <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
-            <MetaLine label="ÖN İHBAR" value={receipt.asnReference || ''} />
+            {/* Eskiden ÖN İHBAR'dı (modül kaldırıldı, hep boştu). Satır SİLİNMEDİ, yeri
+                değişti: matbu form geometrisi sabit kalmalı. Sevk aracı DEĞİL — o teslim
+                alma anında belli değil ve taşıma irsaliyesinde zaten var. */}
+            <MetaLine label="GETİREN ARAÇ" value={receipt.pickupVehiclePlate || ''} />
           </div>
         </div>
       </div>

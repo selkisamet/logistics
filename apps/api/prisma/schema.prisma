@@ -24,6 +24,13 @@ enum ShipmentStatus {
   CANCELLED
 }
 
+// Yükleme görevi: araç yüke gönderildi (OPEN) → depoda mal kabulle eşleşti (RECEIVED)
+enum PickupTaskStatus {
+  OPEN
+  RECEIVED
+  CANCELLED
+}
+
 enum ReceiptStatus {
   DRAFT
   IN_PROGRESS
@@ -57,7 +64,6 @@ enum DispatchStatus {
   CANCELLED
 }
 
-
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -68,10 +74,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  startedReceipts Receipt[]      @relation("ReceiptStartedBy")
-  discrepancies   Discrepancy[]  @relation("DiscrepancyCreatedBy")
-  dispatches      Dispatch[]     @relation("DispatchBy")
+  startedReceipts Receipt[]     @relation("ReceiptStartedBy")
+  discrepancies   Discrepancy[] @relation("DiscrepancyCreatedBy")
+  dispatches      Dispatch[]    @relation("DispatchBy")
   auditEvents     AuditEvent[]
+  pickupTasks     PickupTask[]  @relation("PickupTaskCreatedBy")
 }
 
 model Customer {
@@ -93,15 +100,17 @@ model Customer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  shipments          InboundShipment[]   @relation("ShipmentSender")
-  recipientShipments InboundShipment[]   @relation("ShipmentRecipient")
-  receipts           Receipt[]
+  shipments            InboundShipment[]   @relation("ShipmentSender")
+  recipientShipments   InboundShipment[]   @relation("ShipmentRecipient")
+  receipts             Receipt[]
   // Mal kabuldeki ALICI (akış ön ihbardan mal kabule taşındı)
-  recipientReceipts  Receipt[]           @relation("ReceiptRecipient")
-  sourceLocations    CustomerLocation[]
-  recipients         CustomerRecipient[]
-  contacts           CustomerContact[]
-  dispatchStops      DispatchStop[]      @relation("StopCustomer")
+  recipientReceipts    Receipt[]           @relation("ReceiptRecipient")
+  sourceLocations      CustomerLocation[]
+  recipients           CustomerRecipient[]
+  contacts             CustomerContact[]
+  dispatchStops        DispatchStop[]      @relation("StopCustomer")
+  pickupTasks          PickupTask[]        @relation("PickupTaskSender")
+  recipientPickupTasks PickupTask[]        @relation("PickupTaskRecipient")
 }
 
 // Müşteri yetkili kişileri (çoklu) — ad, görev, telefon, e-posta, dahili
@@ -162,52 +171,52 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  locations Location[]
-  shipments InboundShipment[]
-  receipts  Receipt[]
+  locations       Location[]
+  shipments       InboundShipment[]
+  receipts        Receipt[]
   // "Yükleme yeri" olarak bizim depomuz seçilebilir (müşterinin deposu yerine)
   shipmentSources ShipmentSource[]
   receiptSources  ReceiptSource[]
 }
 
 model Location {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   code        String
   description String?
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@unique([warehouseId, code])
 }
 
 // ASN / Ön İhbar — beklenen sevkiyat
 model InboundShipment {
-  id             String         @id @default(cuid())
-  reference      String         @unique
-  status         ShipmentStatus @default(EXPECTED)
-  customerId     String
-  customer       Customer       @relation("ShipmentSender", fields: [customerId], references: [id])
+  id                  String         @id @default(cuid())
+  reference           String         @unique
+  status              ShipmentStatus @default(EXPECTED)
+  customerId          String
+  customer            Customer       @relation("ShipmentSender", fields: [customerId], references: [id])
   // Alıcı = kayıtlı bir Müşteri (opsiyonel); lokasyonları boşaltma yerleri olur
   recipientCustomerId String?
-  recipientCustomer   Customer?  @relation("ShipmentRecipient", fields: [recipientCustomerId], references: [id])
-  warehouseId    String
-  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
-  vehicleId      String?
-  vehicle        Vehicle?       @relation(fields: [vehicleId], references: [id])
-  expectedAt     DateTime? // malın depoya geleceği tarih
-  deliveryBy     DateTime? // SON TESLİM TARİHİ (termin) — depoda önceliklendirme için
-  notes          String?
+  recipientCustomer   Customer?      @relation("ShipmentRecipient", fields: [recipientCustomerId], references: [id])
+  warehouseId         String
+  warehouse           Warehouse      @relation(fields: [warehouseId], references: [id])
+  vehicleId           String?
+  vehicle             Vehicle?       @relation(fields: [vehicleId], references: [id])
+  expectedAt          DateTime? // malın depoya geleceği tarih
+  deliveryBy          DateTime? // SON TESLİM TARİHİ (termin) — depoda önceliklendirme için
+  notes               String?
   // Fiş için taraf/adres/ödeme bilgileri (hepsi opsiyonel — kör kabul/eski akış etkilenmez)
-  principalName    String? // DORMANT: "İşi Veren/Cari" alanı kaldırıldı (kolon duruyor, yazılmıyor/okunmuyor)
-  loadAddress      String? // yükleme (gönderici) adresi
-  deliveryAddress  String? // teslimat (alıcı) adresi
-  paymentType      String? // 'SENDER' | 'RECIPIENT'
-  showAmountOnSlip Boolean @default(false) // gönderici ödemeli iken ücret fişte görünsün mü
-  vatIncluded      Boolean @default(false) // girilen birim fiyatlar KDV dahil mi
-  currency         String  @default("TRY") // birim fiyatların para birimi (TRY/USD/EUR/GBP)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  principalName       String? // DORMANT: "İşi Veren/Cari" alanı kaldırıldı (kolon duruyor, yazılmıyor/okunmuyor)
+  loadAddress         String? // yükleme (gönderici) adresi
+  deliveryAddress     String? // teslimat (alıcı) adresi
+  paymentType         String? // 'SENDER' | 'RECIPIENT'
+  showAmountOnSlip    Boolean        @default(false) // gönderici ödemeli iken ücret fişte görünsün mü
+  vatIncluded         Boolean        @default(false) // girilen birim fiyatlar KDV dahil mi
+  currency            String         @default("TRY") // birim fiyatların para birimi (TRY/USD/EUR/GBP)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   lines      ShipmentLine[]
   sources    ShipmentSource[]
@@ -228,15 +237,16 @@ model Vehicle {
   trailerPlate String? // dorse plakası (tır)
   // Spot = firmaya ait olmayan, o iş için tutulan araç. Plaka alanına yazılarak anında
   // eklenir; depo ekranındaki araç şeridini doldurmasın diye ayrı işaretlenir.
-  isSpot       Boolean     @default(false)
-  isActive     Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  isSpot       Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  shipments  InboundShipment[]
+  shipments       InboundShipment[]
   // "Bu yük şu araca gidecek" planı — ön ihbardan mal kabule taşındı
-  plannedReceipts Receipt[] @relation("ReceiptPlannedVehicle")
-  dispatches Dispatch[]
+  plannedReceipts Receipt[]         @relation("ReceiptPlannedVehicle")
+  dispatches      Dispatch[]
+  pickupTasks     PickupTask[]
 }
 
 // Bir ön ihbarın kaynak depoları (çoklu). Kayıtlı müşteri deposu ya da serbest metin.
@@ -249,7 +259,7 @@ model ShipmentSource {
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
   warehouseId        String?
-  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id])
+  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id], onDelete: Restrict) // elle yazılmış migration ile aynı: depo silinince kaynak bilgisi kaybolmasın
   label              String // görünen ad (kayıtlı depo adı kopyası veya elle girilen metin)
   address            String? // kayıtlı deponun adres kopyası (fişte yükleme noktası)
 
@@ -289,45 +299,45 @@ model ShipmentLine {
 
 // Tesellüm — fiziksel mal kabul oturumu
 model Receipt {
-  id          String        @id @default(cuid())
-  reference   String        @unique
-  status      ReceiptStatus @default(IN_PROGRESS)
+  id          String           @id @default(cuid())
+  reference   String           @unique
+  status      ReceiptStatus    @default(IN_PROGRESS)
   // DORMANT: ön ihbar akışı kaldırıldı, yeni kabuller shipment'sız açılır.
   // Kolon eski kayıtların izlenebilirliği için duruyor (veri InboundShipment'tan
   // buraya KOPYALANDI, kaynak silinmedi).
   shipmentId  String?
   shipment    InboundShipment? @relation(fields: [shipmentId], references: [id])
   customerId  String // GÖNDERİCİ (malın sahibi)
-  customer    Customer      @relation(fields: [customerId], references: [id])
+  customer    Customer         @relation(fields: [customerId], references: [id])
   warehouseId String
-  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id])
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
   notes       String?
 
   // --- Ticari/taraf bilgileri: eskiden InboundShipment'taydı, akış mal kabulle
   // başladığı için buraya taşındı. Depocu yalnız alıcıyı görür (o da opsiyonel —
   // gelen irsaliyede nihai firma yazmayabiliyor); gerisini ofis sonradan girer.
   recipientCustomerId String? // ALICI = kayıtlı Müşteri; lokasyonları boşaltma yeri olur
-  recipientCustomer   Customer? @relation("ReceiptRecipient", fields: [recipientCustomerId], references: [id])
+  recipientCustomer   Customer?     @relation("ReceiptRecipient", fields: [recipientCustomerId], references: [id])
   plannedVehicleId    String? // "bu yük şu araca gidecek" planı
-  plannedVehicle      Vehicle?  @relation("ReceiptPlannedVehicle", fields: [plannedVehicleId], references: [id])
+  plannedVehicle      Vehicle?      @relation("ReceiptPlannedVehicle", fields: [plannedVehicleId], references: [id])
   deliveryBy          DateTime? // SON TESLİM (termin) — depoda önceliklendirme
-  currency            String    @default("TRY") // birim fiyatların para birimi
+  currency            String        @default("TRY") // birim fiyatların para birimi
   paymentType         String? // 'SENDER' | 'RECIPIENT'
-  showAmountOnSlip    Boolean   @default(false) // gönderici ödemeliyken ücret fişte görünsün mü
-  vatIncluded         Boolean   @default(false) // girilen birim fiyatlar KDV dahil mi
-  waybillNo   String? // irsaliye numarası (elle girilir)
-  orderNo     String? // sipariş numarası (irsaliyede yer alır, elle girilir)
-  startedById String?
-  startedBy   User?         @relation("ReceiptStartedBy", fields: [startedById], references: [id])
-  startedAt   DateTime      @default(now())
-  completedAt DateTime?
+  showAmountOnSlip    Boolean       @default(false) // gönderici ödemeliyken ücret fişte görünsün mü
+  vatIncluded         Boolean       @default(false) // girilen birim fiyatlar KDV dahil mi
+  waybillNo           String? // irsaliye numarası (elle girilir)
+  orderNo             String? // sipariş numarası (irsaliyede yer alır, elle girilir)
+  startedById         String?
+  startedBy           User?         @relation("ReceiptStartedBy", fields: [startedById], references: [id])
+  startedAt           DateTime      @default(now())
+  completedAt         DateTime?
   // DORMANT (kabul düzeyi sevk): artık yazılmaz — sevk DispatchItem defterinden yürür.
   // Kolonlar eski kayıtlar ve iptal temizliği için duruyor.
-  dispatchedAt DateTime?
-  dispatchId  String?
-  dispatch    Dispatch?     @relation(fields: [dispatchId], references: [id])
-  stopId      String?
-  stop        DispatchStop? @relation(fields: [stopId], references: [id])
+  dispatchedAt        DateTime?
+  dispatchId          String?
+  dispatch            Dispatch?     @relation(fields: [dispatchId], references: [id])
+  stopId              String?
+  stop                DispatchStop? @relation(fields: [stopId], references: [id])
 
   lines         ReceiptLine[]
   packages      Package[]
@@ -336,6 +346,16 @@ model Receipt {
   attachments   Attachment[] // irsaliye/belge görüntüleri (foto)
   sources       ReceiptSource[] // yükleme yerleri (çoklu)
   recipients    ReceiptRecipient[] // boşaltma yerleri
+
+  // --- Depo içi yerleşim: malın GİDECEĞİ bölgeye göre konur.
+  // regionId = gideceği bölge (null = bilinmiyor → BEKLEYEN alanı).
+  // storedRegionId = şu an fiilen durduğu bölge. İkisi farklıysa depocuya
+  // "yer değiştir" görevi çıkar; "Taşındı" deyince storedRegionId eşitlenir.
+  regionId       String?
+  region         Region?     @relation("ReceiptRegion", fields: [regionId], references: [id])
+  storedRegionId String?
+  storedRegion   Region?     @relation("ReceiptStoredRegion", fields: [storedRegionId], references: [id])
+  pickupTask     PickupTask? // bu kabulü getiren yükleme görevi (plakayla eşleşti)
 
   @@index([dispatchId])
   @@index([stopId])
@@ -354,7 +374,7 @@ model ReceiptSource {
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
   warehouseId        String?
-  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id])
+  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id], onDelete: Restrict) // elle yazılmış migration ile aynı: depo silinince kaynak bilgisi kaybolmasın
   label              String // görünen ad (kayıtlı yerin adı kopyası veya elle girilen metin)
   address            String? // adres kopyası (fişte yükleme noktası)
 
@@ -417,13 +437,13 @@ model Dispatch {
 /// Bir kabul aynı anda İKİ türü birden kullanamaz (tek-granülerlik kuralı, serviste zorlanır):
 /// paleti varsa kap bazlı, yoksa kalem bazlı.
 model DispatchItem {
-  id         String       @id @default(cuid())
+  id         String        @id @default(cuid())
   dispatchId String
-  dispatch   Dispatch     @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  dispatch   Dispatch      @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
   stopId     String? // hangi durakta inecek
   stop       DispatchStop? @relation(fields: [stopId], references: [id])
   receiptId  String // denormalize: gönderici/irsaliye no/depo belgede lazım
-  receipt    Receipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receipt    Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
 
   receiptLineId String?
   receiptLine   ReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Cascade)
@@ -447,22 +467,22 @@ model DispatchItem {
 // Sevkiyattaki teslimat noktası (durak). Bir seferde birden çok müşteriye /
 // bir müşterinin birden çok noktasına teslim yapılabilir.
 model DispatchStop {
-  id         String   @id @default(cuid())
-  dispatchId String
-  dispatch   Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
-  seq        Int // rota sırası (1, 2, 3...)
+  id                 String            @id @default(cuid())
+  dispatchId         String
+  dispatch           Dispatch          @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  seq                Int // rota sırası (1, 2, 3...)
   // Alıcı = kayıtlı müşteri (opsiyonel; serbest metin de olabilir)
   customerId         String?
   customer           Customer?         @relation("StopCustomer", fields: [customerId], references: [id])
   customerLocationId String?
   customerLocation   CustomerLocation? @relation(fields: [customerLocationId], references: [id])
   // Snapshot (ShipmentSource/ShipmentRecipient deseni): kayıt sonradan değişse de belge sabit kalır
-  name        String
-  address     String?
-  phone       String?
-  note        String?
-  deliveredAt DateTime? // durak teslim edildiğinde dolar
-  createdAt   DateTime  @default(now())
+  name               String
+  address            String?
+  phone              String?
+  note               String?
+  deliveredAt        DateTime? // durak teslim edildiğinde dolar
+  createdAt          DateTime          @default(now())
 
   items    DispatchItem[]
   packages Package[] // items'ın aynası
@@ -472,23 +492,23 @@ model DispatchStop {
 }
 
 model ReceiptLine {
-  id           String        @id @default(cuid())
-  receiptId    String
-  receipt      Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  receiptId      String
+  receipt        Receipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   shipmentLineId String?
-  shipmentLine ShipmentLine? @relation(fields: [shipmentLineId], references: [id])
-  sku          String
-  description  String
-  expectedQty  Int?
-  countedQty   Int           @default(0)
-  unit         String        @default("ADET")
-  barcode      String?
-  unitPrice    Decimal?      @db.Decimal(12, 2) // ön ihbardan kopyalanır (fiş ÜCRET için)
-  weightKg     Decimal?      @db.Decimal(12, 3) // ön ihbardan kopyalanır (belge KİLO/KG için)
+  shipmentLine   ShipmentLine? @relation(fields: [shipmentLineId], references: [id])
+  sku            String
+  description    String
+  expectedQty    Int?
+  countedQty     Int           @default(0)
+  unit           String        @default("ADET")
+  barcode        String?
+  unitPrice      Decimal?      @db.Decimal(12, 2) // ön ihbardan kopyalanır (fiş ÜCRET için)
+  weightKg       Decimal?      @db.Decimal(12, 3) // ön ihbardan kopyalanır (belge KİLO/KG için)
   // Sevk edilen toplam (DispatchItem'ların toplamı — HER ZAMAN aynı transaction'da güncellenir).
   // Depoda kalan = countedQty - dispatchedQty. Denormalize: findStock tek sorguda çalışsın diye.
-  dispatchedQty Int          @default(0)
-  createdAt    DateTime      @default(now())
+  dispatchedQty  Int           @default(0)
+  createdAt      DateTime      @default(now())
 
   discrepancies Discrepancy[]
   dispatchItems DispatchItem[]
@@ -508,11 +528,11 @@ model Package {
 
   // Palet bazlı sevkiyat: null ise depoda, doluysa sevk edilmiş/sevkiyata eklenmiş
   dispatchId   String?
-  dispatch     Dispatch? @relation(fields: [dispatchId], references: [id])
+  dispatch     Dispatch?     @relation(fields: [dispatchId], references: [id])
   dispatchedAt DateTime?
   // Çok duraklı sevkiyatta bu palet hangi durakta inecek
-  stopId String?
-  stop   DispatchStop? @relation(fields: [stopId], references: [id])
+  stopId       String?
+  stop         DispatchStop? @relation(fields: [stopId], references: [id])
   // Bu paletin sevkiyat defterindeki karşılığı (varsa)
   dispatchItem DispatchItem?
 
@@ -554,11 +574,9 @@ model Attachment {
 
 /**
  * Matbu TAŞIMA İRSALİYESİ serisi — seri harfi + sıradaki numara.
- *
  * Numarayı ANLAŞMALI MATBAA basar (164 GT); uygulama numara ÜRETMEZ, matbaanın bastığı
  * sırayı TAKİP eder. Operatör her sevkiyatta elle yazmasın diye sıradaki numara burada
  * tutulur ve sevk anında (kâğıdın fiilen kullanıldığı an) tüketilir.
- *
  * TEK SATIR beklenir (`@@unique` alanı yok; servis ilk kaydı kullanır/oluşturur).
  * Form zayi olursa `nextNo` elle ileri alınır — atlanan numara böylece kayda geçer.
  */
@@ -568,6 +586,52 @@ model WaybillSeries {
   nextNo    Int // sıradaki sıra no, ör. 23213522
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// Depo içi sevk bölgesi (ör. GEBZE, AVRUPA YAKASI). Malın depoda nereye konacağını
+// belirler. Bölgesi olmayan mal "BEKLEYEN" alanındadır (kayıt değil, regionId=null).
+// Kullanılan bölge silinmez, pasife alınır.
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receipts       Receipt[]    @relation("ReceiptRegion")
+  storedReceipts Receipt[]    @relation("ReceiptStoredRegion")
+  pickupTasks    PickupTask[]
+}
+
+// Yükleme görevi: yönetici/sevkiyat müdürü aracı yüke gönderirken açar (gönderici +
+// plaka; bölge/alıcı biliniyorsa). Araç depoya gelince depocu PLAKAYA dokunur, mal
+// kabul bu bilgilerle dolu açılır. ZORUNLU DEĞİL — görevsiz kabul her zaman mümkün.
+model PickupTask {
+  id                  String           @id @default(cuid())
+  status              PickupTaskStatus @default(OPEN)
+  customerId          String // GÖNDERİCİ
+  customer            Customer         @relation("PickupTaskSender", fields: [customerId], references: [id], onDelete: Cascade)
+  vehicleId           String
+  vehicle             Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  regionId            String?
+  region              Region?          @relation(fields: [regionId], references: [id])
+  recipientCustomerId String?
+  recipientCustomer   Customer?        @relation("PickupTaskRecipient", fields: [recipientCustomerId], references: [id], onDelete: SetNull)
+  note                String?
+  // Tahmini depoya geliş. Gün ve saat AYRI: "yarın, saati belli değil" sık — saat tarihe
+  // gömülseydi bilinmeyen saat ile 00:00 ayırt edilemezdi.
+  expectedDate        DateTime?        @db.Date
+  expectedTime        String? // "HH:MM", opsiyonel
+  receiptId           String?          @unique
+  receipt             Receipt?         @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  createdById         String?
+  createdBy           User?            @relation("PickupTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([status])
+  @@index([vehicleId])
 }
 
 // İzlenebilirlik / denetim kaydı

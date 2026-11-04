@@ -5,7 +5,9 @@ import {
   DISCREPANCY_TYPE_LABELS,
   DISCREPANCY_TYPES,
   KAP_TYPES,
+  PENDING_REGION_LABEL,
   type Attachment,
+  type PickupTask,
   type DiscrepancyType,
   type Receipt,
   type StartReceiptInput,
@@ -19,7 +21,13 @@ import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Select } from '../components/ui';
 import { Icon } from '../components/icons';
 import { NativeCamera } from '../components/NativeCamera';
-import { useCustomers, useWarehouses } from '../lib/lookups';
+import { ETA_TONE_CLASS, etaLabel } from '../lib/eta';
+import {
+  useCustomers,
+  useOpenPickupTasks,
+  useRegions,
+  useWarehouses,
+} from '../lib/lookups';
 
 /** Ekrandaki bir kalem satırı. `key` React listesi için; id değil. */
 type KapRow = { key: number; type: string; count: string; description: string };
@@ -51,6 +59,21 @@ export function ReceiptStartPage() {
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [recipientCustomerId, setRecipientCustomerId] = useState('');
+  // Gideceği bölge — malın depoda NEREYE konacağı. Boş = BEKLEYEN alanı.
+  const [regionId, setRegionId] = useState('');
+  const { data: regions } = useRegions();
+
+  // --- Gelen araç: yönetici aracı yüke gönderirken görev açtıysa depocu PLAKAYA
+  // dokunur, gönderici/alıcı/bölge dolar. Görev yoksa form her zamanki gibi doldurulur.
+  const { data: openTasks } = useOpenPickupTasks();
+  const [taskId, setTaskId] = useState('');
+  const pickTask = (t: PickupTask | null) => {
+    setTaskId(t?.id ?? '');
+    setCustomerId(t?.customer.id ?? '');
+    setRecipientCustomerId(t?.recipientCustomer?.id ?? '');
+    setRegionId(t?.region?.id ?? '');
+  };
+  const regionName = regions?.find((r) => r.id === regionId)?.name;
   const [waybillNo, setWaybillNo] = useState('');
   const [orderNo, setOrderNo] = useState('');
   // İrsaliye ve sipariş no fotoğraftan okunur; depocu elle yazmakla uğraşmasın
@@ -131,6 +154,7 @@ export function ReceiptStartPage() {
     },
     onSuccess: ({ receipt, photoError }) => {
       qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['pickup-tasks'] });
       if (photoError) toast.error(`Kayıt açıldı ama fotoğraf eklenemedi: ${photoError}`);
       navigate(`/mal-kabul/${receipt.id}`, { replace: true });
     },
@@ -210,6 +234,57 @@ export function ReceiptStartPage() {
         )}
       </div>
 
+      {/* Yoldaki araçlar — depocu gelen aracın plakasına dokunur. Plaka benzersiz,
+          karışmaz; irsaliyeyi önceden görmek gerekmez. */}
+      {openTasks && openTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-slate-700">Gelen araç hangisi?</p>
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
+            {openTasks.map((t) => {
+              const on = t.id === taskId;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => pickTask(on ? null : t)}
+                  className={clsx(
+                    'shrink-0 rounded-lg border px-3 py-2 text-left transition',
+                    on ? 'border-brand bg-brand/5 ring-2 ring-brand/30' : 'border-slate-200 bg-white',
+                  )}
+                >
+                  <span className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <Icon name="truck" className="h-4 w-4" /> {t.vehicle.plate}
+                  </span>
+                  <span className="block max-w-[11rem] truncate text-xs text-slate-600">
+                    {t.customer.name}
+                  </span>
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    <span
+                      className={clsx(
+                        'rounded px-1.5 text-[11px] font-semibold',
+                        t.region ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800',
+                      )}
+                    >
+                      {t.region?.name ?? PENDING_REGION_LABEL}
+                    </span>
+                    {t.expectedDate && (
+                      <span
+                        className={clsx(
+                          'rounded px-1.5 text-[11px] font-medium',
+                          ETA_TONE_CLASS[etaLabel(t.expectedDate, t.expectedTime).tone],
+                        )}
+                      >
+                        {etaLabel(t.expectedDate, t.expectedTime).text}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {serverError && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{serverError}</p>
       )}
@@ -243,6 +318,37 @@ export function ReceiptStartPage() {
               placeholder="Alıcı ara / seç..."
             />
           </Field>
+        </div>
+
+        {/* Depocunun asıl sorusu: "bunu nereye koyayım?" — cevap büyük yazılır */}
+        <div
+          className={clsx(
+            'flex flex-wrap items-center gap-2 rounded-lg px-3 py-2',
+            regionName ? 'bg-emerald-50' : 'bg-amber-50',
+          )}
+        >
+          <span className="text-sm text-slate-600">Malı koy:</span>
+          <span
+            className={clsx(
+              'text-base font-bold',
+              regionName ? 'text-emerald-800' : 'text-amber-800',
+            )}
+          >
+            {regionName ?? `${PENDING_REGION_LABEL} alanı`}
+          </span>
+          <Select
+            value={regionId}
+            onChange={(e) => setRegionId(e.target.value)}
+            className="ml-auto w-auto min-w-[10rem] py-1.5"
+            aria-label="Bölge"
+          >
+            <option value="">Bölge bilinmiyor</option>
+            {(regions ?? []).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="space-y-1">
@@ -457,7 +563,11 @@ export function ReceiptStartPage() {
             startMut.mutate({
               customerId,
               warehouseId,
-              recipientCustomerId: recipientCustomerId || undefined,
+              // Ekrandaki değer her zaman gönderilir (boş = null): görevden gelen
+              // bilgiyi depocu değiştirdiyse sunucu görevdekini geri yazmasın
+              recipientCustomerId: recipientCustomerId || null,
+              pickupTaskId: taskId || undefined,
+              regionId: regionId || null,
               waybillNo: waybillNo || undefined,
               orderNo: orderNo || undefined,
               kap: items.length ? { items, makeLabels } : undefined,

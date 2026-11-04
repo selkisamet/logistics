@@ -20,6 +20,7 @@ import {
   updateReceiptCommercialSchema,
   editReceiptLineSchema,
   receiptListQuerySchema,
+  setReceiptRegionSchema,
   UserRole,
   type StartReceiptInput,
   type UpsertReceiptLineInput,
@@ -28,6 +29,7 @@ import {
   type UpdateReceiptCommercialInput,
   type EditReceiptLineInput,
   type ReceiptListQuery,
+  type SetReceiptRegionInput,
   type AuthUser,
 } from '@lojistik/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -139,6 +141,22 @@ export class ReceiptsController {
   @Post(':id/reopen')
   reopen(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.receiptsService.reopen(id, user.id);
+  }
+
+  /** Gideceği bölge (null = BEKLEYEN). Bilgiyi kim öğrenirse o girer — rol kısıtı yok. */
+  @Patch(':id/region')
+  setRegion(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setReceiptRegionSchema)) dto: SetReceiptRegionInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.receiptsService.setRegion(id, dto, user.id);
+  }
+
+  /** Depocu malı gideceği bölgeye taşıdı ("yer değiştir" görevi kapanır). */
+  @Post(':id/relocated')
+  markRelocated(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.receiptsService.markRelocated(id, user.id);
   }
 
   /** İrsaliye/belge görüntüleri (foto) — çoklu yükle + mal kabule bağla. */

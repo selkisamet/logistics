@@ -12,3 +12,4 @@ export * from './schemas/discrepancy';
 export * from './schemas/ocr';
 export * from './schemas/dispatch';
 export * from './schemas/vehicle';
+export * from './schemas/region';

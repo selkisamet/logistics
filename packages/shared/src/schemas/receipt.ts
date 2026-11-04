@@ -10,6 +10,7 @@ import {
 import { paginationQuerySchema } from './common';
 import { discrepancySchema, attachmentSchema } from './discrepancy';
 import { vehicleSummarySchema } from './vehicle';
+import { regionSummarySchema } from './region';
 import { CURRENCIES } from './commercial';
 import { upperStr, upperOpt, codeOpt } from '../text';
 
@@ -80,10 +81,18 @@ export type ReceiptRecipientInput = z.infer<typeof receiptRecipientInputSchema>;
 export const startReceiptSchema = z.object({
   customerId: z.string().min(1, 'Gönderici seçilmeli'),
   warehouseId: z.string().min(1, 'Hedef depo seçilmeli'),
-  recipientCustomerId: z.string().optional(), // ALICI — depocu bilmiyorsa boş
+  // ALICI — depocu bilmiyorsa boş. null = "bilerek boş" (araç görevindeki alıcıyı da alma)
+  recipientCustomerId: z.string().nullable().optional(),
   waybillNo: codeOpt(), // göndericinin sevk irsaliye no'su — fotoğraftan okunur
   orderNo: codeOpt(), // sipariş no — aynı fotoğraftan okunur, fişe basılır
   notes: upperOpt(),
+  /** Depocu gelen aracın PLAKASINA dokunduysa: o yükleme görevi bu kabulle kapanır. */
+  pickupTaskId: z.string().optional(),
+  /**
+   * Gideceği bölge. `undefined` = görevdeki bölge (o da yoksa BEKLEYEN);
+   * `null` = depocu bilerek BEKLEYEN seçti.
+   */
+  regionId: z.string().nullable().optional(),
 
   /**
    * Gelen yük — "5 palet ham madde, 3 varil boya". Kayıtla AYNI transaction'da
@@ -295,6 +304,14 @@ export const receiptSchema = z.object({
     )
     .optional()
     .default([]),
+  // Depo içi yerleşim: gideceği bölge (null = BEKLEYEN) ve fiilen durduğu bölge.
+  // Farklıysa depocuya "yer değiştir" görevi çıkar.
+  regionId: z.string().nullable().optional(),
+  region: regionSummarySchema.nullable().optional(),
+  storedRegionId: z.string().nullable().optional(),
+  storedRegion: regionSummarySchema.nullable().optional(),
+  /** Bu kabulü getiren yükleme görevinin aracı (plakayla eşleşti). */
+  pickupVehiclePlate: z.string().nullable().optional(),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
 });

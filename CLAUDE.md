@@ -140,10 +140,50 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     modeli artık `discrepancyId` VEYA `receiptId` ile bağlanabilir (ikisi opsiyonel). Endpoint:
     `POST /receipts/:id/attachments` (FilesInterceptor, tek adımda yükle+bağla) + `DELETE /receipts/:id/attachments/:attachmentId`;
     yalnız IN_PROGRESS'te eklenir/silinir (`ensureInProgress`). `serializeReceipt` `attachments`'ı yüzeye çıkarır.
+- **Araç Görevi + Depo Bölgesi** (sorun: irsaliyede gerçek teslim adresi yazmıyor, depocu malı
+  nereye koyacağını bilmiyordu). **Hepsi OPSİYONEL — hiçbir adım akışı durdurmaz** (eski ön ihbar
+  ZORUNLU olduğu için kaldırılmıştı; aynı hataya düşme). Kamyoncuya iş yok, müşteri aranmaz.
+  - **`Region`** (Bölgeler, Tanımlar menüsü — [RegionsPage](apps/web/src/pages/RegionsPage.tsx)):
+    depodaki sevk alanları (GEBZE, ÇORLU…). **"BEKLEYEN" kayıt DEĞİL** = `regionId null`
+    (`PENDING_REGION_LABEL`). Kullanılmış bölge silinmez (409) → pasife alınır (FK SET NULL malları
+    sessizce BEKLEYEN'e düşürürdü).
+  - **`Receipt.regionId`** = gideceği bölge, **`storedRegionId`** = fiilen durduğu bölge. Kabulde
+    ikisi eşit açılır. Bölge sonradan girilince yalnız `regionId` değişir → farklıysa
+    **"Yer değiştir: BEKLEYEN → GEBZE"** görevi (`needsRelocation()`); depocu **"Taşındı"** der
+    (`POST /receipts/:id/relocated` → eşitler). `PATCH /receipts/:id/region` **rol kısıtsız**
+    (bilgiyi kim öğrenirse girer). Ortak UI: [RegionPlacement](apps/web/src/components/RegionPlacement.tsx)
+    (mal kabul detayı + depo kartları). Depo ekranında bölge süzgeci + "Yer değiştir (N)" çipi.
+  - **`PickupTask`** (Araç Görevleri — [PickupTasksPage](apps/web/src/pages/PickupTasksPage.tsx),
+    ADMIN/SUPERVISOR; mobil alt çubukta "Görevler"): yönetici/sevkiyat müdürü **aracı yüke
+    gönderirken** açar: gönderici + plaka (zorunlu), bölge/alıcı (biliniyorsa). Kartta bölge tek
+    dokunuşla girilir. `OPEN` → depoya gelince `RECEIVED` (+`receiptId`) / `CANCELLED`.
+  - **Plakayla eşleştirme:** Mal Kabul Başlat'ta üstte "Gelen araç hangisi?" — açık görevlerin
+    plakaları. Depocu dokununca gönderici/alıcı/bölge dolar, `pickupTaskId` ile başlatılır; sunucu
+    görevi `updateMany({status:OPEN})` ile kapatır (iki depocu aynı anda dokunursa tek bağ).
+    **`regionId`/`recipientCustomerId`: `undefined` = görevdekini al, `null` = depocu bilerek
+    boşalttı** (istemci ekrandaki değeri hep gönderir). Kabul iptal → görev tekrar `OPEN`.
+    Ekranda büyük **"Malı koy: GEBZE"** satırı = depocunun asıl sorusu.
+  - **Spot araç** (firmaya ait olmayan, o iş için tutulan): plaka kutusuna yazılır → "+ PLAKA ekle"
+    → `POST /vehicles/quick` anında `Vehicle{isSpot:true, type:'DİĞER'}` açar. **Aynı plaka
+    boşluk farkıyla da varsa YENİSİ AÇILMAZ** (`plateKey`), mevcut döner (pasifse aktifleşir).
+    `Combobox` `onCreate` + `formatQuery={formatPlate}` ("34abc" → "34 ABC" ile aranır);
+    `useQuickVehicle()` + `vehicleOptions()` ([lookups.ts](apps/web/src/lib/lookups.ts)). Bağlı yerler:
+    Araç Görevi formu, Ticari Bilgiler → Planlanan Araç. Depo araç şeridinde spot araç yalnız işi
+    (planlı yük/açık sefer) varsa görünür. Araçlar sayfasında "spot" rozeti + işaret kaldırılabilir.
+  - **Araç sahipliği etiketi:** plaka listelerinde sağda rozet **ÖZMAL** (firmanın kendi aracı —
+    sektör terimi) / **SPOT** (`vehicleOwnership()`; `ComboOption.badge`/`badgeTone`).
+  - **Tahmini geliş** (`PickupTask.expectedDate` @db.Date + `expectedTime` "HH:MM", AYRI — bilinmeyen
+    saat 00:00 ile karışmasın). Formda [Bugün][Tarih seç][Bilinmiyor] ("Yarın" düğmesi kullanıcı
+    isteğiyle kaldırıldı — takvimden seçilir), **varsayılan Bugün**, saat opsiyonel. Görev formunda
+    **Not alanı yok** (hiçbir yere aktarılmıyordu; `PickupTask.note` kolonu dormant). Açık görevler geliş sırasıyla (tarih, saat, NULL'lar sonda). Etiket
+    [lib/eta.ts](apps/web/src/lib/eta.ts) `etaLabel()` — "Bugün 14:30", "Yarın", "Gecikti · 08.10";
+    gün YEREL saatle (`localDay`, toISOString UTC kaydırırdı). Tarih silinince saat de silinir.
+  - Sonraki adım (yapılmadı): geçmişten bölge önerisi (aynı alıcı/gönderici→alıcı nereye gittiyse).
 - **Tesellüm fişi:** mal kabul başlığındaki "🖨️ Tesellüm Fişi" ile her durumda basılır (`ReceiptSlipModal`,
   [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)). Klasik **"Ambar Tesellüm Fişi"** form düzeni,
   **A5 YATAY**: kaşe/QR + ünvan, fiş bilgileri (seri/sıra no=fiş ref, tarih, gönderici sevk irs.=irsaliye no,
-  sipariş no, ön ihbar), Alıcı/Teslim Alan (ambar) + Gönderen/Teslim Eden (müşteri) blokları, MALIN CİNSİ tablosu
+  sipariş no, **getiren araç** = `pickupVehiclePlate` — eski ÖN İHBAR satırının YERİNDE, geometri
+  sabit kalsın diye; sevk aracı DEĞİL), Alıcı/Teslim Alan (ambar) + Gönderen/Teslim Eden (müşteri) blokları, MALIN CİNSİ tablosu
   (Sıra·Cins·Adet·Kap·Kg·Ücret; **kap kalemin nev'inden basılır**, kg/ücret elle), gönderici/alıcı ödemeli kutuları, "tam ve sağlam teslim aldım"
   beyanı + kaşe. **Baskı `react-to-print` ile** (izole iframe → sayfalama düzgün, kırpılma/tekrarlama YOK; eski
   `window.print()`+`position:absolute` hilesi kaldırıldı — o yaklaşım fixed-modal'ı her sayfada tekrarlıyordu).
@@ -324,7 +364,13 @@ farklı alıcılara/noktalara gidebilir.
   dispatchedAt, **stopId**), Discrepancy, Attachment(discrepancyId? **veya** receiptId?),
   Dispatch(+vehicleId, packages, **stops, waybillSerial/waybillNo/waybillDate, freightAmount, freightVatIncluded**),
   **DispatchStop**(dispatchId, seq, customerId?, customerLocationId?, name/address/phone snapshot, deliveredAt),
-  Vehicle(type=String), AuditEvent.
+  Vehicle(type=String), AuditEvent, **Region**(name unique, sortOrder, isActive),
+  **PickupTask**(status OPEN/RECEIVED/CANCELLED, customerId, vehicleId, regionId?, recipientCustomerId?,
+  receiptId? unique). Receipt(+**regionId, storedRegionId**).
+- **Şema ↔ elle yazılmış migration:** `ShipmentSource`/`ReceiptSource.warehouse` ilişkileri
+  `onDelete: Restrict` — elle yazılan migration'larla aynı olsun diye şemaya eklendi; eksikken her
+  `migrate dev` bu FK'leri SET NULL'a çevirmeye çalışıyordu. Yeni migration üretince SQL'de beklenmedik
+  DROP/ALTER var mı mutlaka bak (`--create-only`).
 
 ## Doğrulama (değişiklik sonrası)
 

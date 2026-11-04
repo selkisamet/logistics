@@ -31,7 +31,10 @@ export type IconName =
   | 'trash'
   | 'search'
   | 'tag'
-  | 'settings';
+  | 'settings'
+  // Yükleme görevi (araç yola çıktı) ve depo bölgeleri
+  | 'route'
+  | 'grid';
 
 const PATHS: Record<IconName, ReactNode> = {
   home: <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5" />,
@@ -193,6 +196,21 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M4 11.5V5a1 1 0 0 1 1-1h6.5L20 12.5 12.5 20Z" />
       <circle cx="8" cy="8" r="1.4" />
+    </>
+  ),
+  route: (
+    <>
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1" />
+      <rect x="13" y="4" width="7" height="7" rx="1" />
+      <rect x="4" y="13" width="7" height="7" rx="1" />
+      <rect x="13" y="13" width="7" height="7" rx="1" />
     </>
   ),
 };

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
+  PENDING_REGION_LABEL,
   type Dispatch,
   type LoadEntryInput,
   type Paginated,
@@ -15,6 +16,7 @@ import { formatCount, formatDate, daysSince } from '../lib/format';
 import { useVehicles, vehicleOptions } from '../lib/lookups';
 import { formatPlate } from '../lib/plate';
 import { Icon } from '../components/icons';
+import { RegionPlacement, needsRelocation } from '../components/RegionPlacement';
 import {
   Badge,
   Button,
@@ -26,6 +28,10 @@ import {
   Modal,
   Spinner,
 } from '../components/ui';
+
+/** Bölge süzgeci: '' = hepsi, yoksa bölge id'si ya da aşağıdaki özel anahtarlar. */
+const FILTER_PENDING = '__pending';
+const FILTER_MOVE = '__move';
 
 type QuickTarget = {
   receiptId: string;
@@ -196,13 +202,37 @@ export function StockPage() {
   };
 
   // Liste: araç seçiliyken o aracın planlı yükleri ÖNE alınır; istenirse yalnız onlar.
-  const visible = useMemo(() => {
+  // ---- Bölge süzgeci: "GEBZE'ye ne gidecek?", "neyi taşımam lazım?" ----
+  const [regionFilter, setRegionFilter] = useState('');
+  const regionChips = useMemo(() => {
     const items = data?.items ?? [];
+    const byId = new Map<string, { id: string; name: string; count: number }>();
+    let pending = 0;
+    for (const r of items) {
+      if (!r.region) pending++;
+      else {
+        const c = byId.get(r.region.id) ?? { id: r.region.id, name: r.region.name, count: 0 };
+        c.count++;
+        byId.set(r.region.id, c);
+      }
+    }
+    return {
+      regions: [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+      pending,
+      moves: items.filter(needsRelocation).length,
+    };
+  }, [data]);
+
+  const visible = useMemo(() => {
+    let items = data?.items ?? [];
+    if (regionFilter === FILTER_PENDING) items = items.filter((r) => !r.regionId);
+    else if (regionFilter === FILTER_MOVE) items = items.filter(needsRelocation);
+    else if (regionFilter) items = items.filter((r) => r.regionId === regionFilter);
     if (!vehicleId) return items;
     const mine = (r: Receipt) => r.plannedVehicle?.id === vehicleId;
     if (onlyPlanned) return items.filter(mine);
     return [...items].sort((a, b) => Number(mine(b)) - Number(mine(a)));
-  }, [data, vehicleId, onlyPlanned]);
+  }, [data, vehicleId, onlyPlanned, regionFilter]);
 
   return (
     <div className="space-y-4 pb-28">
@@ -290,16 +320,63 @@ export function StockPage() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
+      {/* Bölge süzgeci — yalnız depoda mal varken. "Yer değiştir" en başta: bekleyen iş. */}
+      {data && data.items.length > 0 && (
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
+          {[
+            ...(regionChips.moves > 0
+              ? [{ key: FILTER_MOVE, label: `Yer değiştir (${regionChips.moves})`, warn: true }]
+              : []),
+            { key: '', label: `Hepsi (${data.items.length})`, warn: false },
+            ...regionChips.regions.map((r) => ({
+              key: r.id,
+              label: `${r.name} (${r.count})`,
+              warn: false,
+            })),
+            ...(regionChips.pending > 0
+              ? [
+                  {
+                    key: FILTER_PENDING,
+                    label: `${PENDING_REGION_LABEL} (${regionChips.pending})`,
+                    warn: false,
+                  },
+                ]
+              : []),
+          ].map((c) => (
+            <button
+              key={c.key || 'all'}
+              onClick={() => setRegionFilter(regionFilter === c.key ? '' : c.key)}
+              className={clsx(
+                'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition',
+                regionFilter === c.key
+                  ? c.warn
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-brand text-white'
+                  : c.warn
+                    ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-300'
+                    : 'bg-white text-slate-600 ring-1 ring-slate-200',
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <Spinner />
       ) : !data || data.items.length === 0 ? (
         <EmptyState title="Depo boş görünüyor" hint="Tamamlanan mal kabuller burada listelenir." />
       ) : visible.length === 0 ? (
-        // "Yalnız bu araca planlı" süzgeci hiçbir şey bırakmadıysa: çıkış yolunu göster
-        <EmptyState
-          title="Bu araca planlı yük yok"
-          hint="Süzgeci kaldırın ya da depodaki başka yükleri seçip bu araca yükleyin."
-        />
+        // Süzgeç hiçbir şey bırakmadıysa: çıkış yolunu göster
+        regionFilter ? (
+          <EmptyState title="Bu süzgeçte yük yok" hint="Bölge süzgecini kaldırın." />
+        ) : (
+          <EmptyState
+            title="Bu araca planlı yük yok"
+            hint="Süzgeci kaldırın ya da depodaki başka yükleri seçip bu araca yükleyin."
+          />
+        )
       ) : (
         // Masaüstünde çift sütun (kartlar kısa, tam genişlikte sağ taraf boş kalıyordu); mobilde tek.
         // Satırdaki kartlar eşit boyda uzar → ızgara düzgün görünür.
@@ -364,6 +441,9 @@ export function StockPage() {
                     )}
                   </span>
                 </div>
+
+                {/* Depoda nerede / nereye — bölge sonradan girilirse "yer değiştir" burada çıkar */}
+                <RegionPlacement receipt={r} compact />
 
                 {/* Yük planı seçimi — KABUL BAZINDA, tek onay kutusu.
                     Bir müşterinin yükü BÖLÜNMÜYOR: tamamı aynı araca gider. Eskiden
