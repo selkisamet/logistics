@@ -844,7 +844,7 @@ function SortableStop({
 
 /**
  * Durağa atanmamış yükün gideceği yer — ön ihbardan okunur.
- * Önce seçilen boşaltma yeri/yerleri ("Akpa Kimya"), yoksa alıcı firma adı.
+ * Önce seçilen teslim yeri/yerleri ("Akpa Kimya"), yoksa alıcı firma adı.
  * İrsaliyede ALICI de bu zincirden basılır, ekranla belge aynı şeyi söylesin.
  */
 function deliveryTargetOf(i: DispatchItem): string {
@@ -1137,7 +1137,7 @@ function StopModal({
           />
         </Field>
         {customerId && (
-          <Field label="Boşaltma Yeri">
+          <Field label="Teslim Yeri">
             <Combobox
               options={(locations ?? []).map((l) => ({ value: l.id, label: l.name }))}
               value={locationId}

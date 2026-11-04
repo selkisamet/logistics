@@ -74,7 +74,7 @@ export type ChangeDispatchVehicleInput = z.infer<typeof changeDispatchVehicleSch
 export const createDispatchStopSchema = z
   .object({
     customerId: z.string().optional(), // alıcı = kayıtlı müşteri (opsiyonel)
-    customerLocationId: z.string().optional(), // müşterinin boşaltma lokasyonu
+    customerLocationId: z.string().optional(), // müşterinin teslim lokasyonu
     name: upperOpt(), // lokasyon seçilmediyse serbest metin (zorunlu)
     address: upperOpt(),
     phone: z.string().optional(),

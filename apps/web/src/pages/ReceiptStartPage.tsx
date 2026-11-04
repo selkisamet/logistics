@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DISCREPANCY_TYPE_LABELS,
   DISCREPANCY_TYPES,
   KAP_TYPES,
+  type Attachment,
   type DiscrepancyType,
   type Receipt,
   type StartReceiptInput,
@@ -80,6 +81,10 @@ export function ReceiptStartPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteType, setNoteType] = useState<DiscrepancyType>('DAMAGE');
   const [noteText, setNoteText] = useState('');
+  // Hasar fotoğrafları — irsaliye fotoğraflarından ayrı: OCR'a gitmez, tutanağa bağlanır
+  const [notePhotos, setNotePhotos] = useState<File[]>([]);
+  const [noteCameraOpen, setNoteCameraOpen] = useState(false);
+  const noteFileRef = useRef<HTMLInputElement>(null);
 
   // Varsayılan depo bir kez ön-seçilir; kullanıcı değiştirdiyse ezmez
   const whPrefilled = useRef(false);
@@ -99,9 +104,20 @@ export function ReceiptStartPage() {
    *
    * Fotoğraf multipart olduğu için ayrı istek olmak zorunda; başarısız olursa
    * kullanıcıyı geri döndürmek yerine uyarıp detaya götürürüz, orada ekler.
+   *
+   * Tutanak fotoğrafları ise kayıttan ÖNCE yüklenir ve id'leri tutanakla birlikte
+   * gider — yükleme düşerse kayıt hiç açılmaz, depocu tekrar dener (hasar kanıtı
+   * sessizce kaybolmasın).
    */
   const startMut = useMutation({
     mutationFn: async (input: StartReceiptInput) => {
+      if (input.discrepancy && notePhotos.length) {
+        const uploaded = await uploadFiles<Attachment[]>('/attachments', notePhotos);
+        input = {
+          ...input,
+          discrepancy: { ...input.discrepancy, attachmentIds: uploaded.map((a) => a.id) },
+        };
+      }
       const receipt = await api.post<Receipt>('/receipts/start', input);
       let photoError: string | null = null;
       if (photos.length) {
@@ -285,27 +301,10 @@ export function ReceiptStartPage() {
               <Icon name="camera" className="h-4 w-4" /> Çek
             </Button>
           </div>
-          {photos.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {photos.map((f, i) => (
-                <div key={`${f.name}-${i}`} className="relative">
-                  <img
-                    src={URL.createObjectURL(f)}
-                    alt={f.name}
-                    className="h-20 w-20 rounded-lg border border-slate-200 object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPhotos((p) => p.filter((_, x) => x !== i))}
-                    className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs text-red-600 shadow ring-1 ring-slate-200"
-                    aria-label="Kaldır"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <PhotoThumbs
+            files={photos}
+            onRemove={(i) => setPhotos((p) => p.filter((_, x) => x !== i))}
+          />
         </div>
 
         {/* Kalemler — mal kabul detayındaki Kalemler kartıyla aynı anatomi */}
@@ -395,6 +394,35 @@ export function ReceiptStartPage() {
                 onChange={(e) => setNoteText(e.target.value)}
                 placeholder="Ne oldu? (örn. 2 KOLİ EZİK)"
               />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-slate-500">Hasar fotoğrafı</span>
+                <input
+                  ref={noteFileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    e.target.value = '';
+                    setNotePhotos((p) => [...p, ...files]);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() =>
+                    native ? setNoteCameraOpen(true) : noteFileRef.current?.click()
+                  }
+                >
+                  <Icon name="camera" className="h-4 w-4" /> Çek
+                </Button>
+              </div>
+              <PhotoThumbs
+                files={notePhotos}
+                onRemove={(i) => setNotePhotos((p) => p.filter((_, x) => x !== i))}
+              />
             </>
           ) : (
             <button
@@ -413,6 +441,11 @@ export function ReceiptStartPage() {
           loading={startMut.isPending}
           onClick={() => {
             setServerError(null);
+            // Açıklamasız tutanak kaydedilmez; fotoğraf çekildiyse sessizce düşmesin
+            if (noteOpen && !noteText.trim() && notePhotos.length) {
+              setServerError('Tutanak fotoğrafı var — "Ne oldu?" açıklamasını yazın');
+              return;
+            }
             // Adet girilmemiş satırlar yok sayılır (boş satır her zaman duruyor)
             const items = rows
               .map((r) => ({
@@ -451,6 +484,50 @@ export function ReceiptStartPage() {
           }}
         />
       )}
+
+      {noteCameraOpen && (
+        <NativeCamera
+          title="Hasar Fotoğrafı"
+          guide="Hasarlı kısım net görünsün"
+          busyLabel="Alınıyor…"
+          onClose={() => setNoteCameraOpen(false)}
+          onCapture={async (file) => {
+            // Kabuk kareyi "irsaliye.jpg" adıyla verir; ekte doğru görünsün
+            setNotePhotos((p) => [...p, new File([file], 'hasar.jpg', { type: file.type })]);
+            return null;
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Seçilen fotoğrafların küçük önizlemesi + kaldır düğmesi. */
+function PhotoThumbs({ files, onRemove }: { files: File[]; onRemove: (i: number) => void }) {
+  // Her render'da yeni blob URL üretip sızdırmamak için dosya listesine bağlı
+  const urls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
+  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+
+  if (!files.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {files.map((f, i) => (
+        <div key={`${f.name}-${i}`} className="relative">
+          <img
+            src={urls[i]}
+            alt={f.name}
+            className="h-20 w-20 rounded-lg border border-slate-200 object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(i)}
+            className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs text-red-600 shadow ring-1 ring-slate-200"
+            aria-label="Kaldır"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

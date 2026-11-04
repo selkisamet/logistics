@@ -17,6 +17,7 @@ import {
   CURRENCY_SYMBOLS,
   trUpper,
   type Currency,
+  type CustomerLocation,
   type Receipt,
   type ReceiptLine,
   type UpsertReceiptLineInput,
@@ -25,7 +26,7 @@ import {
 } from '@lojistik/shared';
 import { api, ApiError, assetUrl, uploadFiles } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
-import { useCustomerLocations, useCustomers, useVehicles, useWarehouses } from '../lib/lookups';
+import { useCustomerLocations, useCustomers, useVehicles } from '../lib/lookups';
 import { isNativeApp } from '../lib/config';
 import {
   formatAmount,
@@ -590,7 +591,6 @@ export function ReceiptCountPage() {
 function CommercialEditor({ receipt }: { receipt: Receipt }) {
   const qc = useQueryClient();
   const { data: customers } = useCustomers();
-  const { data: warehouses } = useWarehouses();
   const { data: vehicles } = useVehicles();
 
   const [recipientId, setRecipientId] = useState(receipt.recipientCustomerId ?? '');
@@ -612,9 +612,26 @@ function CommercialEditor({ receipt }: { receipt: Receipt }) {
   );
   const [dropSel, setDropSel] = useState<ComboOption[]>((receipt.recipients ?? []).map(toOption));
 
-  // Yükleme yeri göndericinin, boşaltma yeri ALICININ lokasyonlarından seçilir
+  // Yükleme yeri göndericinin, teslim yeri ALICININ lokasyonlarından seçilir
   const { data: srcLocations } = useCustomerLocations(receipt.customerId);
   const { data: dropLocations } = useCustomerLocations(recipientId || undefined);
+
+  /**
+   * Listede olmayan yer yazılınca o firmanın lokasyonu olarak HEMEN kaydedilir —
+   * müşteri detayına gidip geri dönmek gerekmesin. Serbest metin yerine gerçek
+   * kayıt açılır ki bir sonraki kabulde listede çıksın.
+   */
+  const createLocation = (customerId: string) => async (name: string) => {
+    try {
+      const loc = await api.post<CustomerLocation>(`/customers/${customerId}/locations`, { name });
+      qc.invalidateQueries({ queryKey: ['customers', customerId, 'locations'] });
+      toast(`${loc.name} eklendi`);
+      return { value: loc.id, label: loc.name };
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Yer eklenemedi');
+      throw err;
+    }
+  };
 
   const mut = useMutation({
     mutationFn: () =>
@@ -651,47 +668,45 @@ function CommercialEditor({ receipt }: { receipt: Receipt }) {
 
   return (
     <div className="space-y-3">
+      <Field label="Alıcı">
+        <Combobox
+          options={customerOptions}
+          value={recipientId}
+          onChange={(v) => {
+            setRecipientId(v);
+            setDropSel([]); // teslim yerleri alıcıya bağlı
+          }}
+          nullable
+          nullableLabel="Bilinmiyor"
+          placeholder="Alıcı ara / seç..."
+        />
+      </Field>
+
+      {/* Yükleme ↔ teslim yan yana: malın nereden alınıp nereye gideceği tek bakışta */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Alıcı">
-          <Combobox
-            options={customerOptions}
-            value={recipientId}
-            onChange={(v) => {
-              setRecipientId(v);
-              setDropSel([]); // boşaltma yerleri alıcıya bağlı
-            }}
-            nullable
-            nullableLabel="Bilinmiyor"
-            placeholder="Alıcı ara / seç..."
-          />
-        </Field>
         <div className="space-y-1">
-          <span className="text-sm font-medium text-slate-700">Boşaltma Yeri</span>
+          <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
+          <MultiCombobox
+            // Kendi depolarımız listelenmez (yükleme yeri göndericinin lokasyonu);
+            // eski kayıtlardaki depo seçimi değer olarak korunur, kaydetmede bozulmaz.
+            options={(srcLocations ?? []).map((l) => ({ value: l.id, label: l.name }))}
+            value={sourceSel}
+            onChange={setSourceSel}
+            onCreate={createLocation(receipt.customerId)}
+            placeholder="Yükleme yeri seç…"
+          />
+        </div>
+        <div className="space-y-1">
+          <span className="text-sm font-medium text-slate-700">Teslim Yeri</span>
           <MultiCombobox
             options={(dropLocations ?? []).map((l) => ({ value: l.id, label: l.name }))}
             value={dropSel}
             onChange={(v) => setDropSel(v.slice(-1))} // tek nokta: bir kabul tek yere iner
+            onCreate={recipientId ? createLocation(recipientId) : undefined}
             disabled={!recipientId}
-            placeholder={recipientId ? 'Boşaltma yeri seç…' : 'Önce alıcı seçin'}
+            placeholder={recipientId ? 'Teslim yeri seç…' : 'Önce alıcı seçin'}
           />
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <span className="text-sm font-medium text-slate-700">Yükleme Yeri</span>
-        <MultiCombobox
-          options={[
-            ...(srcLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
-            ...(warehouses ?? []).map((w) => ({
-              value: `${WH_PREFIX}${w.id}`,
-              label: w.name,
-              hint: '· bizim depomuz',
-            })),
-          ]}
-          value={sourceSel}
-          onChange={setSourceSel}
-          placeholder="Yükleme yeri seç…"
-        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -705,7 +720,7 @@ function CommercialEditor({ receipt }: { receipt: Receipt }) {
             placeholder="Plaka seç..."
           />
         </Field>
-        <Field label="Son Teslim (Termin)">
+        <Field label="Son Teslim">
           <Input type="date" value={deliveryBy} onChange={(e) => setDeliveryBy(e.target.value)} />
         </Field>
         <Field label="Para Birimi">
@@ -1276,7 +1291,7 @@ const SLIP_COPIES: CopyOption[] = [
  *  kapasiteye kilitli — geometri her modda aynı kalmazsa matbu forma hizalama bozulur. */
 const FORM_ROWS = 5;
 
-/** Çoklu yükleme/boşaltma noktalarının adları — A5'e sığsın diye yalnız ad, adres yok.
+/** Çoklu yükleme/teslim noktalarının adları — A5'e sığsın diye yalnız ad, adres yok.
  *  (Adresler firma bloğunda ADRESİ satırında; nokta adresleri müşteri detayında.) */
 function pointLabels(points?: { label: string }[]): string {
   if (!points?.length) return '';
@@ -1390,7 +1405,7 @@ function SlipForm({
             <MetaLine label="TARİH" value={formatDate(receipt.completedAt ?? receipt.startedAt)} />
             <MetaLine label="GÖNDERİCİ SEVK İRS. NO" value={receipt.waybillNo || ''} />
             <MetaLine label="SİPARİŞ NO" value={receipt.orderNo || ''} />
-            <MetaLine label="ÖN İHBAR" value={receipt.asnReference || 'Kör kabul'} />
+            <MetaLine label="ÖN İHBAR" value={receipt.asnReference || ''} />
           </div>
         </div>
       </div>
@@ -1516,8 +1531,8 @@ function SlipForm({
           <FieldLine label="V. DAİRESİ" value={receipt.recipientCustomer?.taxOffice || ''} />
           <FieldLine label="V. NO" value={receipt.recipientCustomer?.taxNumber || ''} />
           <FieldLine label="TEL" value={receipt.recipientCustomer?.phone || ''} />
-          {/* Çoklu boşaltma noktası — koşulsuz basılır (boşken de), geometri sabit kalsın */}
-          <FieldLine label="BOŞALTMA YERİ" value={pointLabels(receipt.recipients)} />
+          {/* Çoklu teslim noktası — koşulsuz basılır (boşken de), geometri sabit kalsın */}
+          <FieldLine label="TESLİM YERİ" value={pointLabels(receipt.recipients)} />
           {/* ADRESİ en sonda: uzunsa alttaki boşluğa sarar, hiçbir alanı itmez */}
           <FieldLine label="ADRESİ" value={receipt.recipientCustomer?.address || ''} auto />
         </div>

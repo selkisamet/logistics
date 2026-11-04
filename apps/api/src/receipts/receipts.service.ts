@@ -221,6 +221,21 @@ export class ReceiptsService {
           }))
         : undefined;
 
+    // Tutanak fotoğrafları: yalnız henüz hiçbir yere bağlanmamış ekler kabul edilir
+    // (başka bir tutanağın/kabulün fotoğrafı buraya taşınamasın).
+    const noteAttachmentIds = input.discrepancy?.attachmentIds?.length
+      ? (
+          await this.prisma.attachment.findMany({
+            where: {
+              id: { in: input.discrepancy.attachmentIds },
+              discrepancyId: null,
+              receiptId: null,
+            },
+            select: { id: true },
+          })
+        ).map((a) => a.id)
+      : [];
+
     const receipt = await this.createWithUniqueRef((reference) =>
       this.prisma.receipt.create({
         data: {
@@ -241,6 +256,9 @@ export class ReceiptsService {
                   type: input.discrepancy.type,
                   description: input.discrepancy.description,
                   createdById: userId,
+                  attachments: noteAttachmentIds.length
+                    ? { connect: noteAttachmentIds.map((id) => ({ id })) }
+                    : undefined,
                 },
               }
             : undefined,
@@ -368,7 +386,7 @@ export class ReceiptsService {
     });
   }
 
-  /** Boşaltma yerleri — alıcı müşterinin lokasyonları ya da serbest metin. */
+  /** Teslim yerleri — alıcı müşterinin lokasyonları ya da serbest metin. */
   private async validateRecipients(
     recipientCustomerId: string | null,
     recipients: ReceiptRecipientInput[] | undefined,
@@ -387,7 +405,7 @@ export class ReceiptsService {
     return recipients.map((r) => {
       if (r.customerLocationId) {
         const loc = byId.get(r.customerLocationId);
-        if (!loc) throw new BadRequestException('Geçersiz boşaltma yeri seçimi');
+        if (!loc) throw new BadRequestException('Geçersiz teslim yeri seçimi');
         return { customerLocationId: loc.id, label: loc.name, address: loc.address };
       }
       return { customerLocationId: null, label: r.label, address: null };

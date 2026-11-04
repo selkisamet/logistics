@@ -133,7 +133,7 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
     ve customer.address'i yüzeye çıkarır). (`loadAddress`/`deliveryAddress` kolonları duruyor ama fiş artık listeyi
     kullanıyor.)
 - Mal Kabul: sayım (satırlar **id** ile güncellenir, SKU boş olabilir), **İrsaliye No + Sipariş No** (Belge Bilgileri),
-  toplu palet QR etiketi üretimi (adet girilir), tamamla. Kör kabul (ASN'siz) da var.
+  toplu palet QR etiketi üretimi (adet girilir), tamamla. ASN'siz kabul de var — arayüzde "Kör kabul" diye ETİKETLENMEZ (depocu malı irsaliyeyle görerek alıyor; listede Öİ yoksa İrs. no gösterilir).
   - **İrsaliye görüntüleri (foto):** mal kabul detayında "İrsaliye Görüntüleri" kartı (`AttachmentsCard`,
     [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)) — çoklu foto yüklenir, galeri + sil.
     **OCR YOK** (belge kaydı olarak saklanır; dar irsaliye-no OCR'ı ayrı, Belge Bilgileri'nde). `Attachment`
@@ -228,7 +228,7 @@ farklı alıcılara/noktalara gidebilir.
   **Rota sırası UI'dan ▲▼ ile değiştirilir** (`PATCH /:id/stops/reorder`; dokunmatikte sürükle-bırak
   yerine ok — telefonda güvenilir). Duraklar **OPSİYONEL**: alıcı ön ihbardan geldiği için irsaliye
   duraksız da doğru basılır; durak rota sırası/teslim takibi ve ekstra nokta için.
-- **⚠ ALICI = FİRMA, nokta adı DEĞİL.** `DispatchStop.name` boşaltma NOKTASININ adı olabilir
+- **⚠ ALICI = FİRMA, nokta adı DEĞİL.** `DispatchStop.name` teslim NOKTASININ adı olabilir
   (ör. "Gökbil Depo" — bu Arkem'in bir lokasyonu). İrsaliyedeki "kime gönderildiği" (VUK 209)
   firma unvanı olmalı → `recipientOf()` sırası: **durağın `customerName`** → ön ihbardaki alıcı
   (`item.recipientName`) → en son çare durak adı. `stops` include'ında `customer:{name}` bu yüzden var.
@@ -312,9 +312,9 @@ farklı alıcılara/noktalara gidebilir.
   **Pasife Al** gösterir. `Customer.isActive=false` → listede/seçimde görünmez, belgeler sağlam.
   Hiç kullanılmamış müşteri gerçekten silinir (yanlış açılan kayıt; alt kayıtlar cascade gider).
 - **Alıcı = kayıtlı Müşteri:** Ön ihbarda gönderici (customerId) ve alıcı (recipientCustomerId) ikisi de Customer;
-  her birinin `CustomerLocation`'ları yükleme/boşaltma yeridir. `CustomerRecipient` dormant (kullanılmıyor).
+  her birinin `CustomerLocation`'ları yükleme/teslim yeridir. `CustomerRecipient` dormant (kullanılmıyor).
   Müşteride `taxOffice`/`taxNumber` + çoklu `CustomerContact` (ad/görev/tel/e-posta/dahili). **Fişte GÖNDEREN/ALICI
-  = firma bilgileri** (ünvan, vergi dairesi/no, adres, tel); yükleme/boşaltma nokta listeleri kaldırıldı.
+  = firma bilgileri** (ünvan, vergi dairesi/no, adres, tel); yükleme/teslim nokta listeleri kaldırıldı.
 - **Modeller:** User, Customer(+taxOffice,taxNumber), CustomerContact, CustomerLocation, CustomerRecipient(dormant),
   Warehouse(+isDefault), Location,
   InboundShipment(+vehicleId,recipientCustomerId,sources,recipients), ShipmentLine, ShipmentSource, ShipmentRecipient,

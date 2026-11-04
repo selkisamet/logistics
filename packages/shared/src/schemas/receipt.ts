@@ -54,10 +54,10 @@ export const receiptSourceInputSchema = z
   });
 export type ReceiptSourceInput = z.infer<typeof receiptSourceInputSchema>;
 
-/** Boşaltma yeri: alıcı müşterinin lokasyonu ya da serbest metin. */
+/** Teslim yeri: alıcı müşterinin lokasyonu ya da serbest metin. */
 export const receiptRecipientInputSchema = z.object({
   customerLocationId: z.string().optional(),
-  label: upperStr(z.string().min(1, 'Boşaltma yeri gerekli')),
+  label: upperStr(z.string().min(1, 'Teslim yeri gerekli')),
 });
 export type ReceiptRecipientInput = z.infer<typeof receiptRecipientInputSchema>;
 
@@ -120,6 +120,8 @@ export const startReceiptSchema = z.object({
     .object({
       type: z.enum(DISCREPANCY_TYPES as [DiscrepancyType, ...DiscrepancyType[]]),
       description: upperStr(z.string().min(1, 'Tutanak açıklaması gerekli')),
+      /** Hasar fotoğrafları — önce `POST /attachments` ile yüklenir, burada bağlanır. */
+      attachmentIds: z.array(z.string()).max(8).optional(),
     })
     .optional(),
 });
@@ -242,7 +244,7 @@ export const receiptSchema = z.object({
     })
     .nullable()
     .optional(),
-  // Yükleme (kaynak) ve boşaltma (alıcı) noktaları — fişte ayrı ayrı listelenir.
+  // Yükleme (kaynak) ve teslim (alıcı) noktaları — fişte ayrı ayrı listelenir.
   // id/customerLocationId/warehouseId ofis düzenleme formu seçimi geri kurabilsin diye.
   sources: z
     .array(

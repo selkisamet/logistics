@@ -224,7 +224,7 @@ export function CustomerDetailPage() {
             <h3 className="font-semibold text-slate-900">Depolar / Lokasyonlar</h3>
             <p className="text-xs text-slate-500">
               Bu müşterinin depo/adresleri. Ön ihbarda bu müşteri <b>gönderici</b> ise yükleme yeri,{' '}
-              <b>alıcı</b> ise boşaltma yeri olarak buradan seçilir.
+              <b>alıcı</b> ise teslim yeri olarak buradan seçilir.
             </p>
           </div>
           {canEdit && id && (

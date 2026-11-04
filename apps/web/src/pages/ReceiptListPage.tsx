@@ -76,7 +76,11 @@ export function ReceiptListPage() {
                 to={`/mal-kabul/${r.id}`}
                 title={r.reference}
                 subtitle={`${r.customer?.name ?? ''}${
-                  r.asnReference ? ` · Öİ: ${r.asnReference}` : ' · Kör kabul'
+                  r.asnReference
+                    ? ` · Öİ: ${r.asnReference}`
+                    : r.waybillNo
+                      ? ` · İrs: ${r.waybillNo}`
+                      : ''
                 }`}
                 badge={<ReceiptStatusBadge status={r.status} />}
                 meta={

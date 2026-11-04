@@ -99,7 +99,7 @@ function destinationText(d: Dispatch): string {
 
 /** Belgedeki ALICI = FİRMA unvanı (VUK 209 "kime gönderildiği").
  *  Öncelik: durağın alıcı müşterisi → ön ihbardaki alıcı → durak adı (serbest metin duraklar için).
- *  DİKKAT: durağın `name`'i boşaltma NOKTASI adı olabilir ("Gökbil Depo") — o firma değildir,
+ *  DİKKAT: durağın `name`'i teslim NOKTASI adı olabilir ("Gökbil Depo") — o firma değildir,
  *  bu yüzden en sonda, yalnızca firma bilinmiyorsa kullanılır. */
 function recipientOf(
   item: { recipientName?: string | null; recipientLegalName?: string | null },

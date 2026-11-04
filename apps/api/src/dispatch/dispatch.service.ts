@@ -65,7 +65,7 @@ const DISPATCH_INCLUDE = {
     orderBy: { seq: 'asc' as const },
     include: {
       _count: { select: { items: true } },
-      // ALICI = firma. `name` boşaltma NOKTASININ adı ("Gökbil Depo") olabilir;
+      // ALICI = firma. `name` teslim NOKTASININ adı ("Gökbil Depo") olabilir;
       // irsaliyede "kime gönderildiği" firma unvanı olmalı (VUK 209).
       customer: { select: { name: true, legalName: true } },
     },
@@ -276,7 +276,7 @@ export class DispatchService {
           palletCount: palletIds.length,
         });
         // Hızlı sevkte ekran hiç açılmıyor; durağı burada türetmezsek ön ihbardaki
-        // boşaltma yeri sevkiyata hiç yansımaz (sonradan eklenemez, kayıt DISPATCHED).
+        // teslim yeri sevkiyata hiç yansımaz (sonradan eklenemez, kayıt DISPATCHED).
         await this.autoSuggestStops(dispatch.id, userId);
         return serializeDispatch(await this.getOrThrow(dispatch.id));
       } catch (err) {
@@ -580,7 +580,7 @@ export class DispatchService {
    *
    * Duraklar eskiden yalnız ekrandaki düğmeye basılınca oluşuyordu; hızlı sevkte o düğme
    * hiç görünmüyor (kayıt anında DISPATCHED olduğu için düzenlenemez) ve ön ihbarda girilmiş
-   * boşaltma yeri sevkiyata hiç yansımıyordu — belgede ALICI ön ihbardan basıldığı için
+   * teslim yeri sevkiyata hiç yansımıyordu — belgede ALICI ön ihbardan basıldığı için
    * çıktı doğruydu ama rota sırası/teslim takibi oluşmuyor, ekranda da "Durak eklenmedi"
    * uyarısı çıkıyordu.
    *
@@ -1067,7 +1067,7 @@ function serializeDispatch(d: DispatchWithRelations) {
       customerName: s.customer?.name ?? null, // ALICI firma — ekranda kısa ad
       customerLegalName: s.customer?.legalName || s.customer?.name || null, // belgede tam ünvan
       customerLocationId: s.customerLocationId,
-      name: s.name, // boşaltma noktası adı (ekranda gösterilir)
+      name: s.name, // teslim noktası adı (ekranda gösterilir)
       address: s.address,
       phone: s.phone,
       note: s.note,
@@ -1089,7 +1089,7 @@ function goodsKindOf(lines: { description: string }[]): string {
   return 'Muhtelif';
 }
 
-/** Mal kabuldeki alıcı adı: kayıtlı alıcı müşteri, yoksa ilk boşaltma noktasının etiketi. */
+/** Mal kabuldeki alıcı adı: kayıtlı alıcı müşteri, yoksa ilk teslim noktasının etiketi. */
 function recipientNameOf(
   receipt: { recipientCustomer: { name: string } | null; recipients: { label: string }[] } | null,
 ): string | null {
