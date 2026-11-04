@@ -1,4 +1,4 @@
-import { diskStorage, memoryStorage } from 'multer';
+import { diskStorage } from 'multer';
 import { extname, join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
@@ -22,15 +22,6 @@ export const imageUploadOptions: MulterOptions = {
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req, file, cb) => {
-    cb(null, file.mimetype.startsWith('image/'));
-  },
-};
-
-/** OCR için: dosyayı diske yazmadan bellekte tutar (geçici, file.buffer erişilir). */
-export const imageMemoryUploadOptions: MulterOptions = {
-  storage: memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, file.mimetype.startsWith('image/'));
   },

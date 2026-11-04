@@ -12,8 +12,9 @@ mal depoya gelince elde olur, bazı yük cross-dock (hemen çıkar), bazısı bi
 Çekirdek ihtiyaç: **depoda ne var bilmek + sevkiyat yapmak**, **palet bazlı QR takip** ile.
 
 **Kullanıcı net istedi:** AI ile TÜM etiket/belge OCR'ı İSTEMİYOR (kötü foto → yanlış kayıt).
-İstisna (onaylandı): mal kabulde **yalnızca İrsaliye/Sipariş No**'yu fotoğraftan okuyup
-**düzenlenebilir input'a** yazan dar OCR (kullanıcı kaydetmeden kontrol eder). Bkz. Native uygulama.
+**Yapay zekâ (Claude) OCR'ı tamamen KALDIRILDI** (maliyet + "AI tahmini forma yazılmasın").
+Mal kabulde İrsaliye/Sipariş No **telefonda, ücretsiz** okunur — bkz. "İrsaliye no okuma" (Native uygulama).
+API'de `/ocr` modülü, `@anthropic-ai/sdk` ve `ANTHROPIC_API_KEY` YOK; geri eklemeyin.
 Genel ayar tercihi: en mantıklı/sade çözüm, az tık, hata riskini azaltan akış.
 
 Kurulum/çalıştırma detayları için ayrıca [README.md](README.md). **Kendi bilgisayarında kurulum +
@@ -35,15 +36,31 @@ oradan VPS'e yayın + günlük iş akışı:** [GELISTIRME.md](GELISTIRME.md) (�
 Operatörün telefonunda **web kamerası (getUserMedia) otomatik odaklamıyordu** (bulanık, yanlış OCR)
 ve `<input capture>` arka kamerayı açtıramıyordu. Çözüm: uygulamayı **Capacitor 6** ile Android APK'sına
 sardık. Kamera **@capacitor-community/camera-preview** (CameraX) ile: `position:'rear'` → **arka kamera
-zorlanır**, native **otomatik odak** → net. [WaybillCamera.tsx](apps/web/src/components/WaybillCamera.tsx)
+zorlanır**, native **otomatik odak** → net. [NativeCamera.tsx](apps/web/src/components/NativeCamera.tsx)
 native önizlemeyi WebView ARKASINDA render eder; bu yüzden modal **`document.body`'ye portal** edilir ve
 kamera açıkken **`#root` gizlenir** (`.wb-camera-active`, [index.css](apps/web/src/index.css)) ki WebView
-saydam olsun. Çekilen foto `POST /ocr/waybill`'e gider. Tarayıcıda (dev) `<input capture>` yedeği kullanılır
+saydam olsun. Tarayıcıda (dev) `<input capture>` yedeği kullanılır
 (`isNativeApp()` ayrımı — [lib/config.ts](apps/web/src/lib/config.ts)).
 
-- **APK derleme:** yerelde Android SDK YOK. `apps/web` ya da `packages/shared`'a her push'ta
-  **GitHub Actions** ([.github/workflows/android.yml](.github/workflows/android.yml)) bulutta **debug APK**
-  üretir → run sayfası → **Artifacts → tesellum-debug-apk**. `gradlew` git'te +x (100755) olmalı.
+- **İrsaliye no okuma (AI YOK, cihaz üzerinde, 0 ₺):** mal kabul başlatta ilk irsaliye fotoğrafı
+  [lib/docReader.ts](apps/web/src/lib/docReader.ts) `scanWaybill()` ile okunur:
+  1. **QR (e-irsaliye GİB karekodu, JSON `no` alanı)** → numara **doğrudan** yazılır (dijital, hatasız;
+     "FATURA" geçen kod yazılmaz, yalnız aday olur).
+  2. QR yoksa **ML Kit metin tanıma** → [lib/waybillScan.ts](apps/web/src/lib/waybillScan.ts)
+     `analyzeWaybill()` aday numaralar çıkarır (etiket "İrsaliye No/Sipariş No" + tablo komşusu, e-belge
+     biçimi `ABC2026000000001` + O→0/I→1 düzeltmesi; vergi/telefon/IBAN/ETTN/adres/tarih/tutar elenir).
+     **Adaylar ASLA kendiliğinden yazılmaz** — "İrsaliye No hangisi?" çiplerinden depocu seçer.
+  3. Hiçbiri yoksa alan açılır, elle yazılır.
+  Native taraf: **uygulamaya özel Capacitor eklentisi** `DocReader`
+  ([DocReaderPlugin.java](apps/web/android/app/src/main/java/com/lojistik/tesellum/DocReaderPlugin.java),
+  `MainActivity`'de `registerPlugin`), ML Kit **bundled** modeller (`text-recognition`, `barcode-scanning`
+  — app/build.gradle; internetsiz). ML Kit EXIF okumaz → görsel JS'te `toUprightJpeg()` ile dik çizilip
+  base64 gönderilir. Eklenti yoksa (tarayıcı / eski APK) `@zxing/browser` ile yalnız QR denenir.
+- **Web canlı yüklenir:** `capacitor.config.ts` `server.url` = prod adres → web değişiklikleri APK'sız gelir;
+  yalnız **native** değişiklik (eklenti, gradle) yeni APK ister.
+- **APK derleme:** yerelde Android SDK YOK. `apps/web/android/**`, `capacitor.config.ts`, `apps/web/package.json`
+  değişip push'lanınca **GitHub Actions** ([.github/workflows/android.yml](.github/workflows/android.yml))
+  bulutta **debug APK** üretir → run sayfası → **Artifacts → lojistik-debug-apk**. `gradlew` git'te +x (100755) olmalı.
 - **Ayarlanabilir sunucu adresi:** APK'da web varlıkları gömülü, aynı-köken yok. Giriş ekranında
   **"Sunucu adresi"** alanı (native'de ya da elle ayarlanınca görünür) → backend/tünel URL'si girilir,
   localStorage'da saklanır. `lib/api.ts` `getApiBase()` kullanır. Tünel değişince APK'yı değil, sadece
@@ -136,7 +153,7 @@ packages/shared  zod şemaları + türetilmiş tipler — TEK kaynak (front+back
   toplu palet QR etiketi üretimi (adet girilir), tamamla. ASN'siz kabul de var — arayüzde "Kör kabul" diye ETİKETLENMEZ (depocu malı irsaliyeyle görerek alıyor; listede Öİ yoksa İrs. no gösterilir).
   - **İrsaliye görüntüleri (foto):** mal kabul detayında "İrsaliye Görüntüleri" kartı (`AttachmentsCard`,
     [ReceiptCountPage.tsx](apps/web/src/pages/ReceiptCountPage.tsx)) — çoklu foto yüklenir, galeri + sil.
-    **OCR YOK** (belge kaydı olarak saklanır; dar irsaliye-no OCR'ı ayrı, Belge Bilgileri'nde). `Attachment`
+    **OCR YOK** (belge kaydı olarak saklanır; irsaliye-no okuma ayrı, mal kabul başlatta). `Attachment`
     modeli artık `discrepancyId` VEYA `receiptId` ile bağlanabilir (ikisi opsiyonel). Endpoint:
     `POST /receipts/:id/attachments` (FilesInterceptor, tek adımda yükle+bağla) + `DELETE /receipts/:id/attachments/:attachmentId`;
     yalnız IN_PROGRESS'te eklenir/silinir (`ensureInProgress`). `serializeReceipt` `attachments`'ı yüzeye çıkarır.
@@ -388,7 +405,8 @@ farklı alıcılara/noktalara gidebilir.
 
 ## Güvenlik yapılacaklar
 
-- `apps/api/.env` içine bir kez gerçek **ANTHROPIC_API_KEY** yapıştırılmıştı → **rotate edilmeli**.
+- `apps/api/.env` içine bir kez gerçek **ANTHROPIC_API_KEY** yapıştırılmıştı → artık kullanılmıyor,
+  Anthropic panelinden **iptal edilmeli** (ve yerel `.env`'lerden silinmeli).
 - Varsayılan demo şifreleri (operator123 vb.) prod kullanımda değiştirilmeli.
 
 ## Bekleyen / sonraki

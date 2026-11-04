@@ -9,7 +9,6 @@ export * from './schemas/audit';
 export * from './schemas/commercial';
 export * from './schemas/receipt';
 export * from './schemas/discrepancy';
-export * from './schemas/ocr';
 export * from './schemas/dispatch';
 export * from './schemas/vehicle';
 export * from './schemas/region';

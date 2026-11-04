@@ -20,11 +20,11 @@ export type CompressProfile = {
 export const ATTACHMENT_PROFILE: CompressProfile = { maxEdge: 2000, quality: 0.82 };
 
 /**
- * OCR'a giden kare. Claude görme API'si gelen görseli zaten uzun kenarı ~1500 px
- * olacak şekilde küçülttüğü için daha büyüğünü göndermek yalnızca bekleme süresi
- * ekler; bu profil doğruluğu düşürmez, okumayı hızlandırır.
+ * Cihaz üzerinde okumaya (ML Kit) giden kare. A4 irsaliyede 2600 px uzun kenar küçük
+ * puntolu "İrsaliye No" satırını da okunur tutar (ML Kit karakter başına ~16 px ister);
+ * daha büyüğü telefonda okumayı yavaşlatır, doğruluk kazandırmaz.
  */
-export const OCR_PROFILE: CompressProfile = { maxEdge: 2000, quality: 0.9 };
+export const OCR_PROFILE: CompressProfile = { maxEdge: 2600, quality: 0.92 };
 
 /** Yeniden kodlamanın anlamlı olmadığı türler: animasyon kaybolur, vektör bozulur. */
 const SKIP_TYPES = ['image/gif', 'image/svg+xml', 'image/heif-sequence'];
@@ -64,6 +64,44 @@ function jpegName(name: string): string {
   return `${name.replace(/\.[^.]+$/, '') || 'foto'}.jpg`;
 }
 
+/** Görseli dik (EXIF uygulanmış), en fazla `maxEdge` boyutunda JPEG'e çizer. */
+async function renderJpeg(file: File, profile: CompressProfile): Promise<Blob | null> {
+  const src = await decode(file);
+  const w = 'width' in src ? src.width : 0;
+  const h = 'height' in src ? src.height : 0;
+  if (!w || !h) return null;
+
+  // Küçültme oranı; görsel zaten sınırın altındaysa 1 (büyütme YOK, yalnız yeniden kodlama)
+  const scale = Math.min(1, profile.maxEdge / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  // Saydam PNG JPEG'e dönünce zemin siyah kalırdı — önce beyaza boya
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+  if ('close' in src) src.close();
+
+  return toBlob(canvas, profile.quality);
+}
+
+/**
+ * Okuma için görseli HER ZAMAN yeniden çizer (compressImage'ın aksine "büyüdüyse
+ * orijinali döndür" kestirmesi yok): ML Kit EXIF dönüş etiketini okumaz, piksellerin
+ * gerçekten dik olması gerekir. Başarısızsa orijinal döner.
+ */
+export async function toUprightJpeg(file: File, profile: CompressProfile): Promise<Blob> {
+  try {
+    return (await renderJpeg(file, profile)) ?? file;
+  } catch {
+    return file;
+  }
+}
+
 /**
  * Tek görseli sıkıştırır. **Hiçbir koşulda yüklemeyi engellemez:** sıkıştırma
  * başarısız olursa ya da sonuç orijinalden büyük çıkarsa orijinal dosya döner
@@ -76,27 +114,7 @@ export async function compressImage(
   if (!file.type.startsWith('image/') || SKIP_TYPES.includes(file.type)) return file;
 
   try {
-    const src = await decode(file);
-    const w = 'width' in src ? src.width : 0;
-    const h = 'height' in src ? src.height : 0;
-    if (!w || !h) return file;
-
-    // Küçültme oranı; görsel zaten sınırın altındaysa 1 (büyütme YOK, yalnız yeniden kodlama)
-    const scale = Math.min(1, profile.maxEdge / Math.max(w, h));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return file;
-    // Saydam PNG JPEG'e dönünce zemin siyah kalırdı — önce beyaza boya
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(src as CanvasImageSource, 0, 0, canvas.width, canvas.height);
-    if ('close' in src) src.close();
-
-    const blob = await toBlob(canvas, profile.quality);
+    const blob = await renderJpeg(file, profile);
     if (!blob || blob.size >= file.size) return file;
 
     return new File([blob], jpegName(file.name), {

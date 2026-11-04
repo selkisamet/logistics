@@ -8,7 +8,6 @@ import { CustomersModule } from './customers/customers.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { DiscrepanciesModule } from './discrepancies/discrepancies.module';
-import { OcrModule } from './ocr/ocr.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { RegionsModule } from './regions/regions.module';
@@ -29,7 +28,6 @@ import { AppController } from './app.controller';
     WarehousesModule,
     ReceiptsModule,
     DiscrepanciesModule,
-    OcrModule,
     DispatchModule,
     VehiclesModule,
     RegionsModule,

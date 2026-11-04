@@ -69,16 +69,6 @@ pnpm dev      # web (http://localhost:5173) + api (http://localhost:3000/api) bi
 - **Faz 2:** ASN / Ön İhbar.
 - **Faz 3:** Tesellüm akışı — QR okutma, sayım, QR etiket, offline kuyruk.
 - **Faz 4:** Fark & hasar tutanağı + foto.
-- **Faz 5 (tamam):** AI etiket OCR — mal kabul sayım ekranında "🤖 Etiketi Oku (AI)".
-
-### AI etiket OCR'ı aktifleştirme (Faz 5)
-
-`apps/api/.env` içine bir Anthropic API anahtarı ekleyin, sonra API'yi yeniden başlatın:
-
-```env
-OCR_PROVIDER="claude"
-ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-Anahtar yoksa endpoint güvenli şekilde 503 döner ve özellik gizli kalır (uygulama çalışmaya devam eder).
-Kullanılan model: `claude-opus-4-8` (vision + yapısal çıktı).
+- **İrsaliye no okuma:** yapay zekâ YOK, sunucuya gitmez. Mal kabulde çekilen irsaliye fotoğrafı
+  telefonda okunur: e-irsaliye karekodu (QR) varsa numara doğrudan yazılır; yoksa ML Kit (cihaz
+  üzerinde, ücretsiz) metinden aday numaralar çıkarır, doğrusunu depocu dokunarak seçer.

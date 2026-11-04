@@ -87,8 +87,6 @@ API_PORT=3000
 WEB_ORIGIN="http://localhost:5173"
 STORAGE_DRIVER="local"
 STORAGE_LOCAL_DIR="./uploads"
-OCR_PROVIDER="claude"
-ANTHROPIC_API_KEY=""
 ```
 
 **`apps/web/.env`** dosyasını oluştur:
@@ -97,9 +95,7 @@ ANTHROPIC_API_KEY=""
 VITE_API_URL=""
 ```
 
-> `ANTHROPIC_API_KEY` yalnız irsaliye-no OCR düğmesi için gerekir. Boş kalırsa sadece o düğme
-> hata verir. Kendi anahtarını https://console.anthropic.com adresinden alabilirsin.
-> **Firma PC'sindeki eski anahtarı kullanma.**
+> İrsaliye no okuma telefonda yapılır (ML Kit) — API anahtarı gerekmez.
 
 ### 5. Derle ve veritabanı şemasını kur
 
@@ -154,7 +150,6 @@ Bu kurulum bir kez yapılır.
 **Başlamadan elinde olması gerekenler:**
 - VPS'in **IP adresi** ve **root şifresi** (sağlayıcının panelinden ya da e-postasından)
 - `enderlojistik.com` alan adı paneline erişim
-- Anthropic API anahtarı (opsiyonel, OCR için)
 
 ### 8. Kendi bilgisayarından sunucuya SSH anahtarıyla bağlan
 
@@ -250,7 +245,6 @@ nano .env
 DOMAIN=lojistik.enderlojistik.com
 POSTGRES_PASSWORD=<üretilen>
 JWT_SECRET=<üretilen>
-ANTHROPIC_API_KEY=<anahtarın ya da boş>
 ```
 
 `nano`'da kaydetmek için `Ctrl+O`, `Enter`; çıkmak için `Ctrl+X`.

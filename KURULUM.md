@@ -78,14 +78,10 @@ nano .env
 DOMAIN=lojistik.enderlojistik.com
 POSTGRES_PASSWORD=<üretilen>
 JWT_SECRET=<üretilen>
-ANTHROPIC_API_KEY=<Anthropic anahtarın>
 ```
 
-> `ANTHROPIC_API_KEY` yalnız irsaliye-no OCR'ı için. Boş bırakırsan o düğme hata
-> verir, uygulamanın kalanı normal çalışır.
->
-> **Eski anahtar bir kez git'e girmişti — onu kullanma, Anthropic panelinden
-> yeni anahtar üret, eskisini iptal et.**
+> İrsaliye no okuma telefonda yapılır (ML Kit) — Anthropic/AI anahtarı GEREKMEZ.
+> Eski bir `ANTHROPIC_API_KEY` bir kez git'e girmişti: Anthropic panelinden **iptal et**.
 
 ---
 

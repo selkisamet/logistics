@@ -39,8 +39,6 @@ services:
       WEB_ORIGIN: https://${DOMAIN}
       STORAGE_DRIVER: local
       STORAGE_LOCAL_DIR: ./uploads
-      OCR_PROVIDER: claude
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       TZ: Europe/Istanbul
     volumes:
       # İrsaliye fotoğrafları. Kaba yedek için named volume; yedek scripti buradan alır.

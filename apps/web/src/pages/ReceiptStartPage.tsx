@@ -11,11 +11,10 @@ import {
   type DiscrepancyType,
   type Receipt,
   type StartReceiptInput,
-  type WaybillExtraction,
 } from '@lojistik/shared';
 import { clsx } from 'clsx';
-import { api, ApiError, uploadFiles, uploadSingle } from '../lib/api';
-import { OCR_PROFILE } from '../lib/image';
+import { api, ApiError, uploadFiles } from '../lib/api';
+import { scanWaybill } from '../lib/docReader';
 import { isNativeApp } from '../lib/config';
 import { toast } from '../lib/toast';
 import { Button, Card, Combobox, Field, Input, Select } from '../components/ui';
@@ -45,8 +44,9 @@ const newRow = (): KapRow => ({ key: ++rowSeq, type: 'Palet', count: '', descrip
  * Kap ve tutanak kayıt gövdesiyle birlikte gider; sunucu üçünü AYNI
  * transaction'da oluşturur. Fotoğraf multipart olduğu için tek ayrı istek.
  *
- * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez, **sipariş no**'yu
- * OCR irsaliye fotoğrafından okur, ticari alanlar (fiyat, ödeme, termin) ofisin işi.
+ * Burada olmayanlar bilinçli: **yükleme yerini** depocu bilmez, ticari alanlar
+ * (fiyat, ödeme, termin) ofisin işi. İrsaliye/sipariş no fotoğraftan TELEFONDA
+ * okunur (lib/docReader): QR varsa doğrudan yazılır, yoksa adaylardan depocu seçer.
  */
 export function ReceiptStartPage() {
   const navigate = useNavigate();
@@ -77,11 +77,13 @@ export function ReceiptStartPage() {
   const [waybillNo, setWaybillNo] = useState('');
   const [orderNo, setOrderNo] = useState('');
   // İrsaliye ve sipariş no fotoğraftan okunur; depocu elle yazmakla uğraşmasın
-  // diye kilitli açılırlar. Ama OCR yanlış okuyabilir ve bu numaralar tesellüm
-  // fişine basılıyor — "Düzelt" kilidi açar (dar OCR'ın kuralı: kullanıcı
-  // kaydetmeden kontrol eder). İkisi aynı okumadan geldiği için tek kilit.
+  // diye kilitli açılırlar. QR'dan gelen numara dijitaldir, kilitli kalır;
+  // QR yoksa kilit açılır ve depocu aday çiplerden seçer ya da elle yazar.
+  // "Düzelt" her zaman kilidi açar. İkisi aynı okumadan geldiği için tek kilit.
   const [docsUnlocked, setDocsUnlocked] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
+  // Fotoğraftaki metinden çıkan ADAY numaralar — hiçbiri kendiliğinden yazılmaz
+  const [chips, setChips] = useState<{ waybill: string[]; order: string[] } | null>(null);
 
   // Depo nadiren değişir: formdan çıkarıldı, üstte ince şeritte durur
   const [whOpen, setWhOpen] = useState(false);
@@ -162,9 +164,12 @@ export function ReceiptStartPage() {
   });
 
   /**
-   * Foto eklenir; İrsaliye No HENÜZ BOŞSA ilk kareden okunmaya çalışılır.
-   * Doluysa tekrar okunmaz — hem boşuna OCR çağrısı yapılmaz, hem de doğru
-   * okunmuş bir numara sonraki (belki bulanık) kareyle ezilmez.
+   * Foto eklenir; numaralar HENÜZ BOŞSA ilk kare telefonda okunur.
+   * Doluysa tekrar okunmaz — doğru seçilmiş bir numara sonraki (belki bulanık)
+   * karenin adaylarıyla karışmasın.
+   *
+   * QR → doğrudan yazılır (dijital, hatasız). Metin → yalnız ADAY çip; doğruyu
+   * depocu seçer. Hiçbiri yoksa kilit açılır, elle yazılır.
    */
   const addPhotos = async (files: File[]) => {
     if (!files.length) return;
@@ -173,20 +178,21 @@ export function ReceiptStartPage() {
 
     setOcrBusy(true);
     try {
-      const res = await uploadSingle<WaybillExtraction>(
-        '/ocr/waybill',
-        files[0],
-        'file',
-        OCR_PROFILE,
-      );
-      if (res.waybillNo) setWaybillNo(res.waybillNo);
-      if (res.orderNo) setOrderNo(res.orderNo);
-      if (res.waybillNo || res.orderNo) {
-        toast('Numaralar okundu — kontrol edin');
+      const res = await scanWaybill(files[0]);
+      if (res.qrWaybillNo) setWaybillNo(res.qrWaybillNo);
+      if (res.qrOrderNo) setOrderNo(res.qrOrderNo);
+      const waybillChips = res.qrWaybillNo ? [] : res.waybill;
+      const orderChips = res.qrOrderNo ? [] : res.order;
+      const hasChips = waybillChips.length > 0 || orderChips.length > 0;
+      setChips(hasChips ? { waybill: waybillChips, order: orderChips } : null);
+
+      if (res.qrWaybillNo) {
+        toast('İrsaliye No karekoddan okundu');
       } else {
-        // Okunamadıysa kilidi aç: depocu elle yazabilsin, yoksa mahsur kalır
+        // QR yok: depocu çipten seçsin ya da elle yazsın — kilit engel olmasın
         setDocsUnlocked(true);
-        toast.error('Numara okunamadı — elle yazabilirsiniz');
+        if (hasChips) toast('Fotoğraftaki numaralardan doğru olana dokunun');
+        else toast.error('Numara bulunamadı — elle yazabilirsiniz');
       }
     } catch {
       setDocsUnlocked(true);
@@ -380,6 +386,22 @@ export function ReceiptStartPage() {
               className={clsx(!docsUnlocked && 'bg-slate-50 text-slate-600')}
             />
           </div>
+          {chips && (
+            <div className="space-y-2 rounded-lg bg-slate-50 p-2.5">
+              <NumberChips
+                label="İrsaliye No hangisi?"
+                options={chips.waybill}
+                value={waybillNo}
+                onPick={setWaybillNo}
+              />
+              <NumberChips
+                label="Sipariş No hangisi?"
+                options={chips.order}
+                value={orderNo}
+                onPick={setOrderNo}
+              />
+            </div>
+          )}
         </div>
 
         {/* İrsaliye fotoğrafı — araç beklerken hızlıca çekilsin, kayıtla birlikte yüklenir */}
@@ -409,7 +431,12 @@ export function ReceiptStartPage() {
           </div>
           <PhotoThumbs
             files={photos}
-            onRemove={(i) => setPhotos((p) => p.filter((_, x) => x !== i))}
+            onRemove={(i) => {
+              const next = photos.filter((_, x) => x !== i);
+              setPhotos(next);
+              // Fotoğraf kalmadıysa ondan çıkan adaylar da gitsin
+              if (!next.length) setChips(null);
+            }}
           />
         </div>
 
@@ -586,7 +613,7 @@ export function ReceiptStartPage() {
         <NativeCamera
           title="İrsaliye Fotoğrafı"
           guide="İrsaliyenin tamamı kadrajda olsun"
-          busyLabel="Alınıyor…"
+          busyLabel="Okunuyor…"
           onClose={() => setCameraOpen(false)}
           onCapture={async (file) => {
             await addPhotos([file]);
@@ -608,6 +635,49 @@ export function ReceiptStartPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Fotoğraftan çıkan aday numaralar. Dokunulan alana yazılır; seçili çipe tekrar
+ * dokunmak seçimi kaldırır (yanlış dokunuş tek hareketle geri alınsın).
+ */
+function NumberChips({
+  label,
+  options,
+  value,
+  onPick,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onPick: (v: string) => void;
+}) {
+  if (!options.length) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = o === value;
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => onPick(on ? '' : o)}
+              className={clsx(
+                'rounded-md border px-2.5 py-1.5 font-mono text-sm transition active:scale-95',
+                on
+                  ? 'border-brand bg-brand/10 font-semibold text-brand ring-1 ring-brand/30'
+                  : 'border-slate-200 bg-white text-slate-800',
+              )}
+            >
+              {o}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

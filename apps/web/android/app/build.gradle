@@ -40,6 +40,11 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // İrsaliye okuma (DocReaderPlugin) — cihaz üzerinde, ücretsiz. "Bundled" sürümler:
+    // model APK'ya gömülü (~4 MB), ilk kullanımda indirme yok, internetsiz çalışır.
+    implementation 'com.google.mlkit:text-recognition:16.0.0'
+    implementation 'com.google.mlkit:barcode-scanning:17.2.0'
 }
 
 apply from: 'capacitor.build.gradle'
