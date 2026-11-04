@@ -3,7 +3,7 @@ name: Android APK
 # Web/paylaşılan kod değişince ya da elle tetiklenince bulutta debug APK üretir.
 on:
   workflow_dispatch:
-  # Sadece NATIVE değişikliklerde APK derle (web/iş değişiklikleri Render'dan canlı gelir).
+  # Sadece NATIVE değişikliklerde APK derle (web değişiklikleri sunucudan canlı gelir).
   push:
     branches: [master]
     paths:
@@ -30,7 +30,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # Android SDK ubuntu-latest imajında hazır kurulu (ANDROID_HOME tanımlı).
+      # android-actions/setup-android@v3 KULLANILMAZ: yeni cmdline-tools'ta olmayan
+      # 'tools' paketini kurmaya çalışıp düşüyordu (2026-09'dan beri tüm derlemeler).
 
       - name: Bağımlılıkları kur
         run: pnpm install --frozen-lockfile
