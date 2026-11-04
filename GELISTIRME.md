@@ -8,7 +8,7 @@ Bu rehber üç işi sırayla anlatır:
 
 Komutlar Windows (PowerShell) için yazıldı. macOS/Linux'ta aynı komutlar Terminal'de çalışır.
 
-> **Neden VPS?** Uygulama şimdiye kadar firma PC'sinde çalışıyordu (`BASLAT.bat`, taşınabilir
+> **Neden VPS?** Uygulama şimdiye kadar firma PC'sinde çalışıyordu (taşınabilir
 > Postgres, cloudflared tüneli). O PC'ye artık erişimin olmayacak. VPS'e taşınınca uygulama 7/24
 > `https://lojistik.enderlojistik.com` adresinde çalışır. Sen de güncellemeleri kendi
 > bilgisayarından uzaktan yaparsın.
@@ -141,8 +141,7 @@ VS Code'da proje klasörünü aç, Claude Code'u başlat ve ilk mesajda şunu ya
 Firma PC'sindeki sohbet geçmişi buraya gelmez. Proje bağlamı `CLAUDE.md`'de (otomatik yüklenir),
 çalışma tercihlerin ise `docs/claude-notlar.md`'de.
 
-> `CLAUDE.md`'deki "Çalıştırma" bölümü (`BASLAT.bat`, `.tools/`, `TUNEL.bat`) firma PC'sine
-> özgüdür. Kendi bilgisayarında `docker compose up -d` + `pnpm dev` yeterli.
+> Kendi bilgisayarında `docker compose up -d` + `pnpm dev` yeterli.
 
 ---
 
@@ -288,8 +287,8 @@ Kendi bilgisayarının tarayıcısından **https://lojistik.enderlojistik.com** 
 Firmanın mevcut kayıtları başka bir yerde duruyorsa (firma PC'si ya da eski Render/Supabase)
 ve VPS'e taşınacaksa:
 
-1. Kaynaktan bir `pg_dump` yedeği al. Firma PC'sinde bunu `YEDEKLE.bat` yapar →
-   `backups\lojistik_*.dump`. Bunu ayrılmadan önce ya da firmadan birinin yardımıyla yap.
+1. Kaynaktan bir döküm al (`pg_dump -U postgres -d lojistik --format=custom -f lojistik_TARIH.dump`)
+   → `backups\lojistik_TARIH.dump`. Bunu ayrılmadan önce ya da firmadan birinin yardımıyla yap.
 2. Dosyayı doğrudan sunucuya gönder. Kaynak bilgisayarda:
    ```powershell
    scp backups\lojistik_TARIH.dump root@SUNUCU_IP:/opt/lojistik/backups/
@@ -307,24 +306,12 @@ ve VPS'e taşınacaksa:
 > Müşteri verisi firmaya aittir. Dökümü kaynaktan **doğrudan** sunucuya gönder; kendi
 > bilgisayarında kopya tutma.
 
-### 13. Yedekleri ve telefon uygulamasını ayarla
+### 13. Yedeği ve telefon uygulamasını ayarla
 
-**Gecelik yedek**. Sunucuda:
+**Yedek:**
 
-```bash
-crontab -e
-```
-
-En alta şu satırı ekle (her gece 02:00):
-
-```
-0 2 * * * /opt/lojistik/yedek.sh >> /var/log/lojistik-yedek.log 2>&1
-```
-
-Bir kez elle dene: `/opt/lojistik/yedek.sh`. Yedekler `/opt/lojistik/backups/` altında 14 gün tutulur.
-
-> ⚠️ Bu yedekler **aynı sunucuda** durur; sunucu giderse yedekler de gider. Bu yüzden
-> sağlayıcının panelinden **snapshot/yedekleme** hizmetini aç.
+> Uygulamada otomatik yedek betiği YOK. Veriyi korumak için sağlayıcının panelinden
+> **snapshot/yedekleme** hizmetini açık tut.
 
 **Telefon uygulaması (APK):** `capacitor.config.ts` zaten `https://lojistik.enderlojistik.com`
 adresini gösteriyor. GitHub → repo → **Actions** → son "Android" çalışmasını aç →
@@ -333,7 +320,7 @@ Uygulama arayüzü sunucudan canlı yüklendiği için sonraki güncellemelerde 
 **gerekmez**. Yalnız kamera gibi native bir değişiklik yapılırsa yeniden kurulur.
 
 **Eski sistemi kapat:** VPS doğrulandıktan sonra Render'daki servisi ve firma PC'sindeki
-`BASLAT.bat` kullanımını bırak. Böylece iki ayrı veritabanına kayıt girilmez.
+yerel kurulumun kullanımını bırak. Böylece iki ayrı veritabanına kayıt girilmez.
 
 ---
 
@@ -381,18 +368,6 @@ ssh lojistik "cd /opt/lojistik && ./deploy.sh"
 | Durum | `docker compose -f docker-compose.prod.yml ps` |
 | Yeniden başlat | `docker compose -f docker-compose.prod.yml restart app` |
 | Veritabanına gir | `docker compose -f docker-compose.prod.yml exec db psql -U lojistik -d lojistik` |
-| Elle yedek | `./yedek.sh` |
-
-### Yedekleri kendi bilgisayarına almak
-
-Sunucu yedeklerini ayda bir sunucu dışına al. Bunu kendi bilgisayarına mı yoksa firmanın
-belirlediği bir yere mi yapacağını firmayla konuş, çünkü içinde müşteri verisi var:
-
-```powershell
-scp "root@SUNUCU_IP:/opt/lojistik/backups/*" .\yedekler\
-```
-
-Geri yükleme adımları için bkz. [KURULUM.md → Geri yükleme](KURULUM.md#geri-yükleme).
 
 ---
 

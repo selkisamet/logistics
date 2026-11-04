@@ -16,9 +16,7 @@ packages/
 ## Gereksinimler
 
 - Node.js >= 20, pnpm >= 9
-- PostgreSQL — bu makinede yönetici gerektirmeyen **taşınabilir Postgres** `.tools/` altına kuruldu.
-  - Başlat: `pnpm pg:start` · Durdur: `pnpm pg:stop` (Windows servisi değildir; her oturumda başlatın)
-  - Alternatif: Docker (`docker compose up -d`) ya da yerel Postgres kurulumu.
+- PostgreSQL — Docker ile: `docker compose up -d` (ya da yerel Postgres kurulumu).
 
 ## Kurulum
 
@@ -62,11 +60,8 @@ pnpm dev      # web (http://localhost:5173) + api (http://localhost:3000/api) bi
 
 ## Yedekleme
 
-- **Otomatik:** Her gün 13:00'te Windows zamanlanmış görevi (`LojistikYedek`) veritabanını + yüklenen fotoğrafları `backups/` altına yedekler (bilgisayar o saatte kapalıysa açılınca çalışır). 30 günden eski yedekler otomatik silinir.
-- **Elle yedek:** `YEDEKLE.bat`'a çift tıkla.
-- **Geri yükleme:** `GERI_YUKLE.bat` → yedeği seç → `EVET` yaz. ⚠️ Mevcut veriyi değiştirir; önce uygulamayı (BASLAT penceresini) kapatın.
-- Yedekler `backups/lojistik_<tarih>.dump` (veritabanı) ve `backups/uploads_<tarih>.zip` (fotoğraflar).
-- **Öneri:** `backups/` klasörünü ara sıra harici diske / buluta kopyalayın (aynı bilgisayar bozulursa yedek de gitmesin).
+> Uygulamada otomatik yedek betiği YOK. Veriyi korumak için sağlayıcının panelinden
+> **snapshot/yedekleme** hizmetini açık tut.
 
 ## Yol haritası (fazlar)
 

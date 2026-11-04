@@ -20,17 +20,15 @@ Kurulum/çalıştırma detayları için ayrıca [README.md](README.md). **Kendi 
 oradan VPS'e yayın + günlük iş akışı:** [GELISTIRME.md](GELISTIRME.md) (üretim: VPS'te Docker,
 `lojistik.enderlojistik.com`, güncelleme `ssh ... ./deploy.sh`; sunucu ayrıntısı [KURULUM.md](KURULUM.md)). Önceki makineden taşınan Claude hafızası/tercihleri:
 [docs/claude-notlar.md](docs/claude-notlar.md) — oturum başında oku.
-Aşağıdaki "Çalıştırma" bölümündeki `.bat`/`.tools` düzeni **firma PC'sine** özgüdür.
 
 ## Çalıştırma
 
-- **Tek tık:** `BASLAT.bat` — taşınabilir Postgres'i başlatır (pg_isready ile bekler) + web & api.
-  `DURDUR.bat` Postgres'i durdurur. `TUNEL.bat` cloudflared HTTPS tüneli (telefon kamerası
-  getUserMedia için HTTPS şart). `YEDEKLE.bat` / `GERI_YUKLE.bat` pg_dump yedek/geri yükleme.
-- **Geliştirme:** `pnpm dev` (web :5173, api :3000/api). Web, `/api` ve `/uploads`'ı proxy'ler;
-  `VITE_API_URL=""` (aynı-köken, relative).
-- **Postgres taşınabilir:** `.tools/pgsql`, veri `.tools/pgdata`, trust auth, port 5432, db `lojistik`.
-  Windows servisi DEĞİL — her oturumda başlatılmalı. `LojistikYedek` zamanlanmış görevi her gün 13:00 yedek alır.
+- **Yerel geliştirme:** `docker compose up -d` (yerel Postgres) + `pnpm dev` (web :5173, api :3000/api).
+  Web, `/api` ve `/uploads`'ı proxy'ler; `VITE_API_URL=""` (aynı-köken, relative).
+- **Üretim:** VPS'te Docker (`docker-compose.prod.yml` + Caddy), güncelleme `./deploy.sh`.
+- Kökte yalnız çalışma için gerekli dosyalar tutulur — yedek/geri yükleme/sıfırlama/durdurma
+  `.bat`/`.ps1`/`.sh` betikleri ve `render.yaml` kullanıcı isteğiyle KALDIRILDI (geri eklemeyin).
+  Veri koruması sağlayıcının snapshot hizmetiyle.
 
 ## Native uygulama (Capacitor / Android APK)
 
@@ -305,8 +303,8 @@ farklı alıcılara/noktalara gidebilir.
 
 - **Migration:** eklemeli (additive) değişiklik → `prisma migrate dev`. Yıkıcı/veri-kaybı →
   elle `migration.sql` + `prisma migrate deploy` (non-interactive ortamda `migrate dev` bloklanır).
-- **Client üretimi EPERM:** `prisma generate` çalışan BASLAT node süreçleri motor DLL'ini kilitler.
-  Çözüm: önce node'u durdur (`Stop-Process -Name node -Force`), `pnpm prisma generate`, sonra tekrar BASLAT.
+- **Client üretimi EPERM:** `prisma generate` çalışan `pnpm dev` node süreçleri motor DLL'ini kilitler.
+  Çözüm: önce node'u durdur (`Stop-Process -Name node -Force`), `pnpm prisma generate`, sonra tekrar `pnpm dev`.
 - **Müşteri silme:** Geçmişi olan müşteri **SİLİNEMEZ** (409) — fiş/irsaliye müşteri bilgisini (ünvan,
   VD/VKN, adres) **canlı okur**, snapshot yok; ayrıca VUK belge saklama. `GET /customers/:id/usage`
   sayar (gönderici/alıcı ön ihbar, mal kabul, sevkiyat durağı); UI buna göre **Sil** ya da
@@ -328,7 +326,7 @@ farklı alıcılara/noktalara gidebilir.
 ## Doğrulama (değişiklik sonrası)
 
 - Web: `cd apps/web && npx tsc --noEmit`. API: `cd apps/api && npx tsc --noEmit`. shared: build.
-- Sadece web (CSS/TSX) değiştiyse Vite HMR yeniler, restart gerekmez. API/shared değiştiyse BASLAT'ı yeniden başlat.
+- Sadece web (CSS/TSX) değiştiyse Vite HMR yeniler, restart gerekmez. API/shared değiştiyse `pnpm dev`'i yeniden başlat.
 
 ## Tuzaklar / workaround'lar
 

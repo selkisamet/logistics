@@ -20,8 +20,6 @@
     "db:migrate": "pnpm --filter @lojistik/api prisma migrate dev",
     "db:seed": "pnpm --filter @lojistik/api db:seed",
     "db:studio": "pnpm --filter @lojistik/api prisma studio",
-    "pg:start": "\".tools/pgsql/bin/pg_ctl\" -D .tools/pgdata -l .tools/pg.log -o \"-p 5432\" start",
-    "pg:stop": "\".tools/pgsql/bin/pg_ctl\" -D .tools/pgdata stop",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {

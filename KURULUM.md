@@ -118,27 +118,10 @@ hesabını da elden geçir.
 
 ---
 
-## 5. Gecelik yedek
+## 5. Yedek
 
-```bash
-crontab -e
-```
-
-Şu satırı ekle (her gece 02:00):
-
-```
-0 2 * * * /opt/lojistik/yedek.sh >> /var/log/lojistik-yedek.log 2>&1
-```
-
-Elle denemek için: `/opt/lojistik/yedek.sh`
-
-Yedekler `/opt/lojistik/backups/` altında, 14 gün tutulur.
-
-> ⚠️ **Bu yedekler aynı sunucuda.** Sunucu tamamen giderse yedekler de gider.
-> İki katman ekle:
-> 1. Sağlayıcının **snapshot/yedekleme** hizmetini aç (sipariş panelinden)
-> 2. Ara sıra kendi bilgisayarına indir:
->    `scp root@IP:/opt/lojistik/backups/*.dump .`
+> Uygulamada otomatik yedek betiği YOK. Veriyi korumak için sağlayıcının panelinden
+> **snapshot/yedekleme** hizmetini açık tut.
 
 ---
 
@@ -166,25 +149,8 @@ değiştirsen bile yalnız DNS'i çevirirsin.
 | Durum | `docker compose -f docker-compose.prod.yml ps` |
 | Yeniden başlat | `docker compose -f docker-compose.prod.yml restart app` |
 | Veritabanına gir | `docker compose -f docker-compose.prod.yml exec db psql -U lojistik -d lojistik` |
-| Elle yedek | `./yedek.sh` |
 
 **Sunucu yeniden başlarsa her şey kendiliğinden ayağa kalkar** (`restart: unless-stopped`).
-
----
-
-## Geri yükleme
-
-```bash
-cd /opt/lojistik
-
-# Veritabanı
-cat backups/db-YYYYMMDD-HHMM.dump | docker compose -f docker-compose.prod.yml exec -T db \
-  pg_restore -U lojistik -d lojistik --clean --if-exists
-
-# Fotoğraflar
-docker run --rm -v lojistik_uploads:/hedef -v "$(pwd)/backups":/kaynak:ro \
-  alpine tar xzf /kaynak/uploads-YYYYMMDD-HHMM.tar.gz -C /hedef
-```
 
 ---
 
@@ -194,8 +160,6 @@ docker run --rm -v lojistik_uploads:/hedef -v "$(pwd)/backups":/kaynak:ro \
   ağından erişilir. Dışarıdan bağlanman gerekirse SSH tüneli kullan.
 - **`caddy_data` volume'ünü silme** — sertifikalar orada. Silersen Let's Encrypt
   haftalık limitine takılabilirsin.
-- **[render.yaml](render.yaml) duruyor.** Render'daki servisi kurulum
-  doğrulandıktan sonra kapat; geri dönüş gerekirse dosya elinde.
 - **Eski veriyi taşıyacaksan** Supabase'den `pg_dump` alıp yukarıdaki geri
   yükleme adımıyla aktar. Fotoğraflar Render free diskte olduğu için muhtemelen
   zaten kaybolmuştur.

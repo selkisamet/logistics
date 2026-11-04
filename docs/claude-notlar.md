@@ -20,8 +20,6 @@ Kullanıcı: *"Tesellüm fişine dokunmayacaktın, olduğu gibi kalacaktı. Çü
 ## Firma bilgisayarına özgü ortam notları (yalnız orada geçerli)
 
 - Node PATH'te değildi (`C:\Program Files\nodejs`); pnpm `npm i -g pnpm@9` ile `%APPDATA%\npm`'e kuruldu.
-- PostgreSQL **taşınabilir**: `.tools/pgsql`, veri `.tools/pgdata`, trust auth, port 5432, db `lojistik`,
-  `pnpm pg:start` / `pnpm pg:stop`. `initdb` Türkçe locale yüzünden hata verdi → `--locale=C`.
 - Proje klasörü taşınır/yeniden adlandırılırsa node_modules bozulur (pnpm mutlak yol linkleri).
   Onarım: node süreçlerini durdur → `pnpm install --config.confirmModulesPurge=false` (bayraksız
   arka planda "Proceed? (Y/n)" sorusunda takılır) → `cd apps/api && pnpm prisma generate`
